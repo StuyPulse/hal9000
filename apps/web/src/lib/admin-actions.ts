@@ -40,7 +40,7 @@ export async function createPracticeMatch(_: ActionState, formData: FormData): P
 }
 
 const manualEventSchema = z.object({ name: z.string().trim().min(3).max(160), startsAt: z.string().date(), endsAt: z.string().date().optional() }).refine((input) => !input.endsAt || input.endsAt >= input.startsAt, { message: "The end date must not be before the event date." });
-const manualMatchSchema = z.object({ eventId: z.string().uuid(), matchId: z.union([z.literal(""), z.string().uuid()]), matchNumber: z.coerce.number().int().positive(), matchType: z.enum(["qualification", "playoff", "practice"]), redTeams: z.string(), blueTeams: z.string(), scheduledAt: z.string().optional() });
+const manualMatchSchema = z.object({ eventId: z.string().uuid(), matchId: z.union([z.literal(""), z.string().uuid()]), matchNumber: z.coerce.number().int().positive(), matchType: z.enum(["qualification", "playoff", "practice"]), redTeams: z.string(), blueTeams: z.string(), scheduledAtIso: z.iso.datetime({ offset: true }).optional() });
 
 function manualEventKey() { return `manual_${randomUUID().replaceAll("-", "")}`; }
 function parseAllianceTeams(value: string) { return [...new Set(value.split(/[\s,]+/).filter(Boolean).map(Number))]; }
@@ -117,13 +117,13 @@ export async function removeManualEventTeam(_: ActionState, formData: FormData):
 
 export async function saveManualMatch(_: ActionState, formData: FormData): Promise<ActionState> {
   try {
-    const parsed = manualMatchSchema.safeParse({ eventId: formData.get("eventId"), matchId: formData.get("matchId") || "", matchNumber: formData.get("matchNumber"), matchType: formData.get("matchType"), redTeams: formData.get("redTeams"), blueTeams: formData.get("blueTeams"), scheduledAt: formData.get("scheduledAt") || undefined });
+    const parsed = manualMatchSchema.safeParse({ eventId: formData.get("eventId"), matchId: formData.get("matchId") || "", matchNumber: formData.get("matchNumber"), matchType: formData.get("matchType"), redTeams: formData.get("redTeams"), blueTeams: formData.get("blueTeams"), scheduledAtIso: formData.get("scheduledAtIso") || undefined });
     if (!parsed.success) return { error: "Enter a valid match number, type, and schedule." };
     const red = parseAllianceTeams(parsed.data.redTeams), blue = parseAllianceTeams(parsed.data.blueTeams);
     if (!red.length || !blue.length || red.length > 3 || blue.length > 3 || [...red, ...blue].some((number) => !Number.isInteger(number) || number <= 0) || red.some((number) => blue.includes(number))) return { error: "Enter one to three distinct positive team numbers for each alliance." };
     const { database, organizationId, event } = await manualEventContext(parsed.data.eventId);
     const teams = await ensureManualEventTeams(database, organizationId, event.id, [...red, ...blue]);
-    const match = { event_id: event.id, match_number: parsed.data.matchNumber, match_type: parsed.data.matchType, red_teams: red.map((number) => teams.get(number)!), blue_teams: blue.map((number) => teams.get(number)!), scheduled_at: parsed.data.scheduledAt ? new Date(parsed.data.scheduledAt).toISOString() : null, status: "scheduled" };
+    const match = { event_id: event.id, match_number: parsed.data.matchNumber, match_type: parsed.data.matchType, red_teams: red.map((number) => teams.get(number)!), blue_teams: blue.map((number) => teams.get(number)!), scheduled_at: parsed.data.scheduledAtIso ?? null, status: "scheduled" };
     const { error } = parsed.data.matchId
       ? await database.from("matches").update(match).eq("id", parsed.data.matchId).eq("event_id", event.id)
       : await database.from("matches").insert({ ...match, tba_match_key: `manual_${randomUUID()}` });
