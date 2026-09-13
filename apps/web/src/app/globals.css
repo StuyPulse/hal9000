@@ -285,6 +285,12 @@
   .scoring-row strong { @apply text-sm; }
   .form-actions { @apply flex justify-end gap-3; }
   .form-field-actions { @apply mb-4 flex flex-wrap gap-2; }
+  .breakage-issues { @apply mt-4 grid gap-3; }
+  .breakage-issue { @apply rounded-lg border border-stuypulse-border bg-stuypulse-surface p-4; }
+  .breakage-issue-head { @apply mb-3 flex items-center justify-between gap-3; }
+  .breakage-issue-head strong { @apply text-sm; }
+  .icon-button { @apply grid h-9 w-9 place-items-center rounded-lg border border-stuypulse-border bg-stuypulse-bg text-stuypulse-textMuted transition hover:border-stuypulse-red hover:text-stuypulse-text; }
+  .breakage-add { @apply justify-self-start; }
   .match-page-header { @apply sticky top-0 z-20 -mx-3 mb-5 bg-stuypulse-bg/95 px-3 pt-3; backdrop-filter:blur(10px); }
   .match-page-header .topbar { @apply mb-0 border-b border-stuypulse-border pb-4; }
   .row-actions { @apply flex shrink-0 flex-wrap items-center gap-2; }

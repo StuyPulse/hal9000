@@ -1,6 +1,6 @@
 "use client";
 
-import { FlipHorizontal2 } from "lucide-react";
+import { FlipHorizontal2, Plus, Trash2 } from "lucide-react";
 import { useState, type CSSProperties } from "react";
 import { createClient } from "@/lib/supabase/client";
 
@@ -14,6 +14,7 @@ type Props = {
   manualMatch?: { stage: string; label?: string };
 };
 type Score = { shoot: number; ferry: number };
+type BreakageIssue = { id: string; timestamp: string; tag: string; otherIssue: string };
 
 const spots = [
   { id: "outpost", label: "Outpost", x: "8%", y: "10%" },
@@ -26,6 +27,7 @@ const spots = [
 ];
 const tags = ["Intake broke", "Shooter broke", "Drive issue", "Electrical", "Other"];
 const empty = (): Score => ({ shoot: 0, ferry: 0 });
+const emptyBreakageIssue = (): BreakageIssue => ({ id: crypto.randomUUID(), timestamp: "", tag: "", otherIssue: "" });
 
 export function RebuiltMatchForm({ eventId, matchId, teamId, assignmentId, alliance = "red", otherTeams, manualMatch }: Props) {
   const [noShow, setNoShow] = useState(false);
@@ -37,9 +39,7 @@ export function RebuiltMatchForm({ eventId, matchId, teamId, assignmentId, allia
   const [level, setLevel] = useState(5);
   const [defended, setDefended] = useState<string[]>([]);
   const [broke, setBroke] = useState(false);
-  const [tag, setTag] = useState("");
-  const [otherBreakIssue, setOtherBreakIssue] = useState("");
-  const [timestamp, setTimestamp] = useState("");
+  const [breakageIssues, setBreakageIssues] = useState<BreakageIssue[]>([]);
   const [comments, setComments] = useState("");
   const [message, setMessage] = useState("");
   const [saving, setSaving] = useState(false);
@@ -77,20 +77,21 @@ export function RebuiltMatchForm({ eventId, matchId, teamId, assignmentId, allia
       setSaving(false);
       return;
     }
+    const savedBreakageIssues = broke ? breakageIssues.map(({ timestamp, tag, otherIssue }) => ({ timestamp, issue: tag === "Other" ? otherIssue.trim() || "Other" : tag || null })).filter((issue) => issue.timestamp || issue.issue) : [];
     const payload = {
       no_show: noShow, starting_spot: noShow ? null : spot, starting_spot_confirmed: Boolean(!noShow && spot),
       auto: { shoot: auto.shoot, ferry: auto.ferry }, teleop: { shoot: teleop.shoot, ferry: teleop.ferry },
       no_show_reason: noShow ? "No show" : null, auto_fuel: noShow ? 0 : total(auto), teleop_fuel: noShow ? 0 : total(teleop),
       fouls: noShow ? 0 : fouls, defense: noShow ? false : defense, defense_level: defense ? level : null,
-      defended_teams: defense ? defended : [], robot_broke: noShow ? false : broke, break_timestamp: broke ? timestamp : null,
-      break_tag: broke ? (tag === "Other" ? otherBreakIssue.trim() || "Other" : tag || null) : null, comments,
+      defended_teams: defense ? defended : [], robot_broke: noShow ? false : broke, breakage_issues: noShow ? [] : savedBreakageIssues,
+      break_timestamp: noShow ? null : savedBreakageIssues[0]?.timestamp ?? null, break_tag: noShow ? null : savedBreakageIssues[0]?.issue ?? null, comments,
       report_source: manualMatch ? "manual" : "scheduled",
       manual_match: manualMatch ? { stage: manualMatch.stage, label: manualMatch.label || null } : null,
     };
     const submittedAt = finalize ? new Date().toISOString() : null;
     const { error } = await supabase.from("scouting_entries").upsert({
       id: entryId, organization_id: member.organization_id, event_id: eventId, team_id: teamId, match_id: matchId ?? null,
-      assignment_id: assignmentId ?? null, scout_user_id: user.id, entry_type: "match", form_version: 3, payload,
+      assignment_id: assignmentId ?? null, scout_user_id: user.id, entry_type: "match", form_version: 4, payload,
       status: finalize ? "submitted" : "draft", submitted_at: submittedAt,
     }, { onConflict: "id" });
     if (!error && finalize && assignmentId) await supabase.from("scouting_assignments").update({ status: "complete", completed_at: submittedAt }).eq("id", assignmentId);
@@ -105,7 +106,7 @@ export function RebuiltMatchForm({ eventId, matchId, teamId, assignmentId, allia
       <div className="form-section"><div className="section-title">Scoring</div><div className="scoring-table"><div className="scoring-head"><span>Period</span><span>Scored</span><span>Ferried</span></div><ScoreRow label="Autonomous" value={auto} update={(key, value) => setAuto((score) => ({ ...score, [key]: Math.max(0, value) }))} autoRow /><ScoreRow label="Teleop" value={teleop} update={(key, value) => setTeleop((score) => ({ ...score, [key]: Math.max(0, value) }))} /></div></div>
       <div className="form-section"><div className="section-title">Fouls</div><Counter label="Fouls" value={fouls} by={1} setValue={setFouls} showLabel={false} /></div>
       <div className="form-section"><div className="section-title">Defense</div><label className="option-toggle"><input type="checkbox" checked={defense} onChange={(event) => setDefense(event.target.checked)} /> Played defense</label>{defense && <><div className="field"><label htmlFor="defense-level">Defense level: {level} / 10</label><input id="defense-level" type="range" min="1" max="10" value={level} onChange={(event) => setLevel(Number(event.target.value))} /></div><p className="muted">Select the opposing robots this team defended.</p><div className="team-picker" aria-label="Opposing teams defended against">{otherTeams.map((team) => <button type="button" aria-pressed={defended.includes(team.id)} key={team.id} className={defended.includes(team.id) ? `team-pick ${team.alliance}` : "team-pick"} onClick={() => setDefended((current) => current.includes(team.id) ? current.filter((id) => id !== team.id) : current.length < 3 ? [...current, team.id] : current)}>{team.number}</button>)}</div></>}</div>
-      <div className="form-section"><div className="section-title">Breakage · PulseCrew</div><label className="option-toggle"><input type="checkbox" checked={broke} onChange={(event) => setBroke(event.target.checked)} /> Robot broke / disabled</label>{broke && <div className="form-grid"><div className="field"><label htmlFor="break-timestamp">Timestamp (optional)</label><input id="break-timestamp" value={timestamp} onChange={(event) => setTimestamp(event.target.value)} placeholder="1:42" inputMode="numeric" /></div><div className="field"><label htmlFor="break-issue">Issue</label><select id="break-issue" value={tag} onChange={(event) => setTag(event.target.value)}><option value="">Choose an issue…</option>{tags.map((item) => <option key={item}>{item}</option>)}</select></div>{tag === "Other" && <div className="field"><label htmlFor="break-other">Describe the issue</label><input id="break-other" value={otherBreakIssue} onChange={(event) => setOtherBreakIssue(event.target.value)} placeholder="e.g. chain came off" /></div>}</div>}</div>
+      <div className="form-section"><div className="section-title">Breakage · PulseCrew</div><label className="option-toggle"><input type="checkbox" checked={broke} onChange={(event) => { const next = event.target.checked; setBroke(next); if (next && !breakageIssues.length) setBreakageIssues([emptyBreakageIssue()]); }} /> Robot broke / disabled</label>{broke && <div className="breakage-issues">{breakageIssues.map((issue, index) => <div className="breakage-issue" key={issue.id}><div className="breakage-issue-head"><strong>Issue {index + 1}</strong>{breakageIssues.length > 1 && <button type="button" className="icon-button" aria-label={`Remove issue ${index + 1}`} onClick={() => setBreakageIssues((current) => current.filter((item) => item.id !== issue.id))}><Trash2 size={16}/></button>}</div><div className="form-grid"><div className="field"><label htmlFor={`break-timestamp-${issue.id}`}>Timestamp (optional)</label><input id={`break-timestamp-${issue.id}`} value={issue.timestamp} onChange={(event) => setBreakageIssues((current) => current.map((item) => item.id === issue.id ? { ...item, timestamp: event.target.value } : item))} placeholder="1:42" inputMode="numeric" /></div><div className="field"><label htmlFor={`break-issue-${issue.id}`}>Issue</label><select id={`break-issue-${issue.id}`} value={issue.tag} onChange={(event) => setBreakageIssues((current) => current.map((item) => item.id === issue.id ? { ...item, tag: event.target.value } : item))}><option value="">Choose an issue…</option>{tags.map((item) => <option key={item}>{item}</option>)}</select></div>{issue.tag === "Other" && <div className="field"><label htmlFor={`break-other-${issue.id}`}>Describe the issue</label><input id={`break-other-${issue.id}`} value={issue.otherIssue} onChange={(event) => setBreakageIssues((current) => current.map((item) => item.id === issue.id ? { ...item, otherIssue: event.target.value } : item))} placeholder="e.g. chain came off" /></div>}</div></div>)}<button type="button" className="button secondary breakage-add" onClick={() => setBreakageIssues((current) => [...current, emptyBreakageIssue()])}><Plus size={16} aria-hidden="true"/>Add another issue</button></div>}</div>
     </fieldset>
     <div className="form-section"><div className="section-title">Comments</div><div className="field"><textarea id="match-comments" aria-label="Comments" disabled={saving || submitted} value={comments} onChange={(event) => setComments(event.target.value)} placeholder="Be succinct and include what the data won't show" /></div></div>
     {noShow && <p className="trend">No show records all scoring as zero; comments remain available.</p>}
