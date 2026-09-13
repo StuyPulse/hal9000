@@ -15,6 +15,7 @@ type Team = { id: string; team_number: number; name: string; opr?: number; event
 type Ranking = { id: string; team_id: string; category_id: string | null; rank: number | null; note: string; selected: boolean; tag_ids: string[]; created_by: string; updated_by: string; updated_at: string };
 type RankingChange = Pick<Ranking, "rank" | "category_id" | "note" | "selected" | "tag_ids">;
 type Change = { id: string; team_id: string; action: "baseline" | "created" | "updated" | "deleted"; before_state: Record<string, unknown> | null; after_state: Record<string, unknown> | null; created_at: string; teams?: { team_number: number; name: string } | null; profiles?: { display_name: string } | null };
+type Revision = { createdAt: string; changes: Change[] };
 const UNSORTED_TIER_ID = "__unsorted__";
 const unsortedTier: Category = { id: UNSORTED_TIER_ID, name: "Unsorted", color: "#64748b", sort_order: -1 };
 
@@ -40,14 +41,17 @@ export function PicklistBoard({ organizationId, eventId, userId, canEdit, catego
   const [activeTagIds, setActiveTagIds] = useState<string[]>([]);
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [dropTargetId, setDropTargetId] = useState<string | null>(null);
-  const [undoingChangeAt, setUndoingChangeAt] = useState<string | null>(null);
+  const [restoringRevisionAt, setRestoringRevisionAt] = useState<string | null>(null);
   const [historyOpen, setHistoryOpen] = useState(false);
   const orderedCategories = useMemo(() => [...categories].sort((left, right) => left.sort_order - right.sort_order || left.name.localeCompare(right.name)), [categories]);
   const orderedTags = useMemo(() => [...tags].sort((left, right) => left.sort_order - right.sort_order || left.name.localeCompare(right.name)), [tags]);
   const byTeam = useMemo(() => new Map(rankings.map((ranking) => [ranking.team_id, ranking])), [rankings]);
   const visibleTeamIds = useMemo(() => new Set(teams.filter((team) => !activeTagIds.length || (byTeam.get(team.id)?.tag_ids ?? []).some((tagId) => activeTagIds.includes(tagId))).map((team) => team.id)), [activeTagIds, byTeam, teams]);
-  const changeGroups = useMemo(() => { const groups = new Map<string, Change[]>(); for (const change of changes) groups.set(change.created_at, [...(groups.get(change.created_at) ?? []), change]); return groups; }, [changes]);
-  const latestChangeIds = useMemo(() => { const latest = new Set<string>(); const seenTeams = new Set<string>(); for (const change of changes) if (!seenTeams.has(change.team_id)) { latest.add(change.id); seenTeams.add(change.team_id); } return latest; }, [changes]);
+  const revisions = useMemo<Revision[]>(() => {
+    const groups = new Map<string, Change[]>();
+    for (const change of changes) groups.set(change.created_at, [...(groups.get(change.created_at) ?? []), change]);
+    return [...groups.entries()].map(([createdAt, groupedChanges]) => ({ createdAt, changes: groupedChanges }));
+  }, [changes]);
   const tierCategories = [unsortedTier, ...orderedCategories];
   const databaseCategoryId = (tierId: string) => tierId === UNSORTED_TIER_ID ? null : tierId;
   const allTeamsInTier = (tierId: string) => {
@@ -145,11 +149,50 @@ export function PicklistBoard({ organizationId, eventId, userId, canEdit, catego
   const finishDrag = () => { setDraggingId(null); setDropTargetId(null); };
   const dropOn = (event: DragEvent<HTMLElement>, categoryId: string, beforeTeamId?: string) => { event.preventDefault(); event.stopPropagation(); const teamId = event.dataTransfer.getData("text/plain") || draggingId; if (teamId) void moveToTier(teamId, categoryId, beforeTeamId); finishDrag(); };
 
-  async function undoChanges(group: Change[]) {
-    if (!canEdit || !group.length) return;
-    const restores = group.flatMap((change) => { const team = teams.find((item) => item.id === change.team_id); const before = restoreRankingState(change.before_state); return team && before ? [{ team, changes: before }] : []; });
-    if (restores.length !== group.length) { setNotice("That history entry cannot be undone safely."); return; }
-    const changeAt = group[0].created_at; setUndoingChangeAt(changeAt); await persistTeams(restores, restores.length === 1 ? `Restored Team ${restores[0].team.team_number}.` : `Restored ${restores.length} team changes.`); setUndoingChangeAt(null);
+  function defaultRankingState(team: Team): RankingChange {
+    return { rank: (teams.findIndex((item) => item.id === team.id) + 1) * 1024, category_id: null, note: "", selected: false, tag_ids: [] };
+  }
+
+  function rankingState(ranking: Ranking): RankingChange {
+    return { rank: ranking.rank, category_id: ranking.category_id, note: ranking.note, selected: ranking.selected, tag_ids: ranking.tag_ids };
+  }
+
+  function statesMatch(left: RankingChange, right: RankingChange) {
+    return left.rank === right.rank && left.category_id === right.category_id && left.note === right.note && left.selected === right.selected && left.tag_ids.length === right.tag_ids.length && left.tag_ids.every((tagId, index) => tagId === right.tag_ids[index]);
+  }
+
+  async function restoreRevision(revision: Revision) {
+    if (!canEdit) return;
+    const revisionIndex = revisions.findIndex((item) => item.createdAt === revision.createdAt);
+    if (revisionIndex < 0) return;
+
+    // Work backward from the current board through only newer revisions. The
+    // resulting map is the full board immediately after the selected revision.
+    const snapshot = new Map(rankings.map((ranking) => [ranking.team_id, rankingState(ranking)]));
+    for (const newerRevision of revisions.slice(0, revisionIndex)) {
+      for (const change of newerRevision.changes) {
+        const before = restoreRankingState(change.before_state);
+        if (change.action === "created" && !before) snapshot.delete(change.team_id);
+        else if (before) snapshot.set(change.team_id, { ...(snapshot.get(change.team_id) ?? {}), ...before } as RankingChange);
+      }
+    }
+
+    const teamById = new Map(teams.map((team) => [team.id, team]));
+    const affectedTeamIds = new Set([...rankings.map((ranking) => ranking.team_id), ...snapshot.keys()]);
+    const restores = [...affectedTeamIds].flatMap((teamId) => {
+      const team = teamById.get(teamId);
+      if (!team) return [];
+      // A ranking created after the selected version becomes an empty, unsorted
+      // row. That is visually and behaviorally the same as no ranking, while
+      // retaining an audit trail for this restore operation.
+      const desired = snapshot.get(teamId) ?? defaultRankingState(team);
+      const current = byTeam.get(teamId);
+      return current && statesMatch(rankingState(current), desired) ? [] : [{ team, changes: desired }];
+    });
+    if (!restores.length) { setNotice("The picklist already matches this version."); return; }
+    setRestoringRevisionAt(revision.createdAt);
+    await persistTeams(restores, `Restored the picklist to the ${new Date(revision.createdAt).toLocaleString()} version.`);
+    setRestoringRevisionAt(null);
   }
 
   return <>
@@ -163,7 +206,7 @@ export function PicklistBoard({ organizationId, eventId, userId, canEdit, catego
 
     <section className="picklist-tier-board" aria-label="Shared picklist tiers">{tierCategories.map((category) => { const allTierTeams = allTeamsInTier(category.id); const tierTeams = teamsInTier(category.id); return <section id={`picklist-tier-${category.id}`} className="card picklist-tier" style={{ "--tier": category.color } as CSSProperties} key={category.id} onDragOver={(event) => { if (canEdit) event.preventDefault(); }} onDrop={(event) => dropOn(event, category.id)}><div className="picklist-tier-head"><div><span className="picklist-tier-label">{category.name}</span><p className="muted">{activeTagIds.length ? `${tierTeams.length} of ${allTierTeams.length}` : tierTeams.length} teams</p></div></div><div className="picklist-tier-list">{tierTeams.map((team) => <TierTeamRow key={team.id} team={team} ranking={byTeam.get(team.id)} categories={tierCategories} tags={orderedTags} tierIndex={allTierTeams.findIndex((item) => item.id === team.id)} tierSize={allTierTeams.length} canEdit={canEdit} saving={savingIds.includes(team.id)} dragging={draggingId === team.id} dropTarget={dropTargetId === team.id} onDragStart={(event) => startDrag(event, team.id)} onDragEnd={finishDrag} onDragOver={(event) => { if (canEdit) { event.preventDefault(); if (dropTargetId !== team.id) setDropTargetId(team.id); } }} onDrop={(event) => dropOn(event, category.id, team.id)} onTierChange={(categoryId) => void moveToTier(team.id, categoryId)} onMove={(direction) => void moveWithinTier(team.id, category.id, direction)} onNote={(note) => void persistTeams([{ team, changes: { note } }], `Note saved for Team ${team.team_number}.`)} onSelected={(selected) => void persistTeams([{ team, changes: { selected } }], selected ? `Team ${team.team_number} selected.` : `Team ${team.team_number} unselected.`)} onTags={(tagIds) => void persistTeams([{ team, changes: { tag_ids: tagIds } }], `Tags saved for Team ${team.team_number}.`)}/>)}</div>{!tierTeams.length && <p className="muted picklist-empty-tier">{activeTagIds.length ? "No teams match these tags." : "Drop a team here."}</p>}</section>; })}</section>
 
-    <section className="card section picklist-history" role="region" aria-label="Picklist history"><div className="card-head"><div><h2>History</h2><span className="muted">{changes.length} recent changes</span></div><button type="button" className="button secondary" aria-expanded={historyOpen} onClick={() => setHistoryOpen((open) => !open)}>{historyOpen ? "Hide" : "View"} history</button></div>{historyOpen && <div className="picklist-activity">{changes.length ? changes.map((change) => { const group = changeGroups.get(change.created_at) ?? [change]; const isGroupLead = group[0]?.id === change.id; const canUndo = canEdit && isGroupLead && group.every((item) => item.action === "updated" && restoreRankingState(item.before_state) && latestChangeIds.has(item.id)); return <ChangeRow key={change.id} change={change} categories={orderedCategories} canUndo={canUndo} undoing={undoingChangeAt === change.created_at} onUndo={() => void undoChanges(group)}/>; }) : <p className="muted">No shared edits have been recorded yet.</p>}</div>}</section>
+    <section className="card section picklist-history" role="region" aria-label="Picklist version history"><div className="card-head"><div><h2>History</h2><span className="muted">{revisions.length} versions · {changes.length} recorded changes</span></div><button type="button" className="button secondary" aria-expanded={historyOpen} onClick={() => setHistoryOpen((open) => !open)}>{historyOpen ? "Hide" : "View"} full history</button></div>{historyOpen && <div className="picklist-activity">{revisions.length ? revisions.map((revision) => <RevisionCard key={revision.createdAt} revision={revision} categories={orderedCategories} canRestore={canEdit} restoring={restoringRevisionAt === revision.createdAt} onRestore={() => void restoreRevision(revision)}/>) : <p className="muted">No shared edits have been recorded yet.</p>}</div>}</section>
     {notice && createPortal(<p className="trend picklist-manager-notice" aria-live="polite">{notice}</p>, document.querySelector(".picklist-tier-manager") ?? document.body)}
   </>;
 }
@@ -187,8 +230,13 @@ function restoreRankingState(state: Change["before_state"]): Partial<RankingChan
   return Object.keys(restored).length ? restored : null;
 }
 
-function ChangeRow({ change, categories, canUndo, undoing, onUndo }: { change: Change; categories: Category[]; canUndo: boolean; undoing: boolean; onUndo: () => void }) {
+function RevisionCard({ revision, categories, canRestore, restoring, onRestore }: { revision: Revision; categories: Category[]; canRestore: boolean; restoring: boolean; onRestore: () => void }) {
+  const editors = [...new Set(revision.changes.map((change) => change.profiles?.display_name ?? "Unknown member"))];
+  return <article className="picklist-revision"><div className="picklist-revision-head"><div><strong>{revision.changes.length === 1 ? "1 team changed" : `${revision.changes.length} teams changed`}</strong><span>{editors.join(" · ")} · <LocalDateTime value={revision.createdAt}/></span></div>{canRestore && <button type="button" className="picklist-undo-button" disabled={restoring} onClick={onRestore}><RotateCcw size={13} aria-hidden="true"/>{restoring ? "Restoring…" : "Restore version"}</button>}</div><details className="picklist-revision-details" open={revision.changes.length <= 3}><summary>{revision.changes.length === 1 ? "View change" : `View ${revision.changes.length} changes`}</summary><div>{revision.changes.map((change) => <ChangeRow key={change.id} change={change} categories={categories}/>)}</div></details></article>;
+}
+
+function ChangeRow({ change, categories }: { change: Change; categories: Category[] }) {
   const before = change.before_state ?? {}; const after = change.after_state ?? {}; const category = (id: unknown) => typeof id === "string" ? categories.find((item) => item.id === id)?.name ?? "Unsorted" : "Unsorted";
   const details = change.action === "baseline" ? "Adopted as the initial shared ranking" : change.action === "created" ? `Added to ${category(after.category_id)}` : [before.rank !== after.rank && "Changed tier order", before.category_id !== after.category_id && `Tier ${category(before.category_id)} → ${category(after.category_id)}`, before.note !== after.note && "Updated note", before.selected !== after.selected && (after.selected ? "Selected" : "Unselected"), JSON.stringify(before.tag_ids ?? []) !== JSON.stringify(after.tag_ids ?? []) && "Updated tags"].filter(Boolean).join(" · ") || "Updated shared ranking";
-  return <div className="picklist-activity-row"><div><strong>{change.teams ? `${change.teams.team_number} · ${change.teams.name}` : "Team"}</strong><span>{details}</span></div><div className="picklist-activity-actions"><small>{change.profiles?.display_name ?? "Unknown member"} · <LocalDateTime value={change.created_at}/></small>{canUndo && <button type="button" className="picklist-undo-button" disabled={undoing} onClick={onUndo}><RotateCcw size={13} aria-hidden="true"/>{undoing ? "Undoing…" : "Undo"}</button>}</div></div>;
+  return <div className="picklist-activity-row"><div><strong>{change.teams ? `${change.teams.team_number} · ${change.teams.name}` : "Team"}</strong><span>{details}</span></div></div>;
 }

@@ -401,6 +401,14 @@
   .picklist-activity-row small { @apply shrink-0 text-right; font-family:'DM Mono',monospace; }
   .picklist-activity-actions { @apply flex shrink-0 items-center gap-2; }
   .picklist-undo-button { @apply inline-flex min-h-8 items-center gap-1 rounded-md border border-stuypulse-border bg-stuypulse-elevated px-2 text-xs font-bold text-stuypulse-text transition hover:border-stuypulse-red hover:text-stuypulse-red disabled:cursor-wait disabled:opacity-60; }
+  .picklist-revision { @apply rounded-lg border border-stuypulse-border bg-stuypulse-surface; }
+  .picklist-revision-head { @apply flex items-center justify-between gap-3 px-3 py-3; }
+  .picklist-revision-head > div { @apply grid gap-0.5; }
+  .picklist-revision-head strong { @apply text-sm; }
+  .picklist-revision-head span { @apply text-xs text-stuypulse-textMuted; }
+  .picklist-revision-details { @apply border-t border-stuypulse-border; }
+  .picklist-revision-details summary { @apply cursor-pointer px-3 py-2.5 text-xs font-bold text-stuypulse-textMuted transition hover:text-stuypulse-text; }
+  .picklist-revision-details > div { @apply grid gap-1 border-t border-stuypulse-border p-2; }
   .picklist-workspace { @apply sticky top-3 z-30 mb-4 p-0 shadow-elevated; }
   .picklist-tier-manager { @apply flex flex-wrap items-center gap-x-5 gap-y-3 px-4 py-3; }
   .picklist-manager-notice { @apply mb-0 basis-full text-xs; }
