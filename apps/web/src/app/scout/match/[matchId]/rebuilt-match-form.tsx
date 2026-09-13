@@ -17,13 +17,13 @@ type Score = { shoot: number; ferry: number };
 type BreakageIssue = { id: string; timestamp: string; tag: string; otherIssue: string };
 
 const spots = [
-  { id: "outpost", label: "Outpost", x: "8%", y: "10%" },
-  { id: "outpost-bump", label: "Outpost Bump", x: "8%", y: "30%" },
+  { id: "depot", label: "Depot", x: "8%", y: "10%" },
+  { id: "depot-bump", label: "Depot Bump", x: "8%", y: "30%" },
   { id: "hub", label: "Hub", x: "8%", y: "50%" },
-  { id: "depot-bump", label: "Depot Bump", x: "8%", y: "70%" },
-  { id: "depot", label: "Depot", x: "8%", y: "90%" },
-  { id: "outpost-trench", label: "Outpost Trench", x: "26%", y: "10%" },
-  { id: "depot-trench", label: "Depot Trench", x: "26%", y: "93%" },
+  { id: "outpost-bump", label: "Outpost Bump", x: "8%", y: "70%" },
+  { id: "outpost", label: "Outpost", x: "8%", y: "90%" },
+  { id: "depot-trench", label: "Depot Trench", x: "26%", y: "10%" },
+  { id: "outpost-trench", label: "Outpost Trench", x: "74%", y: "10%" },
 ];
 const tags = ["Intake broke", "Shooter broke", "Drive issue", "Electrical", "Other"];
 const empty = (): Score => ({ shoot: 0, ferry: 0 });
@@ -62,7 +62,9 @@ export function RebuiltMatchForm({ eventId, matchId, teamId, assignmentId, allia
 
   const disabled = noShow || saving || submitted;
   const total = (score: Score) => score.shoot + score.ferry;
-  const mapRotated = alliance === "red";
+  // The base field image has Red on the left. Rotate for Blue so each
+  // alliance's map uses the same physical starting-position arrangement.
+  const mapRotated = alliance === "blue";
   const mapMirrored = mirrored;
   const mapPosition = (value: string, axis: "x" | "y") => {
     const position = Number.parseFloat(value);

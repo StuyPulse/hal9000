@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { BarChart3, CalendarDays, Camera, ChevronLeft, ChevronRight, ClipboardCheck, ClipboardList, Globe2, LayoutDashboard, ListOrdered, Map, MoreHorizontal, Radio, Settings, ShieldCheck, TableProperties, X, type LucideIcon } from "lucide-react";
+import { BarChart3, CalendarDays, Camera, ChevronLeft, ChevronRight, ClipboardCheck, ClipboardList, Globe2, LayoutDashboard, ListOrdered, Map, MoreHorizontal, Radio, Settings, ShieldCheck, TableProperties, UsersRound, X, type LucideIcon } from "lucide-react";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
 import { BrandLogo } from "./brand-logo";
@@ -21,7 +21,7 @@ function NavLink({ item, active, compact = false, onNavigate }: { item: NavItem;
 export function Sidebar({ active, canManage, eventHref }: Props) {
   const [collapsed, setCollapsed] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
-  const workspace: NavItem[] = [["Assignments", "/dashboard", LayoutDashboard], ["Summary", `${eventHref}/summary`, BarChart3], ["Match schedule", `${eventHref}/matches`, TableProperties]];
+  const workspace: NavItem[] = [["Assignments", "/dashboard", LayoutDashboard], ["Summary", `${eventHref}/summary`, BarChart3], ["Teams", `${eventHref}/teams`, UsersRound], ["Match schedule", `${eventHref}/matches`, TableProperties]];
   const scoutingForms: NavItem[] = [["Match scouting", "/scout/match", ClipboardList], ["Pit scouting", "/scout/pit", Camera], ["Global scouting", "/scout/global", Globe2], ["Pre scouting", "/scout/pre-scout", ClipboardCheck]];
   const scoutRecords: NavItem[] = [["Submissions", "/submissions", BarChart3]];
   const strategy: NavItem[] = [["Match strategy", `${eventHref}/strategy`, Map], ["Picklist", `${eventHref}/picklist`, ListOrdered]];
@@ -30,8 +30,8 @@ export function Sidebar({ active, canManage, eventHref }: Props) {
   if (canManage) navigation.push(["Admin", admin]);
   // Keep the bottom bar to five comfortably tappable destinations. The rest are
   // available in More instead of making every item too small to use on a phone.
-  const mobilePrimary = [workspace[0], workspace[2], scoutingForms[0]];
-  const mobileMore = [workspace[1], ...scoutingForms.slice(1), ...scoutRecords, ...strategy, ...(canManage ? admin : [])];
+  const mobilePrimary = [workspace[0], workspace[3], scoutingForms[0]];
+  const mobileMore = [workspace[1], workspace[2], ...scoutingForms.slice(1), ...scoutRecords, ...strategy, ...(canManage ? admin : [])];
   return <aside className={`sidebar ${collapsed ? "collapsed" : ""}`}>
     <div className="sidebar-top"><Link href="/scout/match" className="brand"><BrandLogo/><span className="brand-copy">HAL9000<small>STUYPULSE · 694</small></span></Link><button className="sidebar-toggle" type="button" onClick={() => setCollapsed((current) => !current)} aria-label={collapsed ? "Expand navigation" : "Collapse navigation"}>{collapsed ? <ChevronRight size={17}/> : <ChevronLeft size={17}/>}</button></div>
     <nav className="nav-links desktop-nav" aria-label="Primary navigation">{navigation.map(([label, items]) => <div className="nav-section" key={label}><div className="nav-label">{label}</div>{items.map((item) => <NavLink item={item} active={active} compact={collapsed} key={item[0]}/>)}</div>)}</nav>
