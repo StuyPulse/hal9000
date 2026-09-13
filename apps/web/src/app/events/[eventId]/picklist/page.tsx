@@ -11,7 +11,7 @@ async function getCompletePicklistHistory(supabase: any, eventId: string) {
   for (let start = 0; ; start += pageSize) {
     const { data, error } = await supabase
       .from("picklist_change_log")
-      .select("id,team_id,action,before_state,after_state,created_at,teams(team_number,name),profiles!picklist_change_log_actor_user_id_fkey(display_name)")
+      .select("id,team_id,actor_user_id,action,before_state,after_state,created_at,teams(team_number,name),profiles!picklist_change_log_actor_user_id_fkey(display_name)")
       .eq("event_id", eventId)
       .order("created_at", { ascending: false })
       .range(start, start + pageSize - 1);
