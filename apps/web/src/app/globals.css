@@ -479,14 +479,17 @@
   .picklist-team-name small { @apply truncate text-xs text-stuypulse-textMuted; }
   .picklist-event-rank { @apply not-italic text-[10px] font-bold text-stuypulse-textMuted; font-family:'DM Mono',monospace; }
   .picklist-tag-picker { @apply relative; }
+  .picklist-row-controls { @apply relative flex items-center gap-1; }
+  .picklist-tier-picker { @apply relative; }
   .picklist-tag-picker-trigger { @apply inline-flex h-9 min-w-9 items-center justify-center gap-1 rounded-md border border-stuypulse-border bg-stuypulse-bg px-2 text-stuypulse-textMuted transition hover:border-stuypulse-text hover:text-stuypulse-text disabled:cursor-wait disabled:opacity-60; }
   .picklist-tag-picker-trigger.has-tags { @apply border-stuypulse-textMuted/50; }
   .picklist-tag-dot { @apply h-2 w-2 rounded-full; background-color:var(--tag); box-shadow:0 0 0 1px color-mix(in srgb, var(--tag) 45%, transparent); }
   .picklist-tag-picker-menu { @apply absolute left-0 top-[calc(100%+0.5rem)] z-40 grid w-56 gap-1 rounded-lg border border-stuypulse-border bg-stuypulse-elevated p-2 shadow-elevated; }
   .picklist-tag-picker-menu button { @apply min-h-9 rounded-md border border-transparent px-2 text-left text-xs font-bold text-stuypulse-textMuted transition hover:bg-stuypulse-bg; }
   .picklist-tag-picker-menu button.active { border-color:var(--tag); color:var(--tag); background-color:color-mix(in srgb, var(--tag) 12%, transparent); }
-  .picklist-picker-tier-select { @apply mt-1 grid gap-1 border-t border-stuypulse-border pt-2 text-[9px] font-bold uppercase tracking-[0.08em] text-stuypulse-textMuted; font-family:'DM Mono',monospace; }
-  .picklist-picker-tier-select select { @apply min-h-9 rounded-md border border-stuypulse-border bg-stuypulse-bg px-2 text-xs font-bold normal-case tracking-normal text-stuypulse-text; font-family:Manrope,sans-serif; }
+  .picklist-tier-picker-menu { @apply absolute left-0 top-[calc(100%+0.5rem)] z-40 grid w-44 gap-1 rounded-lg border border-stuypulse-border bg-stuypulse-elevated p-2 shadow-elevated; }
+  .picklist-tier-picker-menu button { @apply min-h-9 rounded-md border border-transparent px-2 text-left text-xs font-bold text-stuypulse-textMuted transition hover:bg-stuypulse-bg; }
+  .picklist-tier-picker-menu button.active { border-color:var(--tier); color:var(--tier); background-color:color-mix(in srgb, var(--tier) 12%, transparent); }
   .picklist-team-tags { @apply flex min-w-0 flex-wrap items-center gap-1.5; }
   .picklist-team-tags.read-only span { @apply min-h-7 rounded-full border border-stuypulse-border bg-stuypulse-bg px-2 text-[10px] font-bold text-stuypulse-textMuted; border-color:var(--tag); color:var(--tag); background-color:color-mix(in srgb, var(--tag) 12%, transparent); }
   .picklist-selected { @apply inline-flex min-h-9 items-center gap-1.5 rounded-md border border-stuypulse-border px-2 text-xs font-bold text-stuypulse-textMuted; }
@@ -811,7 +814,7 @@
   .picklist-tier-form input:first-of-type, .picklist-tag-form input:first-of-type { @apply min-w-[150px]; }
   .picklist-team-row { @apply grid-cols-[minmax(0,1fr)_auto] items-start gap-x-2 gap-y-3 p-3.5; }
   .picklist-selected { @apply order-1 justify-self-end; }
-  .picklist-tag-picker, .picklist-team-tags, .picklist-read-note { @apply col-span-2 order-4; }
+  .picklist-row-controls, .picklist-team-tags, .picklist-read-note { @apply col-span-2 order-4; }
   .picklist-order-buttons { @apply col-span-2 order-5 grid grid-cols-2; }
   .picklist-order-buttons button { @apply min-h-11; }
   .picklist-note { @apply col-span-2 order-4; }
