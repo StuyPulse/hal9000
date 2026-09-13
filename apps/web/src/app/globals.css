@@ -74,10 +74,10 @@
   .tag.pending { @apply bg-stuypulse-warning/15 text-stuypulse-warning; }
   .tag.live { @apply bg-stuypulse-red/20 text-stuypulse-redHover; }
 
-  .match-row { @apply flex items-center gap-3 border-t border-stuypulse-border py-3; }
+  .match-row { @apply flex min-w-0 items-center gap-3 border-t border-stuypulse-border py-3; }
   .match-time { @apply w-11 text-[11px] font-medium text-stuypulse-textMuted; font-family: 'DM Mono', monospace; }
   .match-num { @apply w-8 font-bold; }
-  .alliances { @apply flex-1 text-xs leading-relaxed; }
+  .alliances { @apply min-w-0 flex-1 break-words text-xs leading-relaxed; }
   .match-score { @apply flex min-w-16 items-center justify-center gap-1 rounded-md border border-stuypulse-border bg-stuypulse-bg px-2 py-1 text-sm font-extrabold; font-family: 'DM Mono', monospace; }
   .red { @apply text-stuypulse-redHover; }
   .blue { @apply text-sky-300; }
