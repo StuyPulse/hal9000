@@ -131,9 +131,11 @@
   .scouting-range-with-input > span { @apply text-xs font-bold text-stuypulse-textMuted; }
   .pit-traversal { @apply col-span-full rounded-lg border border-stuypulse-border bg-stuypulse-bg/40 p-4; }
   .pit-traversal legend { @apply px-1 text-sm font-bold text-stuypulse-text; }
-  .pit-traversal > div { @apply flex flex-wrap gap-2; }
-  .pit-traversal label { @apply inline-flex min-h-10 items-center gap-2 rounded-lg border border-stuypulse-border bg-stuypulse-surface px-3 text-sm font-bold text-stuypulse-textMuted transition hover:border-stuypulse-text; }
-  .pit-traversal input { @apply h-4 w-4 accent-stuypulse-red; }
+  .traversal-options { @apply grid grid-cols-3 gap-3; }
+  .traversal-options button { @apply grid min-h-20 content-center gap-1 rounded-lg border border-stuypulse-border bg-stuypulse-surface px-3 py-3 text-left transition hover:border-stuypulse-textMuted hover:bg-stuypulse-elevated; }
+  .traversal-options button.active { @apply border-stuypulse-red bg-stuypulse-red/15; box-shadow: inset 3px 0 0 theme('colors.stuypulse.red'); }
+  .traversal-options strong { @apply text-sm text-stuypulse-text; }
+  .traversal-options small { @apply text-xs font-medium text-stuypulse-textMuted; }
   .auto-path-drawer { @apply rounded-lg border border-stuypulse-border bg-stuypulse-bg p-3; }
   .auto-path-tools { @apply mb-3 flex flex-wrap items-center gap-2; }
   .auto-path-tools > button:not(.button) { @apply h-8 w-8 rounded-full border-2 border-white/40 ring-offset-2 ring-offset-stuypulse-bg; background: var(--pen); }
