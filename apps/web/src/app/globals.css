@@ -261,7 +261,12 @@
   .manual-event-section h3 { @apply text-base font-extrabold; }
   .manual-team-form, .manual-match-form { @apply mt-3 grid items-end gap-3; }
   .manual-team-form { @apply grid-cols-[130px_minmax(0,1fr)_auto]; }
-  .manual-match-form { @apply grid-cols-[100px_150px_minmax(180px,1fr)_minmax(170px,1fr)_minmax(170px,1fr)_auto]; }
+  .manual-match-form { grid-template-columns: repeat(14, minmax(0, 1fr)); }
+  .manual-match-form > label:nth-of-type(1) { grid-column: span 1 / span 1; }
+  .manual-match-form > label:nth-of-type(2) { grid-column: span 2 / span 2; }
+  .manual-match-form > label:nth-of-type(3) { grid-column: span 3 / span 3; }
+  .manual-match-form > label:nth-of-type(4), .manual-match-form > label:nth-of-type(5) { grid-column: span 3 / span 3; }
+  .manual-match-form > .button { grid-column: span 2 / span 2; }
   .manual-team-form label, .manual-match-form label { @apply grid gap-1 text-[10px] font-bold uppercase tracking-[0.08em] text-stuypulse-textMuted; font-family:'DM Mono',monospace; }
   .manual-team-form input, .manual-match-form input, .manual-match-form select { @apply min-h-10 rounded-md border border-stuypulse-border bg-stuypulse-surface px-2 text-sm text-stuypulse-text; font-family:Manrope,sans-serif; }
   .manual-team-list { @apply mt-3 grid gap-1; }
@@ -269,7 +274,7 @@
   .manual-team-row > span:first-child { @apply flex-1; }
   .manual-team-row .button { @apply min-h-8 px-2 text-xs; }
   .manual-match-list { @apply mt-4 flex flex-wrap gap-2; }
-  .manual-match-list button { @apply grid rounded-md border border-stuypulse-border bg-stuypulse-bg px-3 py-2 text-left text-xs transition hover:border-stuypulse-red; }
+  .manual-match-list button { @apply grid min-w-48 flex-1 rounded-md border border-stuypulse-border bg-stuypulse-bg px-3 py-2 text-left text-xs transition hover:border-stuypulse-red; }
   .manual-match-list button.active { @apply border-stuypulse-red bg-stuypulse-red/10; }
   .manual-match-list button span { @apply text-stuypulse-textMuted; }
   .schedule-filters select { @apply w-full rounded-lg border border-stuypulse-border bg-stuypulse-bg px-3 py-2 text-sm text-stuypulse-text; }
@@ -520,6 +525,8 @@
   .compare-picker .button { @apply col-span-2; }
   .auth { @apply grid-cols-1; }
   .auth-aside { @apply hidden; }
+  .manual-match-form { @apply grid-cols-2; }
+  .manual-match-form > label, .manual-match-form > .button { grid-column: auto; }
 }
 
 @media (max-width: 560px) {
