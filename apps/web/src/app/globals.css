@@ -403,7 +403,7 @@
   .picklist-tier-head p { @apply mb-0 mt-0.5 text-xs; }
   .picklist-tier-label { @apply text-base font-extrabold; color:var(--tier); }
   .picklist-tier-list { @apply grid gap-px bg-stuypulse-border; }
-  .picklist-team-row { @apply grid grid-cols-[minmax(160px,.85fr)_auto_minmax(190px,1.35fr)_auto_auto_auto] items-center gap-2 bg-stuypulse-surface p-3 transition-colors; }
+  .picklist-team-row { @apply grid grid-cols-[minmax(160px,.7fr)_minmax(124px,.42fr)_auto_minmax(190px,1.2fr)_auto_auto_auto] items-center gap-2 bg-stuypulse-surface p-3 transition-colors; }
   .picklist-team-row.dragging { @apply opacity-45; }
   .picklist-team-row.drop-target { @apply bg-stuypulse-elevated; }
   .picklist-team-name { @apply flex min-w-0 items-center gap-2; }
@@ -413,6 +413,10 @@
   .picklist-team-name > span:last-child { @apply flex min-w-0 flex-col; }
   .picklist-team-name strong { @apply inline-flex items-center gap-1.5 text-sm; }
   .picklist-team-name small { @apply truncate text-xs text-stuypulse-textMuted; }
+  .picklist-tier-choice { @apply grid min-w-0 gap-0.5; }
+  .picklist-tier-choice > span { @apply text-[9px] font-bold uppercase tracking-[0.08em] text-stuypulse-textMuted; font-family:'DM Mono',monospace; }
+  .picklist-tier-choice .app-select-trigger { @apply min-h-9 rounded-md px-2 py-1.5 text-xs font-bold; }
+  .picklist-tier-choice .app-select-menu button { @apply min-h-9 px-2 py-1.5 text-xs; }
   .picklist-event-rank { @apply not-italic text-[10px] font-bold text-stuypulse-textMuted; font-family:'DM Mono',monospace; }
   .picklist-tag-picker { @apply relative; }
   .picklist-tag-picker-trigger { @apply grid h-9 w-9 place-items-center rounded-md border border-stuypulse-border bg-stuypulse-bg text-stuypulse-textMuted transition hover:border-stuypulse-text hover:text-stuypulse-text disabled:cursor-wait disabled:opacity-60; }
@@ -699,12 +703,13 @@
   .picklist-tier-form input:first-of-type, .picklist-tag-form input:first-of-type { @apply min-w-[150px]; }
   .picklist-team-row { @apply grid-cols-[minmax(0,1fr)_auto] items-start gap-x-2 gap-y-3 p-3.5; }
   .picklist-selected { @apply order-1 justify-self-end; }
-  .picklist-tag-picker, .picklist-team-tags, .picklist-read-note { @apply col-span-2 order-3; }
-  .picklist-order-buttons { @apply col-span-2 order-4 grid grid-cols-2; }
+  .picklist-tier-choice { @apply col-span-2 order-3; }
+  .picklist-tag-picker, .picklist-team-tags, .picklist-read-note { @apply col-span-2 order-4; }
+  .picklist-order-buttons { @apply col-span-2 order-5 grid grid-cols-2; }
   .picklist-order-buttons button { @apply min-h-11; }
-  .picklist-note { @apply col-span-2 order-3; }
+  .picklist-note { @apply col-span-2 order-4; }
   .picklist-note textarea { @apply min-h-24 w-full text-sm; }
-  .picklist-save-state { @apply col-span-2 order-5 self-center text-right; }
+  .picklist-save-state { @apply col-span-2 order-6 self-center text-right; }
   .photo-coverage { @apply grid-cols-1; }
   .global-document-editor { @apply grid-cols-1; }
   .global-document-editor .button { @apply w-full; }
