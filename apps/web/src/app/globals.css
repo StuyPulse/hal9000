@@ -115,6 +115,7 @@
   .form-grid { @apply grid grid-cols-2 gap-4; }
   .auto-path-field { @apply col-span-full; }
   .field-hint { @apply mb-2 mt-1 text-xs leading-relaxed text-stuypulse-textMuted; }
+  .range-warning { @apply text-stuypulse-warning; }
   .scouting-range-field { @apply col-span-full; }
   .scouting-range-pair { @apply grid grid-cols-2 gap-4; }
   .scouting-range-pair label { @apply grid gap-2 text-sm font-bold normal-case tracking-normal text-stuypulse-text; font-family:Manrope,sans-serif; }
