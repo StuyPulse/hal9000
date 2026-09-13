@@ -150,7 +150,9 @@
   .counter input { @apply h-11 w-20 rounded-lg border border-stuypulse-border bg-stuypulse-bg px-2 py-1 text-center; }
   .field-map { @apply relative isolate mt-4 min-h-[440px] overflow-hidden rounded-panel border border-stuypulse-border bg-white; aspect-ratio: 2.04 / 1; }
   .field-map-art { @apply absolute inset-0 bg-cover bg-center; background-image: url('/2026-field-map.png'); }
-  .field-map.flipped .field-map-art { transform: scaleX(-1); }
+  .field-map.rotated .field-map-art { transform: rotate(180deg); }
+  .field-map.mirrored .field-map-art { transform: scaleX(-1); }
+  .field-map.rotated.mirrored .field-map-art { transform: rotate(180deg) scaleX(-1); }
   .spot { @apply absolute z-10 grid h-12 w-[96px] -translate-y-1/2 content-center justify-items-center rounded-md border-2 border-stuypulse-red bg-stuypulse-surface px-1 py-1 text-center text-stuypulse-text shadow-panel transition hover:scale-105 hover:bg-stuypulse-red hover:text-white; top:var(--spot-y); left:var(--spot-x); touch-action: manipulation; }
   .spot span { @apply max-w-full text-[12px] font-extrabold leading-tight text-stuypulse-text; text-shadow: 0 1px 2px rgb(0 0 0 / 0.45); }
   .spot.red { @apply bg-stuypulse-red text-white; }
@@ -162,12 +164,13 @@
   .team-pick { @apply min-h-11 rounded-lg border border-stuypulse-border bg-stuypulse-bg px-3 py-2 text-sm font-bold; }
   .team-pick.red { @apply border-stuypulse-red bg-stuypulse-red text-white; }
   .team-pick.blue { @apply border-sky-500 bg-sky-600 text-white; }
-  .robot-picker { @apply mt-2 grid grid-cols-2 gap-2; }
-  .robot-alliance { @apply grid content-start gap-2; }
+  .scheduled-scout-fields { @apply grid gap-5; }
+  .robot-picker { @apply mt-2 grid gap-2; }
+  .robot-alliance { @apply grid grid-cols-[auto_repeat(3,minmax(0,1fr))] items-stretch gap-2; }
   .robot-alliance-label { @apply px-1 text-[10px] font-extrabold uppercase tracking-[0.1em]; font-family:'DM Mono',monospace; }
   .robot-alliance.red .robot-alliance-label { @apply text-stuypulse-redHover; }
   .robot-alliance.blue .robot-alliance-label { @apply text-sky-400; }
-  .robot-pick { @apply min-h-12 rounded-lg border-2 px-3 py-2 text-left text-sm font-extrabold transition hover:brightness-110; }
+  .robot-pick { @apply min-h-12 min-w-0 rounded-lg border-2 px-3 py-2 text-left text-sm font-extrabold transition hover:brightness-110; }
   .robot-pick.red { @apply border-stuypulse-red bg-stuypulse-red/20 text-stuypulse-text; }
   .robot-pick.blue { @apply border-sky-500 bg-sky-600/25 text-stuypulse-text; }
   .robot-pick.selected.red { @apply bg-stuypulse-red text-white; }
@@ -260,11 +263,6 @@
   .match-scout-grid { @apply grid grid-cols-2 items-start gap-5; }
   .match-scout-grid .scouting-card { @apply mx-0 w-full; }
   .scouting-card { @apply mx-auto grid max-w-5xl gap-5 rounded-panel border border-stuypulse-border bg-stuypulse-surface p-6 shadow-elevated; }
-  .form-sticky-team { @apply sticky top-3 z-20 -mx-2 flex items-center justify-between gap-3 rounded-lg border border-stuypulse-border bg-stuypulse-surface/95 px-3 py-2 shadow-elevated; backdrop-filter:blur(10px); }
-  .form-sticky-team > div { @apply flex min-w-0 items-baseline gap-2; }
-  .form-sticky-team span, .form-sticky-team small { @apply text-[10px] font-bold uppercase tracking-[0.08em] text-stuypulse-textMuted; font-family:'DM Mono',monospace; }
-  .form-sticky-team strong { @apply text-xl font-extrabold tracking-[-0.06em]; }
-  .form-sticky-team .button { @apply min-h-9 shrink-0 px-3 py-1.5 text-xs; }
   .form-grid > *, .scoring-row > * { min-width: 0; }
   .form-intro { @apply border-b border-stuypulse-border pb-5; }
   .form-intro h2 { @apply mt-2 text-2xl; }
@@ -286,6 +284,9 @@
   .scoring-row.auto-row { @apply border-l-2 border-l-stuypulse-red bg-stuypulse-red/10; }
   .scoring-row strong { @apply text-sm; }
   .form-actions { @apply flex justify-end gap-3; }
+  .form-field-actions { @apply mb-4 flex flex-wrap gap-2; }
+  .match-page-header { @apply sticky top-0 z-20 -mx-3 mb-5 bg-stuypulse-bg/95 px-3 pt-3; backdrop-filter:blur(10px); }
+  .match-page-header .topbar { @apply mb-0 border-b border-stuypulse-border pb-4; }
   .row-actions { @apply flex shrink-0 flex-wrap items-center gap-2; }
   .history-details { @apply mt-4 border-t border-stuypulse-border pt-4; }
   details summary { @apply cursor-pointer text-sm font-bold text-stuypulse-text; }
@@ -608,6 +609,11 @@
   .auth-aside { @apply hidden; }
   .manual-match-form { @apply grid-cols-2; }
   .manual-match-form > label, .manual-match-form > .button { grid-column: auto; }
+  .scoring-head { @apply hidden; }
+  .scoring-row { @apply grid-cols-1 gap-3 px-3 py-3; }
+  .scoring-row strong { @apply col-auto; }
+  .scoring-row .counter { @apply relative w-full justify-between pt-5; }
+  .scoring-row .counter::before { @apply absolute left-0 top-0 text-[10px] font-medium uppercase tracking-[0.1em] text-stuypulse-textMuted; font-family: 'DM Mono', monospace; content: attr(data-label); }
 }
 
 @media (max-width: 560px) {
@@ -654,9 +660,7 @@
   .form-launcher { @apply grid-cols-1 gap-3; }
   .form-launch { @apply min-h-32 p-4; }
   .scouting-card { @apply gap-4 rounded-none border-x-0 p-4 shadow-none; }
-  .form-sticky-team { @apply top-2 -mx-1; }
-  .form-sticky-team small { @apply hidden; }
-  .form-sticky-team .button { @apply min-h-10 px-2.5; }
+  .match-page-header { @apply -mx-3 mb-4 px-3 pt-2; }
   .form-intro { @apply pb-4; }
   .form-intro h2 { @apply text-xl; }
   .form-section { @apply p-4; }
@@ -669,15 +673,12 @@
   .field-map { @apply min-h-0; }
   .spot { @apply h-7 w-[60px] px-0 py-0; }
   .spot span { @apply text-[7px]; }
-  .robot-picker { @apply grid-cols-1; }
-  .robot-pick { @apply min-h-14 px-4; }
+  .robot-alliance { @apply grid-cols-3; }
+  .robot-alliance-label { @apply col-span-3 px-0; }
+  .robot-pick { @apply min-h-14 px-2 text-center text-xs; }
   .team-picker { @apply grid grid-cols-3; }
   .team-pick { @apply min-w-0 px-2; }
-  .scoring-head { @apply hidden; }
-  .scoring-row { @apply grid-cols-1 gap-3 px-3 py-3; }
-  .scoring-row strong { @apply col-auto; }
-  .scoring-row .counter { @apply relative w-full justify-between pt-5; }
-  .scoring-row .counter::before { @apply absolute left-0 top-0 text-[10px] font-medium uppercase tracking-[0.1em] text-stuypulse-textMuted; font-family: 'DM Mono', monospace; content: attr(data-label); }
+  .form-field-actions { @apply grid grid-cols-1; }
   .form-actions { @apply static mx-0 flex-col border-0 bg-transparent p-0; backdrop-filter: none; }
   .form-actions .button { @apply w-full whitespace-normal px-3; }
   .mobile-full { @apply w-full; }

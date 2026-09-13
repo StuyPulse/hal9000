@@ -30,9 +30,8 @@ export function MatchScoutPicker({ matches, teams, initialMatchId = "" }: { matc
     <div className="form-intro">
       <div className="form-kicker">Scheduled match</div>
       <h2>Scout a robot from the imported schedule.</h2>
-      <p>Choose the match first, then choose one of the six robots playing in it. Team buttons are alliance colored. Use the manual report beside this one for exceptions that are not in the schedule.</p>
     </div>
-    <div className="form-grid">
+    <div className="scheduled-scout-fields">
       <div className="field">
         <label htmlFor="scheduled-match">Match</label>
         <select id="scheduled-match" value={matchId} onChange={(event) => { setMatchId(event.target.value); setTeamId(""); }}>

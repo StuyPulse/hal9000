@@ -31,7 +31,6 @@ export function ManualMatchPicker({ teams }: { teams: Team[] }) {
     <div className="form-intro">
       <div className="form-kicker">Manual match report</div>
       <h2>Record an exception without a scheduled match.</h2>
-      <p>Choose the competition stage and search the active-event team list. This opens the same match form and saves to the same team history as scheduled scouting.</p>
     </div>
     <div className="form-grid">
       <div className="field">

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { BarChart3, CalendarDays, Camera, ChevronLeft, ChevronRight, ClipboardCheck, ClipboardList, Globe2, LayoutDashboard, ListOrdered, Map, MoreHorizontal, Radio, Settings, ShieldCheck, X, type LucideIcon } from "lucide-react";
+import { BarChart3, CalendarDays, Camera, ChevronLeft, ChevronRight, ClipboardCheck, ClipboardList, Globe2, LayoutDashboard, ListOrdered, Map, MoreHorizontal, Radio, Settings, ShieldCheck, TableProperties, X, type LucideIcon } from "lucide-react";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
 import { BrandLogo } from "./brand-logo";
@@ -21,7 +21,7 @@ function NavLink({ item, active, compact = false, onNavigate }: { item: NavItem;
 export function Sidebar({ active, canManage, eventHref }: Props) {
   const [collapsed, setCollapsed] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
-  const workspace: NavItem[] = [["Assignments", "/dashboard", LayoutDashboard], ["Summary", `${eventHref}/summary`, BarChart3], ["Match schedule", `${eventHref}/matches`, ClipboardList]];
+  const workspace: NavItem[] = [["Assignments", "/dashboard", LayoutDashboard], ["Summary", `${eventHref}/summary`, BarChart3], ["Match schedule", `${eventHref}/matches`, TableProperties]];
   const scoutingForms: NavItem[] = [["Match scouting", "/scout/match", ClipboardList], ["Pit scouting", "/scout/pit", Camera], ["Global scouting", "/scout/global", Globe2], ["Pre scouting", "/scout/pre-scout", ClipboardCheck]];
   const scoutRecords: NavItem[] = [["Submissions", "/submissions", BarChart3]];
   const strategy: NavItem[] = [["Match strategy", `${eventHref}/strategy`, Map], ["Picklist", `${eventHref}/picklist`, ListOrdered]];

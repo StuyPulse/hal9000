@@ -31,6 +31,6 @@ export default async function ManualMatchFormPage({ searchParams }: { searchPara
 
   return <AppShell active="Manual scouting">
     <PageHeader eyebrow={`${stageNames[stage]}${label ? ` · ${label}` : ""}`} title={`${team?.team_number} · ${team?.name}`} />
-    <RebuiltMatchForm eventId={event.id} teamId={selectedEventTeam.team_id} teamNumber={team?.team_number ?? 0} alliance="manual" otherTeams={otherTeams} manualMatch={{ stage: stageNames[stage], label }} />
+    <RebuiltMatchForm eventId={event.id} teamId={selectedEventTeam.team_id} alliance="manual" otherTeams={otherTeams} manualMatch={{ stage: stageNames[stage], label }} />
   </AppShell>;
 }

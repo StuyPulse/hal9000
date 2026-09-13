@@ -19,5 +19,5 @@ export default async function ScoutMatchPage({ params, searchParams }: { params:
   const teamNumbers = new Map((eventTeams ?? []).map((row:any)=>[row.team_id,row.teams?.team_number]));
   const red = match.red_teams.includes(selectedTeamId);
   const others = (red ? match.blue_teams : match.red_teams).map((id: string) => ({ id, number: teamNumbers.get(id) ?? 0, alliance: red ? "blue" as const : "red" as const }));
-  return <AppShell active={assignmentRow?"My assignments":"Manual scouting"}><PageHeader eyebrow={`Qualification ${match.match_number}`} title={`${team?.team_number} · ${team?.name}`} /><RebuiltMatchForm eventId={match.event_id} matchId={match.id} teamId={selectedTeamId} assignmentId={assignmentRow?.id} teamNumber={team?.team_number ?? 0} alliance={red?"red":"blue"} otherTeams={others}/></AppShell>;
+  return <AppShell active={assignmentRow?"My assignments":"Manual scouting"}><div className="match-page-header"><PageHeader eyebrow={`Qualification ${match.match_number} · ${red ? "Red" : "Blue"} alliance`} title={`${team?.team_number} · ${team?.name}`} /></div><RebuiltMatchForm eventId={match.event_id} matchId={match.id} teamId={selectedTeamId} assignmentId={assignmentRow?.id} alliance={red?"red":"blue"} otherTeams={others}/></AppShell>;
 }
