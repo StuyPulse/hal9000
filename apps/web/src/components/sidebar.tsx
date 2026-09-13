@@ -28,8 +28,10 @@ export function Sidebar({ active, canManage, eventHref }: Props) {
   const admin: NavItem[] = [["Events", "/events", CalendarDays], ["Assignments", "/admin/assignments", Radio], ["Users & roles", "/admin/users", ShieldCheck], ["Form builder", "/admin/forms", Settings]];
   const navigation: NavSection[] = [["Workspace", workspace], ["Scouting forms", scoutingForms], ["Scout records", scoutRecords], ["Strategy", strategy]];
   if (canManage) navigation.push(["Admin", admin]);
-  const mobilePrimary = [...workspace, scoutingForms[0]];
-  const mobileMore = [...scoutingForms.slice(1), ...scoutRecords, ...strategy, ...(canManage ? admin : [])];
+  // Keep the bottom bar to five comfortably tappable destinations. The rest are
+  // available in More instead of making every item too small to use on a phone.
+  const mobilePrimary = [workspace[0], workspace[1], workspace[3], scoutingForms[0]];
+  const mobileMore = [workspace[2], ...scoutingForms.slice(1), ...scoutRecords, ...strategy, ...(canManage ? admin : [])];
   return <aside className={`sidebar ${collapsed ? "collapsed" : ""}`}>
     <div className="sidebar-top"><Link href="/scout/match" className="brand"><BrandLogo/><span className="brand-copy">HAL9000<small>STUYPULSE · 694</small></span></Link><button className="sidebar-toggle" type="button" onClick={() => setCollapsed((current) => !current)} aria-label={collapsed ? "Expand navigation" : "Collapse navigation"}>{collapsed ? <ChevronRight size={17}/> : <ChevronLeft size={17}/>}</button></div>
     <nav className="nav-links desktop-nav" aria-label="Primary navigation">{navigation.map(([label, items]) => <div className="nav-section" key={label}><div className="nav-label">{label}</div>{items.map((item) => <NavLink item={item} active={active} compact={collapsed} key={item[0]}/>)}</div>)}</nav>

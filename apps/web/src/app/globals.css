@@ -575,12 +575,12 @@
   .sidebar .sidebar-top, .desktop-nav, .desktop-signout { @apply hidden; }
   .sidebar.collapsed { @apply h-[78px] w-full px-1; }
   .sidebar.collapsed + .main { @apply ml-0 w-full; }
-  .mobile-nav { @apply flex h-full items-stretch justify-around; }
-  .sidebar .mobile-nav .nav-item { @apply my-0 flex min-w-0 flex-1 shrink flex-col justify-center gap-1 rounded-md px-1 py-1 text-center text-[9px]; }
+  .mobile-nav { @apply grid h-full grid-cols-5 items-stretch; }
+  .sidebar .mobile-nav .nav-item { @apply my-0 flex min-w-0 flex-col justify-center gap-1 rounded-md px-1 py-1 text-center text-[9px]; }
   .sidebar .mobile-nav .nav-item span { @apply block leading-tight; }
   .sidebar .nav-item.active { box-shadow: inset 0 3px 0 theme('colors.stuypulse.red'); }
   .sidebar .mobile-more-trigger { @apply border-0 bg-transparent text-stuypulse-textMuted; }
-  .mobile-more { @apply fixed bottom-[86px] left-3 right-3 z-40 max-h-[min(68dvh,500px)] overflow-y-auto rounded-panel border border-stuypulse-border bg-stuypulse-surface p-2 shadow-elevated; display: block; }
+  .mobile-more { @apply fixed bottom-[86px] left-3 right-3 z-40 max-h-[min(68dvh,500px)] overflow-y-auto rounded-panel border border-stuypulse-border bg-stuypulse-surface p-2 shadow-elevated; bottom:calc(86px + env(safe-area-inset-bottom)); display: block; }
   .mobile-more-head { @apply mb-1 flex items-center justify-between px-2.5 py-2 text-[10px] font-bold uppercase tracking-[0.12em] text-stuypulse-textMuted; font-family:'DM Mono',monospace; }
   .mobile-more-head button { @apply grid h-10 w-10 place-items-center rounded-lg border border-stuypulse-border bg-stuypulse-bg text-stuypulse-text; }
   .mobile-more .nav-item { @apply my-0 flex min-h-11 flex-row justify-start gap-3 px-3 text-sm; }
@@ -590,6 +590,8 @@
   .main { @apply ml-0 w-full px-3.5 pt-4; padding-bottom: max(108px, calc(92px + env(safe-area-inset-bottom))); }
   .topbar, .assignment-toolbar, .event-picker, .card-head { @apply flex-col items-stretch gap-3; }
   .topbar-title, .topbar-actions { @apply flex-wrap; }
+  .topbar-actions { @apply w-full; }
+  .topbar-actions > .event-chip, .topbar-actions > .button { @apply w-full justify-center; }
   .card-head > .link { @apply inline-flex min-h-11 items-center; }
   .topbar { @apply mb-6; }
   .card { @apply p-4; }
@@ -605,6 +607,8 @@
   .list-row > :first-child, .match-row .alliances { @apply min-w-0 flex-1; }
   .list-row .row-actions, .list-row > div:last-child:not(:first-child) { @apply w-full; }
   .list-row .button, .row-actions .button { @apply flex-1; }
+  .card-head > .row-actions { @apply w-full; }
+  .card-head > .row-actions > * { @apply flex-1; }
   .match-row .button { @apply w-full; }
   .match-time, .match-num { @apply w-auto; }
   .form-launcher { @apply grid-cols-1 gap-3; }
@@ -616,6 +620,11 @@
   .form-intro { @apply pb-4; }
   .form-intro h2 { @apply text-xl; }
   .form-section { @apply p-4; }
+  .scouting-range-pair { @apply grid-cols-1 gap-3; }
+  .scouting-range-with-input { @apply grid-cols-[minmax(0,1fr)_4.5rem_auto] gap-2; }
+  .pit-traversal { @apply p-3; }
+  .pit-traversal > div { @apply grid grid-cols-1; }
+  .pit-traversal label { @apply w-full; }
   .match-roster { @apply flex-col gap-1.5; }
   .field-map { @apply min-h-0; }
   .spot { @apply h-7 w-[60px] px-0 py-0; }
@@ -722,6 +731,7 @@
   .picklist-activity-row small { @apply text-left; }
   .picklist-activity-actions { @apply w-full justify-between; }
   .picklist-workspace { @apply top-2; }
+  .picklist-workspace { position: static; }
   .picklist-tier-manager { @apply gap-x-3 px-3.5; }
   .picklist-toolbar-group { @apply gap-1.5; }
   .picklist-tier-controls, .picklist-tag-controls { @apply items-stretch; }
@@ -746,6 +756,8 @@
   .manual-team-form, .manual-match-form { @apply grid-cols-1; }
   .manual-team-form .button, .manual-match-form .button { @apply w-full; }
   .manual-team-row { @apply flex-wrap; }
+  .manual-match-list { @apply flex-col; }
+  .manual-match-list button { @apply min-w-0 w-full; }
   .submission-detail-grid { @apply grid-cols-1; }
   .auto-path-preview { @apply aspect-[1380/674]; }
   .submission-meta { @apply gap-x-3 gap-y-1.5 text-[9px]; }
@@ -753,6 +765,9 @@
   .auto-path-tools { @apply gap-3; }
   .auto-path-tools > button:not(.button) { @apply h-9 w-9; }
   .event-selector-links a, .filter-tabs a { @apply flex min-h-11 flex-1 items-center justify-center text-center; }
+  .filter-tabs, .event-selector-links, .summary-tabs, .team-timeline-metrics { @apply flex-nowrap overflow-x-auto pb-1; -webkit-overflow-scrolling:touch; }
+  .filter-tabs a, .event-selector-links a, .summary-tabs button, .team-timeline-metrics button { @apply shrink-0; }
+  .searchable-team-results, .app-select-menu { max-height:min(50dvh, 22rem); }
   .category-create { @apply grid grid-cols-[minmax(0,1fr)_44px] gap-2; }
   .category-create .button { @apply col-span-2 w-full; }
   .auth-panel { @apply p-4; }
