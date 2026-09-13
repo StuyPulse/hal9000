@@ -7,6 +7,7 @@ import { calculateScoutStats, formatStat } from "@/lib/scouting-stats";
 import { LocalDateTime } from "@/components/local-date-time";
 import { PayloadGrid } from "@/components/scouting-payload";
 import { TeamMatchTimeline, type TimelineMatch } from "./team-match-timeline";
+import { TeamRobotProfile } from "./team-robot-profile";
 
 type TbaMatch = { key: string; match_number: number; comp_level?: string; actual_time?: number; alliances?: { red?: { team_keys?: string[]; score?: number }; blue?: { team_keys?: string[]; score?: number } } };
 type LocalMatch = { id: string; match_number: number; match_type: string; scheduled_at: string | null; red_teams: string[]; blue_teams: string[]; red_score: number | null; blue_score: number | null };
@@ -29,8 +30,9 @@ export default async function TeamDetail({ params }: { params: Promise<{ eventId
   const { data: event } = await supabase.from("events").select("id,event_key,name,is_manual").eq("event_key", eventKey).maybeSingle();
   if (!event) notFound();
 
-  const { data: eventTeams } = await supabase.from("event_teams").select("team_id,teams(id,team_number,name)").eq("event_id", event.id);
-  const team = ((eventTeams ?? []).map((row: any) => row.teams).find((candidate: any) => candidate?.team_number === number) ?? null) as { id: string; team_number: number; name: string } | null;
+  const { data: eventTeams } = await supabase.from("event_teams").select("team_id,drivetrain_type,shooter_type,teams(id,team_number,name)").eq("event_id", event.id);
+  const teamLink = (eventTeams ?? []).find((row: any) => row.teams?.team_number === number) as any;
+  const team = (teamLink?.teams ?? null) as { id: string; team_number: number; name: string } | null;
   if (!team) notFound();
 
   const [{ data: entries }, { data: photos }, { data: localMatches }] = await Promise.all([
@@ -93,7 +95,7 @@ export default async function TeamDetail({ params }: { params: Promise<{ eventId
   ];
 
   return <AppShell active="Teams">
-    <LiveRefresh tables={["scouting_entries", "pit_photos", "matches"]} eventId={event.id} />
+    <LiveRefresh tables={["scouting_entries", "pit_photos", "matches", "event_teams"]} eventId={event.id} />
     <PageHeader eyebrow={event.name} title={`${team.team_number} · ${team.name}`} />
 
     {photoUrls.length > 0 && <section className="card section"><h2>Pit photos</h2><div className="pit-photo-grid">{photoUrls.map((url, index) => <img key={url} src={url} alt={`${team.team_number} pit photo ${index + 1}`} />)}</div></section>}
@@ -102,6 +104,8 @@ export default async function TeamDetail({ params }: { params: Promise<{ eventId
       {!event.is_manual && <div className="team-overview-link"><Link className="link" href={`https://www.thebluealliance.com/team/${team.team_number}`} target="_blank">Open TBA →</Link></div>}
       <div className="team-overview-metrics">{overview.map((item) => <div key={item.label}><span>{item.label}</span><strong>{item.value}</strong><small>{item.detail}</small></div>)}</div>
     </section>
+
+    <TeamRobotProfile eventId={event.id} eventKey={event.event_key} teamId={team.id} teamNumber={team.team_number} drivetrainType={teamLink?.drivetrain_type ?? null} shooterType={teamLink?.shooter_type ?? null}/>
 
     <div className="section"><TeamMatchTimeline matches={timeline}/></div>
     <section className="card section"><div><h2>Research coverage</h2><div className="coverage-list">{pitEntries.length ? <details className="team-pit-details"><summary><strong>Pit scouting</strong><span>{pitCount} report{pitCount === 1 ? "" : "s"} available</span></summary><div className="team-pit-reports">{pitEntries.map((entry: any) => <section key={entry.id} className="team-pit-report"><div className="team-pit-report-head"><span>{entry.profiles?.display_name ?? "Scout"} · {entry.submitted_at ? <LocalDateTime value={entry.submitted_at}/> : "Draft"}</span><Link className="link" href={`/submissions/${entry.id}`}>Open report →</Link></div><PayloadGrid payload={entry.payload ?? {}} compact teamNames={teamNames}/></section>)}</div></details> : <div><strong>Pit scouting</strong><span>Not scouted yet</span></div>}<div><strong>Pre-scouting</strong><span>{preScoutCount ? `${preScoutCount} report${preScoutCount === 1 ? "" : "s"} available` : "Not scouted yet"}</span></div><div><strong>Pit photos</strong><span>{photoUrls.length ? `${photoUrls.length} photo${photoUrls.length === 1 ? "" : "s"} available` : "No photos yet"}</span></div></div><Link className="link" href="/scout/manual">Open scouting forms →</Link></div></section>
