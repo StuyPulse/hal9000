@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, type FormEvent } from "react";
 import type { ScoutStats } from "@/lib/scouting-stats";
 
 type Team = { id: string; number: number; name: string; stats: ScoutStats };
@@ -27,15 +27,31 @@ function SlotCard({ slot, team, teams, unavailable, onChange }: { slot: Slot; te
 export function MatchStrategyPanel({ matches, teams }: { matches: Match[]; teams: Team[] }) {
   const [matchId, setMatchId] = useState(matches[0]?.id ?? "");
   const [overrides, setOverrides] = useState<Record<string, string>>({});
+  const [manualLineup, setManualLineup] = useState("");
+  const [manualError, setManualError] = useState("");
   const selectedMatch = matches.find((match) => match.id === matchId);
   const teamById = useMemo(() => new Map(teams.map((team) => [team.id, team])), [teams]);
+  const teamByNumber = useMemo(() => new Map(teams.map((team) => [team.number, team])), [teams]);
   const teamIdFor = (slot: Slot) => overrides[slot.id] ?? (slot.alliance === "red" ? selectedMatch?.red[slot.position - 1] : selectedMatch?.blue[slot.position - 1]) ?? "";
   const occupied = new Set(slots.map(teamIdFor).filter(Boolean));
 
-  if (!matches.length) return <section className="card"><h2>No upcoming matches</h2><p className="muted">The strategy mat will be ready once this event has a scheduled match.</p></section>;
+  function applyManualLineup(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const sides = manualLineup.trim().split(/\bvs\.?\b/i);
+    const parseSide = (value: string) => value.match(/\d+/g)?.map(Number) ?? [];
+    const redNumbers = parseSide(sides[0] ?? "");
+    const blueNumbers = sides.length === 2 ? parseSide(sides[1]) : redNumbers.splice(3);
+    if (sides.length > 2 || redNumbers.length !== 3 || blueNumbers.length !== 3) { setManualError("Enter three red teams and three blue teams, separated by “vs”."); return; }
+    if (new Set([...redNumbers, ...blueNumbers]).size !== 6) { setManualError("Each of the six team numbers must be different."); return; }
+    const requestedNumbers = [...redNumbers, ...blueNumbers];
+    const missing = requestedNumbers.filter((teamNumber) => !teamByNumber.has(teamNumber));
+    if (missing.length) { setManualError(`Team ${missing.join(", ")} is not in this event.`); return; }
+    setOverrides(Object.fromEntries(slots.map((slot, index) => [slot.id, teamByNumber.get(requestedNumbers[index])!.id])));
+    setManualError("");
+  }
 
   return <section className="strategy-panel">
-    <div className="strategy-controls"><label><span>Scheduled match</span><select value={matchId} onChange={(event) => { setMatchId(event.target.value); setOverrides({}); }}>{matches.map((match) => <option key={match.id} value={match.id}>{matchLabel(match)}{match.scheduledAt ? ` · ${new Date(match.scheduledAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}` : ""}</option>)}</select></label><p className="muted">Replace any slot to model a last-minute substitution.</p></div>
+    <div className="strategy-controls"><label><span>Scheduled match</span><select value={matchId} disabled={!matches.length} onChange={(event) => { setMatchId(event.target.value); setOverrides({}); setManualError(""); }}>{matches.length ? matches.map((match) => <option key={match.id} value={match.id}>{matchLabel(match)}{match.scheduledAt ? ` · ${new Date(match.scheduledAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}` : ""}</option>) : <option value="">No scheduled matches</option>}</select></label><form className="strategy-manual-lineup" onSubmit={applyManualLineup}><label htmlFor="manual-strategy-lineup"><span>Manual lineup</span><input id="manual-strategy-lineup" value={manualLineup} onChange={(event) => { setManualLineup(event.target.value); setManualError(""); }} placeholder="2601 301 23 vs 694 1796 098" /></label><button type="submit" className="button secondary">Use lineup</button>{Object.keys(overrides).length > 0 && <button type="button" className="strategy-clear-lineup" onClick={() => { setOverrides({}); setManualLineup(""); setManualError(""); }}>Use scheduled</button>}{manualError && <span className="strategy-lineup-error" role="alert">{manualError}</span>}</form></div>
     <div className="strategy-field" aria-label={`${selectedMatch ? matchLabel(selectedMatch) : "Selected"} strategy field`}>
       <div className="strategy-field-art" aria-hidden="true"/>
       {slots.map((slot) => { const teamId = teamIdFor(slot); const unavailable = new Set(occupied); unavailable.delete(teamId); return <SlotCard key={slot.id} slot={slot} team={teamById.get(teamId)} teams={teams} unavailable={unavailable} onChange={(nextTeamId) => setOverrides((current) => ({ ...current, [slot.id]: nextTeamId }))}/>; })}
