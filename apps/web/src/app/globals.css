@@ -487,15 +487,21 @@
   .summary-direction span { @apply text-base text-stuypulse-redHover; }
   .summary-sort-active { @apply text-stuypulse-redHover underline decoration-2 underline-offset-4; }
   .summary-empty { @apply mt-4; }
-  .summary-table table { @apply min-w-[720px]; }
+  .summary-table { @apply overflow-auto; max-height:min(68vh,760px); scrollbar-gutter:stable both-edges; }
+  .summary-table table { @apply min-w-[720px]; border-collapse:separate; border-spacing:0; }
   .pre-scout-table { @apply min-w-[1300px]; }
   .pre-scout-table td { @apply max-w-[260px] align-top text-xs leading-relaxed; }
-  .summary-table th { @apply whitespace-nowrap bg-stuypulse-elevated px-2.5 pt-3; }
+  .summary-table thead { @apply sticky top-0 z-20; }
+  .summary-table th { @apply whitespace-nowrap bg-stuypulse-elevated px-2.5 py-3; }
   .summary-table th button { @apply text-left font-bold text-stuypulse-textMuted hover:text-stuypulse-text; }
   .summary-table td { @apply whitespace-nowrap px-2.5 py-3 font-medium; }
   .summary-table th.summary-team, .summary-table td.summary-team { @apply sticky left-0 z-10 min-w-[88px] bg-stuypulse-surface; }
-  .summary-table th.summary-team { @apply z-20 bg-stuypulse-elevated; }
+  .summary-table th.summary-team { @apply z-30 bg-stuypulse-elevated; }
   .summary-table td.summary-team { @apply font-extrabold; box-shadow:inset -1px 0 0 theme('colors.stuypulse.border'); }
+  .summary-table .summary-section-heading { @apply border-b-2 px-2.5 py-2 text-left text-xs font-extrabold uppercase tracking-[0.08em]; font-family:'DM Mono',monospace; }
+  .summary-table .summary-section-tba { color:#93c5fd; border-color:#3b82f6; background:rgb(30 58 138 / .22); }
+  .summary-table .summary-section-auto { color:#fcd34d; border-color:#f59e0b; background:rgb(120 53 15 / .2); }
+  .summary-table .summary-section-teleop { color:#86efac; border-color:#22c55e; background:rgb(20 83 45 / .2); }
   .summary-team-link { @apply text-stuypulse-text underline decoration-stuypulse-red/60 underline-offset-4 hover:text-stuypulse-redHover; }
   .summary-table .summary-stat-cell { background-color:rgb(var(--summary-stat-color) / 0.18); }
   .summary-table tr:hover .summary-stat-cell { background-color:rgb(var(--summary-stat-color) / 0.28); }
