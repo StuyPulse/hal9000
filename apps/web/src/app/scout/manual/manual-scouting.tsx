@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type CSSProperties } from "react";
 import { AppSelect } from "@/components/app-select";
 import { AutoPathDrawer } from "@/components/auto-path-drawer";
 import { SearchableTeamSelect } from "@/components/searchable-team-select";
@@ -61,7 +61,7 @@ function PitFields({ payload, setPayload }: { payload: Payload; setPayload: (nex
     <div className="field"><label htmlFor="operator-experience">Operator experience</label><AppSelect id="operator-experience" ariaLabel="Operator experience" value={payload.operator_experience ?? ""} onValueChange={(value) => set("operator_experience", value)} options={[{ value: "", label: "Choose experience…" }, { value: "none", label: "No operator" }, ...experienceOptions]}/></div>
     <Field id="contact-info" label="Team contact info" value={payload.contact_info ?? ""} onChange={(value) => set("contact_info", value)} placeholder="e.g. Avery Chen — student drive coach — achen@example.com" helper="Include the person’s role: student, mentor, coach, or another contact."/>
     <div className="field scouting-range-field"><label>Drivetrain dimensions without bumpers</label><p className="field-hint">Perimeter: <strong>{perimeter} in / 110 in max</strong>.</p><div className="scouting-range-pair"><RangeInput id="drivetrain-length" label="Length" value={length} maximum={55 - width} onChange={(value) => setDimensions(value, width)}/><RangeInput id="drivetrain-width" label="Width" value={width} maximum={55 - length} onChange={(value) => setDimensions(length, value)}/></div></div>
-    <div className="field scouting-range-field"><label htmlFor="hopper-capacity">Maximum hopper capacity</label><p className="field-hint">Fuel pieces. The slider moves in 10-piece steps; type a precise estimate if needed.</p><div className="scouting-range-with-input"><input id="hopper-capacity" type="range" min="0" max="500" step="10" value={hopper} onChange={(event) => set("hopper_capacity", event.target.value)}/><input aria-label="Maximum hopper capacity" type="number" min="0" max="500" value={payload.hopper_capacity ?? "0"} onChange={(event) => set("hopper_capacity", event.target.value.replace(/\D/g, "").slice(0, 3))} onBlur={() => set("hopper_capacity", String(clamp(Math.round(Number(payload.hopper_capacity ?? 0) / 10) * 10, 0, 500)))} inputMode="numeric"/><span>fuel</span></div></div>
+    <div className="field scouting-range-field"><label htmlFor="hopper-capacity">Maximum hopper capacity</label><p className="field-hint">Fuel pieces. The slider moves in 10-piece steps; type a precise estimate if needed.</p><div className="scouting-range-with-input"><input id="hopper-capacity" className="scouting-slider" style={{ "--range-progress": `${(hopper / 500) * 100}%` } as CSSProperties} type="range" min="0" max="500" step="10" value={hopper} onChange={(event) => set("hopper_capacity", event.target.value)}/><input aria-label="Maximum hopper capacity" type="number" min="0" max="500" value={payload.hopper_capacity ?? "0"} onChange={(event) => set("hopper_capacity", event.target.value.replace(/\D/g, "").slice(0, 3))} onBlur={() => set("hopper_capacity", String(clamp(Math.round(Number(payload.hopper_capacity ?? 0) / 10) * 10, 0, 500)))} inputMode="numeric"/><span>fuel</span></div></div>
     <Field id="teleop-active-hub" label="Teleop strategy — active HUB" value={payload.teleop_active_hub ?? ""} onChange={(value) => set("teleop_active_hub", value)} placeholder="e.g. Cycles DEPOT → active HUB"/>
     <Field id="teleop-inactive-hub" label="Teleop strategy — inactive HUB" value={payload.teleop_inactive_hub ?? ""} onChange={(value) => set("teleop_inactive_hub", value)} placeholder="e.g. Collects and stages fuel while inactive"/>
     <Field id="offseason" label="Offseason drive-team plans" value={payload.offseason ?? ""} onChange={(value) => set("offseason", value)} placeholder="e.g. Two events planned before build season"/>
@@ -73,7 +73,7 @@ function PitFields({ payload, setPayload }: { payload: Payload; setPayload: (nex
 }
 
 function RangeInput({ id, label, value, maximum, onChange }: { id: string; label: string; value: number; maximum: number; onChange: (value: number) => void }) {
-  return <label htmlFor={id}><span>{label} <strong>{value} in</strong></span><input id={id} type="range" min="0" max={maximum} step="1" value={value} onChange={(event) => onChange(Number(event.target.value))}/></label>;
+  return <label htmlFor={id}><span>{label} <strong>{value} in</strong></span><input id={id} className="scouting-slider" style={{ "--range-progress": `${(value / 55) * 100}%` } as CSSProperties} type="range" min="0" max="55" step="1" value={value} onChange={(event) => onChange(Math.min(Number(event.target.value), maximum))}/></label>;
 }
 
 export function ManualScouting({ eventId, teams, type = "pre_scout", restricted = false }: { eventId: string; teams: Team[]; type?: EntryType; restricted?: boolean }) {

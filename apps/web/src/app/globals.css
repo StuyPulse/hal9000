@@ -119,7 +119,13 @@
   .scouting-range-pair { @apply grid grid-cols-2 gap-4; }
   .scouting-range-pair label { @apply grid gap-2 text-sm font-bold normal-case tracking-normal text-stuypulse-text; font-family:Manrope,sans-serif; }
   .scouting-range-pair label > span { @apply flex items-center justify-between; }
-  .scouting-range-pair input[type=range], .scouting-range-with-input input[type=range] { @apply h-10 w-full accent-stuypulse-red; }
+  .scouting-range-pair input[type=range], .scouting-range-with-input input[type=range] { @apply h-10 w-full; }
+  .scouting-slider { @apply cursor-pointer appearance-none bg-transparent; --range-progress: 0%; }
+  .scouting-slider::-webkit-slider-runnable-track { height: 0.55rem; border: 1px solid theme('colors.stuypulse.border'); border-radius: 999px; background: linear-gradient(to right, theme('colors.stuypulse.red') 0 var(--range-progress), theme('colors.stuypulse.bg') var(--range-progress) 100%); }
+  .scouting-slider::-webkit-slider-thumb { width: 1.45rem; height: 1.45rem; margin-top: -0.5rem; appearance: none; border: 0; border-radius: 999px; background: theme('colors.stuypulse.red'); box-shadow: 0 0 0 2px theme('colors.stuypulse.redPressed'); }
+  .scouting-slider::-moz-range-track { height: 0.55rem; border: 1px solid theme('colors.stuypulse.border'); border-radius: 999px; background: theme('colors.stuypulse.bg'); }
+  .scouting-slider::-moz-range-progress { height: 0.55rem; border-radius: 999px; background: theme('colors.stuypulse.red'); }
+  .scouting-slider::-moz-range-thumb { width: 1.3rem; height: 1.3rem; border: 0; border-radius: 999px; background: theme('colors.stuypulse.red'); box-shadow: 0 0 0 2px theme('colors.stuypulse.redPressed'); }
   .scouting-range-with-input { @apply grid grid-cols-[minmax(0,1fr)_5.5rem_auto] items-center gap-3; }
   .scouting-range-with-input input[type=number] { @apply min-h-10 rounded-lg border border-stuypulse-border bg-stuypulse-bg px-3 text-sm text-stuypulse-text outline-none focus:border-stuypulse-red; }
   .scouting-range-with-input > span { @apply text-xs font-bold text-stuypulse-textMuted; }
