@@ -17,7 +17,8 @@ function AutoPathPreview({ svg }: { svg: string }) {
 }
 
 export function PayloadGrid({ payload, compact = false, teamNames }: { payload: Record<string, unknown>; compact?: boolean; teamNames: Map<string, string> }) {
-  const fields = Object.entries(payload).filter(([, value]) => value !== undefined && value !== null && value !== "");
+  const hasPeriodBreakdown = "auto" in payload || "teleop" in payload;
+  const fields = Object.entries(payload).filter(([key, value]) => value !== undefined && value !== null && value !== "" && !(hasPeriodBreakdown && ["auto_fuel", "teleop_fuel", "starting_spot_confirmed", "report_source"].includes(key)));
   if (!fields.length) return <p className="muted">No field values were saved for this entry.</p>;
   return <dl className={compact ? "submission-detail-grid submission-detail-grid-compact" : "submission-detail-grid"}>{fields.map(([key, value]) => <div className={key === "auto_routines_drawing" ? "submission-drawing" : undefined} key={key}><dt>{fieldLabel(key)}</dt><dd>{key === "auto_routines_drawing" && typeof value === "string" ? <AutoPathPreview svg={value}/> : <PayloadValue value={value} fieldKey={key} teamNames={teamNames}/>}</dd></div>)}</dl>;
 }
