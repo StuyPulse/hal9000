@@ -1,7 +1,7 @@
 "use client";
 
-import { ArrowDown, ArrowUp, Check, GripVertical, Plus, RotateCcw, Tag as TagIcon, Trash2, X } from "lucide-react";
-import { useMemo, useState, type CSSProperties, type DragEvent, type FormEvent } from "react";
+import { ArrowDown, ArrowUp, Check, GripVertical, RotateCcw, Tag as TagIcon, X } from "lucide-react";
+import { useMemo, useState, type CSSProperties, type DragEvent } from "react";
 import { LocalDateTime } from "@/components/local-date-time";
 import { createClient } from "@/lib/supabase/client";
 
@@ -13,15 +13,11 @@ type RankingChange = Pick<Ranking, "rank" | "category_id" | "note" | "selected" 
 type Change = { id: string; team_id: string; action: "baseline" | "created" | "updated" | "deleted"; before_state: Record<string, unknown> | null; after_state: Record<string, unknown> | null; created_at: string; teams?: { team_number: number; name: string } | null; profiles?: { display_name: string } | null };
 
 export function PicklistBoard({ organizationId, eventId, userId, canEdit, categories: initialCategories, tags: initialTags, teams, rankings: initialRankings, changes }: { organizationId: string; eventId: string; userId: string; canEdit: boolean; categories: Category[]; tags: PicklistTag[]; teams: Team[]; rankings: Ranking[]; changes: Change[] }) {
-  const [categories, setCategories] = useState(initialCategories);
-  const [tags, setTags] = useState(initialTags);
+  const categories = initialCategories;
+  const tags = initialTags;
   const [rankings, setRankings] = useState(initialRankings);
   const [savingIds, setSavingIds] = useState<string[]>([]);
   const [notice, setNotice] = useState("");
-  const [newTierName, setNewTierName] = useState("");
-  const [newTierColor, setNewTierColor] = useState("#64748b");
-  const [newTagName, setNewTagName] = useState("");
-  const [newTagColor, setNewTagColor] = useState("#60a5fa");
   const [activeTagIds, setActiveTagIds] = useState<string[]>([]);
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [dropTargetId, setDropTargetId] = useState<string | null>(null);
@@ -73,50 +69,6 @@ export function PicklistBoard({ organizationId, eventId, userId, canEdit, catego
     await persistTeams(tierTeams.map((item, rank) => ({ team: item, changes: { category_id: categoryId, rank: rank + 1 } })), `${team.team_number} moved.`);
   }
 
-  async function addTier(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault(); const name = newTierName.trim();
-    if (!name || !canEdit) return;
-    if (orderedCategories.some((category) => category.name.toLowerCase() === name.toLowerCase())) { setNotice("That tier already exists."); return; }
-    const supabase: any = createClient(); const { data, error } = await supabase.from("picklist_categories").insert({ organization_id: organizationId, name, color: newTierColor, sort_order: orderedCategories.length, created_by: userId }).select("id,name,color,sort_order").single();
-    if (error) { setNotice("Could not add that tier. Try again."); return; }
-    setCategories((current) => [...current, data]); setNewTierName(""); setNotice(`${name} tier added.`);
-  }
-
-  async function moveTier(categoryId: string, direction: -1 | 1) {
-    const index = orderedCategories.findIndex((category) => category.id === categoryId); const neighbor = index + direction;
-    if (!canEdit || neighbor < 0 || neighbor >= orderedCategories.length) return;
-    const next = [...orderedCategories]; [next[index], next[neighbor]] = [next[neighbor], next[index]];
-    const supabase: any = createClient(); const { error } = await Promise.all(next.map((category, sortOrder) => supabase.from("picklist_categories").update({ sort_order: sortOrder }).eq("id", category.id))).then((results) => ({ error: results.find((result) => result.error)?.error }));
-    if (error) { setNotice("Could not reorder tiers. Try again."); return; }
-    setCategories(next.map((category, sortOrder) => ({ ...category, sort_order: sortOrder }))); setNotice("Tier order saved.");
-  }
-
-  async function removeTier(categoryId: string) {
-    const index = orderedCategories.findIndex((category) => category.id === categoryId);
-    if (!canEdit || orderedCategories.length <= 1 || index < 0) return;
-    const category = orderedCategories[index]; const fallback = orderedCategories[index + 1] ?? orderedCategories[index - 1]; const affected = allTeamsInTier(categoryId);
-    if (affected.length && !await persistTeams(affected.map((team, rank) => ({ team, changes: { category_id: fallback.id, rank: allTeamsInTier(fallback.id).length + rank + 1 } })), `${category.name} teams moved to ${fallback.name}.`)) return;
-    const supabase: any = createClient(); const { error } = await supabase.from("picklist_categories").delete().eq("id", categoryId);
-    if (error) { setNotice("Could not remove that tier. Try again."); return; }
-    setCategories((current) => current.filter((item) => item.id !== categoryId)); setNotice(`${category.name} tier removed.`);
-  }
-
-  async function addTag(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault(); const name = newTagName.trim();
-    if (!name || !canEdit) return;
-    if (orderedTags.some((tag) => tag.name.toLowerCase() === name.toLowerCase())) { setNotice("That tag already exists."); return; }
-    const supabase: any = createClient(); const { data, error } = await supabase.from("picklist_tags").insert({ organization_id: organizationId, name, color: newTagColor.toUpperCase(), sort_order: orderedTags.length, created_by: userId }).select("id,name,color,sort_order").single();
-    if (error) { setNotice("Could not add that tag. Try again."); return; }
-    setTags((current) => [...current, data]); setNewTagName(""); setNotice(`${name} tag added.`);
-  }
-
-  async function removeTag(tag: PicklistTag) {
-    if (!canEdit) return;
-    const supabase: any = createClient(); const { error } = await supabase.from("picklist_tags").delete().eq("id", tag.id);
-    if (error) { setNotice("Could not remove that tag. Try again."); return; }
-    setTags((current) => current.filter((item) => item.id !== tag.id)); setActiveTagIds((current) => current.filter((id) => id !== tag.id)); setRankings((current) => current.map((ranking) => ({ ...ranking, tag_ids: ranking.tag_ids.filter((id) => id !== tag.id) }))); setNotice(`${tag.name} tag removed.`);
-  }
-
   const toggleActiveTag = (tagId: string) => setActiveTagIds((current) => current.includes(tagId) ? current.filter((id) => id !== tagId) : [...current, tagId]);
   const startDrag = (event: DragEvent<HTMLElement>, teamId: string) => { if (!canEdit) return; event.dataTransfer.effectAllowed = "move"; event.dataTransfer.setData("text/plain", teamId); setDraggingId(teamId); };
   const finishDrag = () => { setDraggingId(null); setDropTargetId(null); };
@@ -130,13 +82,11 @@ export function PicklistBoard({ organizationId, eventId, userId, canEdit, catego
   }
 
   return <>
-    <section className="card picklist-workspace">
-      <div className="picklist-workspace-head">{!canEdit && <span className="tag pending">View only</span>}</div>
-      <div className="picklist-tier-manager" aria-label="Picklist organization">
-        <div className="picklist-manager-group"><span className="picklist-manager-label">Jump to tier</span><div className="picklist-tier-controls">{orderedCategories.map((category) => <button className="picklist-tier-jump" key={category.id} type="button" style={{ "--tier": category.color } as CSSProperties} onClick={() => document.getElementById(`picklist-tier-${category.id}`)?.scrollIntoView({ behavior: "smooth", block: "start" })}>{category.name}</button>)}</div></div>
-        <div className="picklist-manager-group"><span className="picklist-manager-label">Filter tags <small>{activeTagIds.length ? `${activeTagIds.length} active · any match` : "all teams"}</small></span><div className="picklist-tag-controls">{orderedTags.map((tag) => <button className={`picklist-tag-filter${activeTagIds.includes(tag.id) ? " active" : ""}`} key={tag.id} type="button" style={{ "--tag": tag.color } as CSSProperties} aria-pressed={activeTagIds.includes(tag.id)} onClick={() => toggleActiveTag(tag.id)}><TagIcon size={13} aria-hidden="true"/>{tag.name}</button>)}{activeTagIds.length > 0 && <button className="picklist-clear-tags" type="button" onClick={() => setActiveTagIds([])}><X size={13} aria-hidden="true"/>Clear</button>}</div></div>
-        {canEdit && <div className="picklist-manager-group"><span className="picklist-manager-label">Tiers</span><div className="picklist-tier-controls">{orderedCategories.map((category, categoryIndex) => <div className="picklist-tier-control" style={{ "--tier": category.color } as CSSProperties} key={category.id}><span>{category.name}</span><div className="picklist-tier-actions"><button type="button" disabled={categoryIndex === 0} aria-label={`Move ${category.name} tier up`} onClick={() => void moveTier(category.id, -1)}><ArrowUp size={14}/></button><button type="button" disabled={categoryIndex === orderedCategories.length - 1} aria-label={`Move ${category.name} tier down`} onClick={() => void moveTier(category.id, 1)}><ArrowDown size={14}/></button><button type="button" disabled={orderedCategories.length <= 1} aria-label={`Remove ${category.name} tier`} onClick={() => void removeTier(category.id)}><Trash2 size={14}/></button></div></div>)}<form className="picklist-tier-form" onSubmit={addTier}><label className="sr-only" htmlFor="new-picklist-tier">New tier name</label><input id="new-picklist-tier" value={newTierName} onChange={(event) => setNewTierName(event.target.value)} maxLength={48} placeholder="New tier" /><label className="sr-only" htmlFor="new-picklist-tier-color">Tier color</label><input id="new-picklist-tier-color" type="color" value={newTierColor} onChange={(event) => setNewTierColor(event.target.value)} /><button type="submit" className="button secondary" disabled={!newTierName.trim()}><Plus size={16} aria-hidden="true"/> Add</button></form></div></div>}
-        {canEdit && <div className="picklist-manager-group"><span className="picklist-manager-label">Manage tags</span><div className="picklist-tag-controls">{orderedTags.map((tag) => <span className="picklist-managed-tag" style={{ "--tag": tag.color } as CSSProperties} key={tag.id}><TagIcon size={13} aria-hidden="true"/>{tag.name}<button type="button" aria-label={`Remove ${tag.name} tag`} onClick={() => void removeTag(tag)}><Trash2 size={13}/></button></span>)}<form className="picklist-tag-form" onSubmit={addTag}><label className="sr-only" htmlFor="new-picklist-tag">New tag name</label><input id="new-picklist-tag" value={newTagName} onChange={(event) => setNewTagName(event.target.value)} maxLength={48} placeholder="New tag" /><label className="sr-only" htmlFor="new-picklist-tag-color">Tag color</label><input id="new-picklist-tag-color" type="color" value={newTagColor} onChange={(event) => setNewTagColor(event.target.value)} /><button type="submit" className="button secondary" disabled={!newTagName.trim()}><Plus size={16} aria-hidden="true"/> Add</button></form></div></div>}
+    <section className="card picklist-workspace" aria-label="Picklist navigation and filters">
+      <div className="picklist-tier-manager">
+        <div className="picklist-toolbar-group"><span className="picklist-manager-label">Tiers</span><div className="picklist-tier-controls">{orderedCategories.map((category) => <button className="picklist-tier-jump" key={category.id} type="button" style={{ "--tier": category.color } as CSSProperties} onClick={() => document.getElementById(`picklist-tier-${category.id}`)?.scrollIntoView({ behavior: "smooth", block: "start" })}>{category.name}</button>)}</div></div>
+        <div className="picklist-toolbar-group"><span className="picklist-manager-label">Tags</span><div className="picklist-tag-controls">{orderedTags.map((tag) => <button className={`picklist-tag-filter${activeTagIds.includes(tag.id) ? " active" : ""}`} key={tag.id} type="button" style={{ "--tag": tag.color } as CSSProperties} aria-pressed={activeTagIds.includes(tag.id)} onClick={() => toggleActiveTag(tag.id)}><TagIcon size={13} aria-hidden="true"/>{tag.name}</button>)}{activeTagIds.length > 0 && <button className="picklist-clear-tags" type="button" onClick={() => setActiveTagIds([])}><X size={13} aria-hidden="true"/>Clear</button>}</div></div>
+        {!canEdit && <span className="tag pending">View only</span>}
       </div>
     </section>
 
