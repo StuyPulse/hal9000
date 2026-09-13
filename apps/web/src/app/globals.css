@@ -363,7 +363,7 @@
   .picklist-undo-button { @apply inline-flex min-h-8 items-center gap-1 rounded-md border border-stuypulse-border bg-stuypulse-elevated px-2 text-xs font-bold text-stuypulse-text transition hover:border-stuypulse-red hover:text-stuypulse-red disabled:cursor-wait disabled:opacity-60; }
   .picklist-workspace { @apply sticky top-3 z-30 mb-4 p-0 shadow-elevated; }
   .picklist-tier-manager { @apply flex flex-wrap items-center gap-x-5 gap-y-3 px-4 py-3; }
-  .picklist-toolbar-group { @apply flex flex-wrap items-center gap-2; }
+  .picklist-toolbar-group { @apply relative flex flex-wrap items-center gap-2; }
   .picklist-manager-label { @apply text-[10px] font-bold uppercase tracking-[0.1em] text-stuypulse-textMuted; font-family:'DM Mono',monospace; }
   .picklist-tier-controls { @apply flex flex-wrap items-center gap-2; }
   .picklist-tier-jump { @apply min-h-9 rounded-full border border-stuypulse-border bg-stuypulse-bg px-3 text-xs font-extrabold transition hover:border-current; color:var(--tier); }
@@ -371,16 +371,25 @@
   .picklist-tag-filter { @apply inline-flex min-h-9 items-center gap-1.5 rounded-full border border-stuypulse-border bg-stuypulse-bg px-3 text-xs font-bold text-stuypulse-textMuted transition; }
   .picklist-tag-filter:hover, .picklist-tag-filter.active { border-color:var(--tag); color:var(--tag); background-color:color-mix(in srgb, var(--tag) 12%, transparent); }
   .picklist-clear-tags { @apply inline-flex min-h-9 items-center gap-1 rounded-full border border-stuypulse-border px-3 text-xs font-bold text-stuypulse-textMuted transition hover:border-stuypulse-text hover:text-stuypulse-text; }
+  .picklist-manage-button { @apply grid h-9 w-9 place-items-center rounded-full border border-stuypulse-border bg-stuypulse-bg text-stuypulse-textMuted transition hover:border-stuypulse-text hover:text-stuypulse-text; }
+  .picklist-manager-popover { @apply absolute left-0 top-[calc(100%+0.65rem)] z-50 grid min-w-[340px] gap-3 rounded-lg border border-stuypulse-border bg-stuypulse-elevated p-3 shadow-elevated; }
+  .picklist-manager-popover-list { @apply flex flex-wrap gap-2; }
+  .picklist-tier-control { @apply inline-flex min-h-10 items-center gap-1 rounded-lg border border-stuypulse-border bg-stuypulse-bg py-1 pl-3 pr-1 text-xs font-extrabold; color:var(--tier); }
+  .picklist-tier-actions { @apply inline-flex overflow-hidden rounded-md border border-stuypulse-border; }
+  .picklist-tier-actions button { @apply grid h-7 w-7 place-items-center border-r border-stuypulse-border text-stuypulse-textMuted transition hover:bg-stuypulse-elevated hover:text-stuypulse-text last:border-r-0 disabled:cursor-not-allowed disabled:opacity-30; }
+  .picklist-tier-actions button:last-child:hover { @apply bg-red-500/10 text-red-400; }
+  .picklist-tier-form, .picklist-tag-form { @apply flex items-center gap-2; }
+  .picklist-tier-form input:first-of-type, .picklist-tag-form input:first-of-type { @apply min-h-10 min-w-0 flex-1 rounded-lg border border-stuypulse-border bg-stuypulse-bg px-3 text-sm text-stuypulse-text outline-none placeholder:text-stuypulse-textMuted focus:border-stuypulse-red; }
+  .picklist-tier-form input[type=color], .picklist-tag-form input[type=color] { @apply h-10 w-10 rounded-lg border border-stuypulse-border bg-stuypulse-bg p-1; }
+  .picklist-managed-tag { @apply inline-flex min-h-9 items-center gap-1.5 rounded-full border bg-stuypulse-bg px-3 text-xs font-bold; color:var(--tag); border-color:color-mix(in srgb, var(--tag) 45%, transparent); }
+  .picklist-managed-tag button { @apply grid h-5 w-5 place-items-center rounded-full text-stuypulse-textMuted transition hover:bg-red-500/15 hover:text-red-400; }
   .picklist-tier-board { @apply grid grid-cols-1 gap-4; }
   .picklist-tier { @apply overflow-visible border p-0; scroll-margin-top:5.5rem; }
   .picklist-tier-head { @apply flex items-center justify-between border-b border-stuypulse-border bg-stuypulse-bg/60 px-4 py-3; box-shadow:inset 0 2px 0 var(--tier); }
   .picklist-tier-head p { @apply mb-0 mt-0.5 text-xs; }
   .picklist-tier-label { @apply text-base font-extrabold; color:var(--tier); }
-  .picklist-tier-actions { @apply inline-flex overflow-hidden rounded-md border border-stuypulse-border; }
-  .picklist-tier-actions button { @apply grid h-7 w-7 place-items-center border-r border-stuypulse-border text-stuypulse-textMuted transition hover:bg-stuypulse-elevated hover:text-stuypulse-text last:border-r-0 disabled:cursor-not-allowed disabled:opacity-30; }
-  .picklist-tier-actions button:last-child:hover { @apply bg-red-500/10 text-red-400; }
   .picklist-tier-list { @apply grid gap-px bg-stuypulse-border; }
-  .picklist-team-row { @apply grid grid-cols-[minmax(160px,.85fr)_auto_minmax(190px,1.35fr)_auto_auto_auto_auto] items-center gap-2 bg-stuypulse-surface p-3 transition-colors; }
+  .picklist-team-row { @apply grid grid-cols-[minmax(160px,.85fr)_auto_minmax(190px,1.35fr)_auto_auto_auto] items-center gap-2 bg-stuypulse-surface p-3 transition-colors; }
   .picklist-team-row.dragging { @apply opacity-45; }
   .picklist-team-row.drop-target { @apply bg-stuypulse-elevated; }
   .picklist-team-name { @apply flex min-w-0 items-center gap-2; }
@@ -391,18 +400,18 @@
   .picklist-team-name small { @apply truncate text-xs text-stuypulse-textMuted; }
   .picklist-event-rank { @apply not-italic text-[10px] font-bold text-stuypulse-textMuted; font-family:'DM Mono',monospace; }
   .picklist-tag-picker { @apply relative; }
-  .picklist-tag-picker-trigger { @apply inline-flex min-h-9 items-center gap-1.5 rounded-md border border-stuypulse-border bg-stuypulse-bg px-2.5 text-xs font-bold text-stuypulse-textMuted transition hover:border-stuypulse-text hover:text-stuypulse-text disabled:cursor-wait disabled:opacity-60; }
-  .picklist-tag-picker-trigger.has-tags { @apply border-sky-400/50 bg-sky-400/10 text-sky-300; }
+  .picklist-tag-picker-trigger { @apply grid h-9 w-9 place-items-center rounded-md border border-stuypulse-border bg-stuypulse-bg text-stuypulse-textMuted transition hover:border-stuypulse-text hover:text-stuypulse-text disabled:cursor-wait disabled:opacity-60; }
+  .picklist-tag-picker-trigger.has-tags { border-color:var(--tag); color:var(--tag); background-color:color-mix(in srgb, var(--tag) 12%, transparent); }
   .picklist-tag-picker-menu { @apply absolute left-0 top-[calc(100%+0.5rem)] z-40 grid w-56 gap-1 rounded-lg border border-stuypulse-border bg-stuypulse-elevated p-2 shadow-elevated; }
   .picklist-tag-picker-menu button { @apply min-h-9 rounded-md border border-transparent px-2 text-left text-xs font-bold text-stuypulse-textMuted transition hover:bg-stuypulse-bg; }
   .picklist-tag-picker-menu button.active { border-color:var(--tag); color:var(--tag); background-color:color-mix(in srgb, var(--tag) 12%, transparent); }
+  .picklist-picker-tier-select { @apply mt-1 grid gap-1 border-t border-stuypulse-border pt-2 text-[9px] font-bold uppercase tracking-[0.08em] text-stuypulse-textMuted; font-family:'DM Mono',monospace; }
+  .picklist-picker-tier-select select { @apply min-h-9 rounded-md border border-stuypulse-border bg-stuypulse-bg px-2 text-xs font-bold normal-case tracking-normal text-stuypulse-text; font-family:Manrope,sans-serif; }
   .picklist-team-tags { @apply flex min-w-0 flex-wrap items-center gap-1.5; }
   .picklist-team-tags.read-only span { @apply min-h-7 rounded-full border border-stuypulse-border bg-stuypulse-bg px-2 text-[10px] font-bold text-stuypulse-textMuted; border-color:var(--tag); color:var(--tag); background-color:color-mix(in srgb, var(--tag) 12%, transparent); }
   .picklist-selected { @apply inline-flex min-h-9 items-center gap-1.5 rounded-md border border-stuypulse-border px-2 text-xs font-bold text-stuypulse-textMuted; }
   .picklist-selected input { @apply sr-only; }
   .picklist-selected.is-selected { @apply border-emerald-500/50 bg-emerald-500/10 text-emerald-300; }
-  .picklist-tier-select { @apply grid gap-1 text-[9px] font-bold uppercase tracking-[0.08em] text-stuypulse-textMuted; font-family:'DM Mono',monospace; }
-  .picklist-tier-select select { @apply min-h-9 rounded-md border border-stuypulse-border bg-stuypulse-bg px-2 text-xs font-bold normal-case tracking-normal text-stuypulse-text; font-family:Manrope,sans-serif; }
   .picklist-order-buttons { @apply inline-flex overflow-hidden rounded-md border border-stuypulse-border; }
   .picklist-order-buttons button { @apply grid min-h-9 min-w-9 place-items-center border-r border-stuypulse-border text-stuypulse-text hover:bg-stuypulse-elevated last:border-r-0 disabled:cursor-not-allowed disabled:opacity-35; }
   .picklist-note { @apply min-w-0; }
@@ -668,16 +677,17 @@
   .picklist-tier-manager { @apply gap-x-3 px-3.5; }
   .picklist-toolbar-group { @apply gap-1.5; }
   .picklist-tier-controls, .picklist-tag-controls { @apply items-stretch; }
+  .picklist-manager-popover { @apply left-0 min-w-0; width:min(24rem, calc(100vw - 1.5rem)); }
+  .picklist-tier-form, .picklist-tag-form { @apply flex-wrap; }
+  .picklist-tier-form input:first-of-type, .picklist-tag-form input:first-of-type { @apply min-w-[150px]; }
   .picklist-team-row { @apply grid-cols-[minmax(0,1fr)_auto] items-start gap-x-2 gap-y-3 p-3.5; }
   .picklist-selected { @apply order-1 justify-self-end; }
   .picklist-tag-picker, .picklist-team-tags, .picklist-read-note { @apply col-span-2 order-3; }
-  .picklist-tier-select { @apply col-span-2 order-4; }
-  .picklist-tier-select select { @apply min-h-11 px-3 text-sm; }
-  .picklist-order-buttons { @apply col-span-2 order-5 grid grid-cols-2; }
+  .picklist-order-buttons { @apply col-span-2 order-4 grid grid-cols-2; }
   .picklist-order-buttons button { @apply min-h-11; }
   .picklist-note { @apply col-span-2 order-3; }
   .picklist-note textarea { @apply min-h-24 w-full text-sm; }
-  .picklist-save-state { @apply col-span-2 order-6 self-center text-right; }
+  .picklist-save-state { @apply col-span-2 order-5 self-center text-right; }
   .photo-coverage { @apply grid-cols-1; }
   .global-document-editor { @apply grid-cols-1; }
   .global-document-editor .button { @apply w-full; }
