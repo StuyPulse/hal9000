@@ -1,7 +1,9 @@
 "use client";
 
+/* eslint-disable react-hooks/immutability -- Native color inputs update a mutable draft without rerendering the team board. */
+
 import { ArrowDown, ArrowUp, Check, GripVertical, Plus, RotateCcw, Settings2, Tag as TagIcon, Trash2, X } from "lucide-react";
-import { useMemo, useState, type CSSProperties, type DragEvent, type FormEvent } from "react";
+import { useMemo, useRef, useState, type CSSProperties, type DragEvent, type FormEvent } from "react";
 import { LocalDateTime } from "@/components/local-date-time";
 import { createClient } from "@/lib/supabase/client";
 
@@ -14,6 +16,14 @@ type Change = { id: string; team_id: string; action: "baseline" | "created" | "u
 const UNSORTED_TIER_ID = "__unsorted__";
 const unsortedTier: Category = { id: UNSORTED_TIER_ID, name: "Unsorted", color: "#64748b", sort_order: -1 };
 
+function useMutableValue(initialValue: string) {
+  const valueRef = useRef(initialValue);
+  return useMemo(() => ({
+    get current() { return valueRef.current; },
+    set current(value: string) { valueRef.current = value; },
+  }), []);
+}
+
 export function PicklistBoard({ organizationId, eventId, userId, canEdit, categories: initialCategories, tags: initialTags, teams, rankings: initialRankings, changes }: { organizationId: string; eventId: string; userId: string; canEdit: boolean; categories: Category[]; tags: PicklistTag[]; teams: Team[]; rankings: Ranking[]; changes: Change[] }) {
   const [categories, setCategories] = useState(initialCategories);
   const [tags, setTags] = useState(initialTags);
@@ -21,9 +31,9 @@ export function PicklistBoard({ organizationId, eventId, userId, canEdit, catego
   const [savingIds, setSavingIds] = useState<string[]>([]);
   const [notice, setNotice] = useState("");
   const [newTierName, setNewTierName] = useState("");
-  const [newTierColor, setNewTierColor] = useState("#64748b");
+  const newTierColor = useMutableValue("#64748b");
   const [newTagName, setNewTagName] = useState("");
-  const [newTagColor, setNewTagColor] = useState("#60a5fa");
+  const newTagColor = useMutableValue("#60a5fa");
   const [managerOpen, setManagerOpen] = useState<"tiers" | "tags" | null>(null);
   const [activeTagIds, setActiveTagIds] = useState<string[]>([]);
   const [draggingId, setDraggingId] = useState<string | null>(null);
@@ -88,7 +98,7 @@ export function PicklistBoard({ organizationId, eventId, userId, canEdit, catego
     event.preventDefault(); const name = newTierName.trim();
     if (!name || !canEdit) return;
     if (orderedCategories.some((category) => category.name.toLowerCase() === name.toLowerCase())) { setNotice("That tier already exists."); return; }
-    const supabase: any = createClient(); const { data, error } = await supabase.from("picklist_categories").insert({ organization_id: organizationId, name, color: newTierColor, sort_order: orderedCategories.length, created_by: userId }).select("id,name,color,sort_order").single();
+    const supabase: any = createClient(); const { data, error } = await supabase.from("picklist_categories").insert({ organization_id: organizationId, name, color: newTierColor.current, sort_order: orderedCategories.length, created_by: userId }).select("id,name,color,sort_order").single();
     if (error) { setNotice("Could not add that tier. Try again."); return; }
     setCategories((current) => [...current, data]); setNewTierName(""); setNotice(`${name} tier added.`);
   }
@@ -116,7 +126,7 @@ export function PicklistBoard({ organizationId, eventId, userId, canEdit, catego
     event.preventDefault(); const name = newTagName.trim();
     if (!name || !canEdit) return;
     if (orderedTags.some((tag) => tag.name.toLowerCase() === name.toLowerCase())) { setNotice("That tag already exists."); return; }
-    const supabase: any = createClient(); const { data, error } = await supabase.from("picklist_tags").insert({ organization_id: organizationId, name, color: newTagColor.toUpperCase(), sort_order: orderedTags.length, created_by: userId }).select("id,name,color,sort_order").single();
+    const supabase: any = createClient(); const { data, error } = await supabase.from("picklist_tags").insert({ organization_id: organizationId, name, color: newTagColor.current.toUpperCase(), sort_order: orderedTags.length, created_by: userId }).select("id,name,color,sort_order").single();
     if (error) { setNotice("Could not add that tag. Try again."); return; }
     setTags((current) => [...current, data]); setNewTagName(""); setNotice(`${name} tag added.`);
   }
@@ -143,8 +153,8 @@ export function PicklistBoard({ organizationId, eventId, userId, canEdit, catego
   return <>
     <section className="card picklist-workspace" aria-label="Picklist navigation and filters">
       <div className="picklist-tier-manager">
-        <div className="picklist-toolbar-group"><span className="picklist-manager-label">Tiers</span><div className="picklist-tier-controls">{orderedCategories.map((category) => <button className="picklist-tier-jump" key={category.id} type="button" style={{ "--tier": category.color } as CSSProperties} onClick={() => document.getElementById(`picklist-tier-${category.id}`)?.scrollIntoView({ behavior: "smooth", block: "start" })}>{category.name}</button>)}{canEdit && <button type="button" className="picklist-manage-button" aria-label="Manage tiers" aria-expanded={managerOpen === "tiers"} onClick={() => setManagerOpen((open) => open === "tiers" ? null : "tiers")}><Settings2 size={15}/></button>}</div>{canEdit && managerOpen === "tiers" && <div className="picklist-manager-popover"><div className="picklist-manager-popover-list">{orderedCategories.map((category, index) => <div className="picklist-tier-control" style={{ "--tier": category.color } as CSSProperties} key={category.id}><span>{category.name}</span><div className="picklist-tier-actions"><button type="button" disabled={index === 0} aria-label={`Move ${category.name} tier up`} onClick={() => void moveTier(category.id, -1)}><ArrowUp size={14}/></button><button type="button" disabled={index === orderedCategories.length - 1} aria-label={`Move ${category.name} tier down`} onClick={() => void moveTier(category.id, 1)}><ArrowDown size={14}/></button><button type="button" disabled={orderedCategories.length <= 1} aria-label={`Remove ${category.name} tier`} onClick={() => void removeTier(category.id)}><Trash2 size={14}/></button></div></div>)}</div><form className="picklist-tier-form" onSubmit={addTier}><label className="sr-only" htmlFor="new-picklist-tier">New tier name</label><input id="new-picklist-tier" value={newTierName} onChange={(event) => setNewTierName(event.target.value)} maxLength={48} placeholder="New tier" /><label className="sr-only" htmlFor="new-picklist-tier-color">Tier color</label><input id="new-picklist-tier-color" type="color" value={newTierColor} onChange={(event) => setNewTierColor(event.target.value)} /><button type="submit" className="button secondary" disabled={!newTierName.trim()}><Plus size={15} aria-hidden="true"/> Add</button></form></div>}</div>
-        <div className="picklist-toolbar-group"><span className="picklist-manager-label">Tags</span><div className="picklist-tag-controls">{orderedTags.map((tag) => <button className={`picklist-tag-filter${activeTagIds.includes(tag.id) ? " active" : ""}`} key={tag.id} type="button" style={{ "--tag": tag.color } as CSSProperties} aria-pressed={activeTagIds.includes(tag.id)} onClick={() => toggleActiveTag(tag.id)}><TagIcon size={13} aria-hidden="true"/>{tag.name}</button>)}{activeTagIds.length > 0 && <button className="picklist-clear-tags" type="button" onClick={() => setActiveTagIds([])}><X size={13} aria-hidden="true"/>Clear</button>}{canEdit && <button type="button" className="picklist-manage-button" aria-label="Manage tags" aria-expanded={managerOpen === "tags"} onClick={() => setManagerOpen((open) => open === "tags" ? null : "tags")}><Settings2 size={15}/></button>}</div>{canEdit && managerOpen === "tags" && <div className="picklist-manager-popover"><div className="picklist-manager-popover-list">{orderedTags.map((tag) => <span className="picklist-managed-tag" style={{ "--tag": tag.color } as CSSProperties} key={tag.id}><TagIcon size={13} aria-hidden="true"/>{tag.name}<button type="button" aria-label={`Remove ${tag.name} tag`} onClick={() => void removeTag(tag)}><Trash2 size={13}/></button></span>)}</div><form className="picklist-tag-form" onSubmit={addTag}><label className="sr-only" htmlFor="new-picklist-tag">New tag name</label><input id="new-picklist-tag" value={newTagName} onChange={(event) => setNewTagName(event.target.value)} maxLength={48} placeholder="New tag" /><label className="sr-only" htmlFor="new-picklist-tag-color">Tag color</label><input id="new-picklist-tag-color" type="color" value={newTagColor} onChange={(event) => setNewTagColor(event.target.value)} /><button type="submit" className="button secondary" disabled={!newTagName.trim()}><Plus size={15} aria-hidden="true"/> Add</button></form></div>}</div>
+        <div className="picklist-toolbar-group"><span className="picklist-manager-label">Tiers</span><div className="picklist-tier-controls">{orderedCategories.map((category) => <button className="picklist-tier-jump" key={category.id} type="button" style={{ "--tier": category.color } as CSSProperties} onClick={() => document.getElementById(`picklist-tier-${category.id}`)?.scrollIntoView({ behavior: "smooth", block: "start" })}>{category.name}</button>)}{canEdit && <button type="button" className="picklist-manage-button" aria-label="Manage tiers" aria-expanded={managerOpen === "tiers"} onClick={() => setManagerOpen((open) => open === "tiers" ? null : "tiers")}><Settings2 size={15}/></button>}</div>{canEdit && managerOpen === "tiers" && <div className="picklist-manager-popover"><div className="picklist-manager-popover-list">{orderedCategories.map((category, index) => <div className="picklist-tier-control" style={{ "--tier": category.color } as CSSProperties} key={category.id}><span>{category.name}</span><div className="picklist-tier-actions"><button type="button" disabled={index === 0} aria-label={`Move ${category.name} tier up`} onClick={() => void moveTier(category.id, -1)}><ArrowUp size={14}/></button><button type="button" disabled={index === orderedCategories.length - 1} aria-label={`Move ${category.name} tier down`} onClick={() => void moveTier(category.id, 1)}><ArrowDown size={14}/></button><button type="button" disabled={orderedCategories.length <= 1} aria-label={`Remove ${category.name} tier`} onClick={() => void removeTier(category.id)}><Trash2 size={14}/></button></div></div>)}</div><form className="picklist-tier-form" onSubmit={addTier}><label className="sr-only" htmlFor="new-picklist-tier">New tier name</label><input id="new-picklist-tier" value={newTierName} onChange={(event) => setNewTierName(event.target.value)} maxLength={48} placeholder="New tier" /><label className="sr-only" htmlFor="new-picklist-tier-color">Tier color</label><input id="new-picklist-tier-color" type="color" defaultValue={newTierColor.current} onChange={(event) => { newTierColor.current = event.target.value; }} /><button type="submit" className="button secondary" disabled={!newTierName.trim()}><Plus size={15} aria-hidden="true"/> Add</button></form></div>}</div>
+        <div className="picklist-toolbar-group"><span className="picklist-manager-label">Tags</span><div className="picklist-tag-controls">{orderedTags.map((tag) => <button className={`picklist-tag-filter${activeTagIds.includes(tag.id) ? " active" : ""}`} key={tag.id} type="button" style={{ "--tag": tag.color } as CSSProperties} aria-pressed={activeTagIds.includes(tag.id)} onClick={() => toggleActiveTag(tag.id)}><TagIcon size={13} aria-hidden="true"/>{tag.name}</button>)}{activeTagIds.length > 0 && <button className="picklist-clear-tags" type="button" onClick={() => setActiveTagIds([])}><X size={13} aria-hidden="true"/>Clear</button>}{canEdit && <button type="button" className="picklist-manage-button" aria-label="Manage tags" aria-expanded={managerOpen === "tags"} onClick={() => setManagerOpen((open) => open === "tags" ? null : "tags")}><Settings2 size={15}/></button>}</div>{canEdit && managerOpen === "tags" && <div className="picklist-manager-popover"><div className="picklist-manager-popover-list">{orderedTags.map((tag) => <span className="picklist-managed-tag" style={{ "--tag": tag.color } as CSSProperties} key={tag.id}><TagIcon size={13} aria-hidden="true"/>{tag.name}<button type="button" aria-label={`Remove ${tag.name} tag`} onClick={() => void removeTag(tag)}><Trash2 size={13}/></button></span>)}</div><form className="picklist-tag-form" onSubmit={addTag}><label className="sr-only" htmlFor="new-picklist-tag">New tag name</label><input id="new-picklist-tag" value={newTagName} onChange={(event) => setNewTagName(event.target.value)} maxLength={48} placeholder="New tag" /><label className="sr-only" htmlFor="new-picklist-tag-color">Tag color</label><input id="new-picklist-tag-color" type="color" defaultValue={newTagColor.current} onChange={(event) => { newTagColor.current = event.target.value; }} /><button type="submit" className="button secondary" disabled={!newTagName.trim()}><Plus size={15} aria-hidden="true"/> Add</button></form></div>}</div>
         {!canEdit && <span className="tag pending">View only</span>}
       </div>
     </section>
