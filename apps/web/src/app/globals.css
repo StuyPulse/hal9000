@@ -397,7 +397,7 @@
   .picklist-managed-tag { @apply inline-flex min-h-9 items-center gap-1.5 rounded-full border bg-stuypulse-bg px-3 text-xs font-bold; color:var(--tag); border-color:color-mix(in srgb, var(--tag) 45%, transparent); }
   .picklist-managed-tag button { @apply grid h-5 w-5 place-items-center rounded-full text-stuypulse-textMuted transition hover:bg-red-500/15 hover:text-red-400; }
   .picklist-tier-board { @apply grid grid-cols-1 gap-4; }
-  .picklist-tier { @apply overflow-visible border p-0; scroll-margin-top:5.5rem; }
+  .picklist-tier { @apply overflow-visible border-0 p-0; scroll-margin-top:5.5rem; }
   .picklist-tier-head { @apply flex items-center justify-between border-b border-stuypulse-border bg-stuypulse-bg/60 px-4 py-3; box-shadow:inset 0 2px 0 var(--tier); }
   .picklist-tier-head p { @apply mb-0 mt-0.5 text-xs; }
   .picklist-tier-label { @apply text-base font-extrabold; color:var(--tier); }
