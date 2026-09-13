@@ -398,7 +398,8 @@
   .picklist-team-row.dragging { @apply opacity-45; }
   .picklist-team-row.drop-target { @apply bg-stuypulse-elevated; }
   .picklist-team-name { @apply flex min-w-0 items-center gap-2; }
-  .picklist-drag-handle { @apply shrink-0 cursor-grab text-stuypulse-textMuted active:cursor-grabbing; }
+  .picklist-drag-source { @apply grid shrink-0 cursor-grab touch-none active:cursor-grabbing; }
+  .picklist-drag-handle { @apply text-stuypulse-textMuted; }
   .picklist-team-position { @apply grid h-7 w-7 shrink-0 place-items-center rounded-full bg-stuypulse-elevated text-xs font-extrabold text-stuypulse-textMuted; font-family:'DM Mono',monospace; }
   .picklist-team-name > span:last-child { @apply flex min-w-0 flex-col; }
   .picklist-team-name strong { @apply inline-flex items-center gap-1.5 text-sm; }
