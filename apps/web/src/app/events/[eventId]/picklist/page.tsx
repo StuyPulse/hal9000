@@ -12,7 +12,7 @@ export default async function PicklistPage({ params }: { params: Promise<{ event
   const canEdit = viewer.role === "global_scout" || viewer.role === "strategist" || viewer.role === "master" || viewerCanManage(viewer);
   const { data: event } = await supabase.from("events").select("id,name,event_key,is_manual").eq("event_key", eventKey).eq("organization_id", viewer.organizationId).maybeSingle();
   if (!event) notFound();
-  let oprs: Record<string, number> = {}; let eventRanks = new Map<number, number>();
+  let oprs: Record<string, number> = {}; const eventRanks = new Map<number, number>();
   if (!event.is_manual && process.env.TBA_AUTH_KEY) try {
     const headers = { "X-TBA-Auth-Key": process.env.TBA_AUTH_KEY };
     const [oprsResponse, rankingsResponse] = await Promise.all([
