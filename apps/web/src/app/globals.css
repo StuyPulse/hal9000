@@ -114,6 +114,20 @@
   .section-title { @apply mb-2.5 mt-[22px] text-[11px] font-medium uppercase tracking-[0.12em] text-stuypulse-textMuted; font-family: 'DM Mono', monospace; }
   .form-grid { @apply grid grid-cols-2 gap-4; }
   .auto-path-field { @apply col-span-full; }
+  .field-hint { @apply mb-2 mt-1 text-xs leading-relaxed text-stuypulse-textMuted; }
+  .scouting-range-field { @apply col-span-full; }
+  .scouting-range-pair { @apply grid grid-cols-2 gap-4; }
+  .scouting-range-pair label { @apply grid gap-2 text-sm font-bold normal-case tracking-normal text-stuypulse-text; font-family:Manrope,sans-serif; }
+  .scouting-range-pair label > span { @apply flex items-center justify-between; }
+  .scouting-range-pair input[type=range], .scouting-range-with-input input[type=range] { @apply h-10 w-full accent-stuypulse-red; }
+  .scouting-range-with-input { @apply grid grid-cols-[minmax(0,1fr)_5.5rem_auto] items-center gap-3; }
+  .scouting-range-with-input input[type=number] { @apply min-h-10 rounded-lg border border-stuypulse-border bg-stuypulse-bg px-3 text-sm text-stuypulse-text outline-none focus:border-stuypulse-red; }
+  .scouting-range-with-input > span { @apply text-xs font-bold text-stuypulse-textMuted; }
+  .pit-traversal { @apply col-span-full rounded-lg border border-stuypulse-border bg-stuypulse-bg/40 p-4; }
+  .pit-traversal legend { @apply px-1 text-sm font-bold text-stuypulse-text; }
+  .pit-traversal > div { @apply flex flex-wrap gap-2; }
+  .pit-traversal label { @apply inline-flex min-h-10 items-center gap-2 rounded-lg border border-stuypulse-border bg-stuypulse-surface px-3 text-sm font-bold text-stuypulse-textMuted transition hover:border-stuypulse-text; }
+  .pit-traversal input { @apply h-4 w-4 accent-stuypulse-red; }
   .auto-path-drawer { @apply rounded-lg border border-stuypulse-border bg-stuypulse-bg p-3; }
   .auto-path-tools { @apply mb-3 flex flex-wrap items-center gap-2; }
   .auto-path-tools > button:not(.button) { @apply h-8 w-8 rounded-full border-2 border-white/40 ring-offset-2 ring-offset-stuypulse-bg; background: var(--pen); }
@@ -212,6 +226,19 @@
   .photo-coverage > div { @apply rounded-lg border border-stuypulse-border bg-stuypulse-bg p-3; }
   .photo-coverage strong { @apply text-xs uppercase tracking-[0.08em] text-stuypulse-textMuted; }
   .photo-coverage p { @apply mb-0 mt-2 text-sm font-bold; }
+  .pit-photo-coverage { @apply mb-5; }
+  .pit-photo-missing { @apply rounded-lg border border-stuypulse-border bg-stuypulse-bg/50 p-4; }
+  .pit-photo-missing > p { @apply mb-3 text-sm font-bold text-stuypulse-text; }
+  .pit-photo-missing-list { @apply flex flex-wrap gap-2; }
+  .pit-photo-missing-list span { @apply inline-flex min-h-10 items-center gap-2 rounded-lg border border-stuypulse-border bg-stuypulse-surface px-3; }
+  .pit-photo-missing-list strong { @apply text-sm text-stuypulse-text; }
+  .pit-photo-missing-list small { @apply max-w-36 truncate text-xs text-stuypulse-textMuted; }
+  .pit-photo-complete { @apply flex items-center gap-4 rounded-lg border border-emerald-400/30 bg-emerald-500/10 p-4; animation:pit-photo-complete 700ms ease-out both; }
+  .pit-photo-complete > span { @apply grid h-12 w-12 shrink-0 place-items-center rounded-full bg-emerald-400 text-2xl font-black text-stuypulse-bg; animation:pit-photo-check 500ms 180ms cubic-bezier(.2,.9,.2,1.3) both; }
+  .pit-photo-complete strong { @apply text-sm text-emerald-200; }
+  .pit-photo-complete p { @apply mb-0 mt-1 text-xs text-emerald-100/70; }
+  @keyframes pit-photo-complete { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
+  @keyframes pit-photo-check { from { transform:scale(.45) rotate(-15deg); } to { transform:scale(1) rotate(0); } }
   .global-document { @apply overflow-hidden; }
   .global-document-editor { @apply mb-4 grid grid-cols-[minmax(0,1fr)_auto] items-end gap-3; }
   .global-document-frame { @apply h-[70vh] w-full rounded-lg border border-stuypulse-border bg-white; }
