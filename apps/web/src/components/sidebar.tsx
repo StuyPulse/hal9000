@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { BarChart3, CalendarDays, ChevronLeft, ChevronRight, ClipboardList, LayoutDashboard, ListOrdered, Map, MoreHorizontal, Radio, Settings, ShieldCheck, Users, X, type LucideIcon } from "lucide-react";
+import { BarChart3, CalendarDays, Camera, ChevronLeft, ChevronRight, ClipboardCheck, ClipboardList, Globe2, LayoutDashboard, ListOrdered, Map, MoreHorizontal, Radio, Settings, ShieldCheck, Users, X, type LucideIcon } from "lucide-react";
+import { usePathname } from "next/navigation";
 import { useState } from "react";
 import { BrandLogo } from "./brand-logo";
 import { SignOutButton } from "./sign-out-button";
@@ -12,20 +13,23 @@ type NavSection = [string, NavItem[]];
 
 function NavLink({ item, active, compact = false, onNavigate }: { item: NavItem; active: string; compact?: boolean; onNavigate?: () => void }) {
   const [name, href, Icon] = item;
-  return <Link title={compact ? name : undefined} aria-label={name} className={`nav-item ${name === active || (name === "Scouting forms" && active === "Manual scouting") ? "active" : ""}`} href={href} onClick={onNavigate}><Icon size={17}/><span>{name}</span></Link>;
+  const pathname = usePathname();
+  const current = name === active || pathname === href || (href === "/scout/match" && pathname.startsWith("/scout/match"));
+  return <Link title={compact ? name : undefined} aria-label={name} className={`nav-item ${current ? "active" : ""}`} href={href} onClick={onNavigate}><Icon size={17}/><span>{name}</span></Link>;
 }
 
 export function Sidebar({ active, canManage, eventHref }: Props) {
   const [collapsed, setCollapsed] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
   const workspace: NavItem[] = [["Dashboard", "/dashboard", LayoutDashboard], ["Teams", `${eventHref}/teams`, Users], ["Summary", `${eventHref}/summary`, BarChart3], ["Schedule", `${eventHref}/matches`, ClipboardList]];
-  const scout: NavItem[] = [["Scouting forms", "/scout/manual", ClipboardList], ["Submissions", "/submissions", BarChart3]];
+  const scoutingForms: NavItem[] = [["Match scouting", "/scout/match", ClipboardList], ["Pit scouting", "/scout/pit", Camera], ["Global scouting", "/scout/global", Globe2], ["Pre scouting", "/scout/pre-scout", ClipboardCheck]];
+  const scoutRecords: NavItem[] = [["Submissions", "/submissions", BarChart3]];
   const strategy: NavItem[] = [["Match strategy", `${eventHref}/strategy`, Map], ["Picklist", `${eventHref}/picklist`, ListOrdered]];
   const admin: NavItem[] = [["Events", "/events", CalendarDays], ["Assignments", "/admin/assignments", Radio], ["Users & roles", "/admin/users", ShieldCheck], ["Form builder", "/admin/forms", Settings]];
-  const navigation: NavSection[] = [["Workspace", workspace], ["Scout", scout], ["Strategy", strategy]];
+  const navigation: NavSection[] = [["Workspace", workspace], ["Scouting forms", scoutingForms], ["Scout records", scoutRecords], ["Strategy", strategy]];
   if (canManage) navigation.push(["Admin", admin]);
-  const mobilePrimary = [...workspace, scout[0]];
-  const mobileMore = [...scout.slice(1), ...strategy, ...(canManage ? admin : [])];
+  const mobilePrimary = [...workspace, scoutingForms[0]];
+  const mobileMore = [...scoutingForms.slice(1), ...scoutRecords, ...strategy, ...(canManage ? admin : [])];
   return <aside className={`sidebar ${collapsed ? "collapsed" : ""}`}>
     <div className="sidebar-top"><Link href="/dashboard" className="brand"><BrandLogo/><span className="brand-copy">HAL9000<small>STUYPULSE · 694</small></span></Link><button className="sidebar-toggle" type="button" onClick={() => setCollapsed((current) => !current)} aria-label={collapsed ? "Expand navigation" : "Collapse navigation"}>{collapsed ? <ChevronRight size={17}/> : <ChevronLeft size={17}/>}</button></div>
     <nav className="nav-links desktop-nav" aria-label="Primary navigation">{navigation.map(([label, items]) => <div className="nav-section" key={label}><div className="nav-label">{label}</div>{items.map((item) => <NavLink item={item} active={active} compact={collapsed} key={item[0]}/>)}</div>)}</nav>
