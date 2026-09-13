@@ -220,6 +220,11 @@
   .assignment-editor .error, .assignment-editor .trend { @apply col-span-full m-0; }
   .pit-photo-grid { @apply grid grid-cols-[repeat(auto-fit,minmax(180px,1fr))] gap-3; }
   .pit-photo-grid img { @apply h-auto max-h-[420px] w-full rounded-lg border border-stuypulse-border bg-stuypulse-bg object-contain; }
+  .pit-tabs-workspace { @apply grid gap-4; }
+  .pit-tabs { @apply flex gap-1 overflow-x-auto rounded-lg border border-stuypulse-border bg-stuypulse-bg/50 p-1; -webkit-overflow-scrolling:touch; }
+  .pit-tabs button { @apply min-h-11 shrink-0 rounded-md px-3 text-xs font-extrabold text-stuypulse-textMuted transition hover:bg-stuypulse-elevated hover:text-stuypulse-text; }
+  .pit-tabs button.active { @apply bg-stuypulse-surface text-stuypulse-text shadow-sm; }
+  .pit-tabs button span { @apply ml-1.5 rounded-full bg-stuypulse-warning/15 px-1.5 py-0.5 text-[10px] text-stuypulse-warning; font-family:'DM Mono',monospace; }
   .team-overview-link { @apply mb-4 flex justify-end; }
   .team-directory-row { @apply transition-colors hover:bg-stuypulse-elevated focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-stuypulse-redHover; }
   .photo-coverage { @apply grid grid-cols-2 gap-3; }
@@ -230,7 +235,7 @@
   .pit-photo-missing { @apply rounded-lg border border-stuypulse-border bg-stuypulse-bg/50 p-4; }
   .pit-photo-missing > p { @apply mb-3 text-sm font-bold text-stuypulse-text; }
   .pit-photo-missing-list { @apply flex flex-wrap gap-2; }
-  .pit-photo-missing-list span { @apply inline-flex min-h-10 items-center gap-2 rounded-lg border border-stuypulse-border bg-stuypulse-surface px-3; }
+  .pit-photo-missing-list button { @apply inline-flex min-h-10 items-center gap-2 rounded-lg border border-stuypulse-border bg-stuypulse-surface px-3 text-left transition hover:border-stuypulse-red hover:bg-stuypulse-elevated; }
   .pit-photo-missing-list strong { @apply text-sm text-stuypulse-text; }
   .pit-photo-missing-list small { @apply max-w-36 truncate text-xs text-stuypulse-textMuted; }
   .pit-photo-complete { @apply flex items-center gap-4 rounded-lg border border-emerald-400/30 bg-emerald-500/10 p-4; animation:pit-photo-complete 700ms ease-out both; }
