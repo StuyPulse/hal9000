@@ -375,6 +375,7 @@
   .picklist-undo-button { @apply inline-flex min-h-8 items-center gap-1 rounded-md border border-stuypulse-border bg-stuypulse-elevated px-2 text-xs font-bold text-stuypulse-text transition hover:border-stuypulse-red hover:text-stuypulse-red disabled:cursor-wait disabled:opacity-60; }
   .picklist-workspace { @apply sticky top-3 z-30 mb-4 p-0 shadow-elevated; }
   .picklist-tier-manager { @apply flex flex-wrap items-center gap-x-5 gap-y-3 px-4 py-3; }
+  .picklist-manager-notice { @apply mb-0 basis-full text-xs; }
   .picklist-toolbar-group { @apply relative flex flex-wrap items-center gap-2; }
   .picklist-manager-label { @apply text-[10px] font-bold uppercase tracking-[0.1em] text-stuypulse-textMuted; font-family:'DM Mono',monospace; }
   .picklist-tier-controls { @apply flex flex-wrap items-center gap-2; }
