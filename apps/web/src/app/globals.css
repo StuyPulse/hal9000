@@ -221,9 +221,16 @@
   .steps strong { @apply text-stuypulse-redHover; }
 
   .assignment-toolbar { @apply flex items-end justify-between gap-[18px]; }
+  .assignment-setup { @apply mb-[18px] overflow-hidden p-0; }
+  .assignment-setup-controls { @apply grid grid-cols-[minmax(0,.9fr)_minmax(320px,1.1fr)] bg-stuypulse-surface; }
   .event-picker { @apply flex items-end gap-2; }
+  .assignment-setup .event-picker { @apply border-r border-stuypulse-border p-5; }
   .event-picker label { @apply block text-xs font-bold text-stuypulse-text; }
   .event-picker select { @apply min-w-[250px] py-2; }
+  .assignment-generation { @apply p-5; }
+  .assignment-generation .muted { @apply mb-0 mt-2 leading-relaxed; }
+  .assignment-generation .error, .assignment-generation .trend { @apply mb-0; }
+  .assignment-setup-hint { @apply m-0 border-t border-stuypulse-border bg-stuypulse-bg/40 px-5 py-3 text-xs leading-relaxed text-stuypulse-textMuted; }
   .assignment-board { @apply grid gap-4; }
   .assignment-match { @apply overflow-hidden rounded-panel bg-stuypulse-surface shadow-panel; }
   .assignment-match-head { @apply flex items-center justify-between bg-stuypulse-elevated px-3.5 py-3; }
@@ -633,6 +640,8 @@
   .auth { @apply grid-cols-1; }
   .auth-aside { @apply hidden; }
   .manual-match-form { @apply grid-cols-2; }
+  .assignment-setup-controls { @apply grid-cols-1; }
+  .assignment-setup .event-picker { @apply border-r-0 border-b; }
   .manual-match-form > label, .manual-match-form > .button { grid-column: auto; }
   .scoring-head { @apply hidden; }
   .scoring-row { @apply grid-cols-1 gap-3 px-3 py-3; }
