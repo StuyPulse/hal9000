@@ -16,5 +16,5 @@ export async function PageHeader({ eyebrow, title, children }: { eyebrow: string
   const viewer = await getViewerContext();
   const activeEvent = viewer?.activeEvent;
   const eventChip = <><span className={activeEvent ? "online" : "offline"}/><span>Active event:</span><strong>{activeEvent?.name ?? "None selected"}</strong></>;
-  return <div className="topbar"><div className="topbar-title"><BackButton/><div><div className="eyebrow">{eyebrow}</div><h1>{title}</h1></div></div><div className="topbar-actions">{children}{viewerCanManage(viewer) ? <Link className="event-chip" href="/events" aria-label="Choose the active event">{eventChip}</Link> : <div className="event-chip">{eventChip}</div>}</div></div>;
+  return <div className="topbar"><div className="topbar-title"><BackButton/><div><div className="eyebrow">{eyebrow}</div><h1>{title}</h1></div></div><div className="topbar-actions">{children}{viewerCanManage(viewer) ? <Link className="event-chip" href="/events#event-list" aria-label="Choose the active event">{eventChip}</Link> : <div className="event-chip">{eventChip}</div>}</div></div>;
 }

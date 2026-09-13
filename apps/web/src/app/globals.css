@@ -54,6 +54,7 @@
   .back-button { @apply mt-1 inline-flex min-h-9 shrink-0 items-center rounded-lg border border-stuypulse-border bg-stuypulse-surface px-2.5 text-xs font-bold text-stuypulse-textMuted transition hover:bg-stuypulse-elevated hover:text-stuypulse-text; }
   .eyebrow { @apply text-[11px] font-medium uppercase tracking-[0.12em] text-stuypulse-textMuted; font-family: 'DM Mono', monospace; }
   .event-chip { @apply flex items-center gap-2 rounded-lg border border-stuypulse-border bg-stuypulse-surface px-3 py-2 text-xs text-stuypulse-textMuted no-underline shadow-panel; }
+  .main :target { scroll-margin-top: 1rem; }
   .online { @apply h-[7px] w-[7px] rounded-full bg-stuypulse-success shadow-status; }
 
   .grid { display: grid; gap: theme('spacing.4'); }
