@@ -368,7 +368,7 @@
   .picklist-tier-controls { @apply flex flex-wrap items-center gap-2; }
   .picklist-tier-jump { @apply min-h-9 rounded-full border border-stuypulse-border bg-stuypulse-bg px-3 text-xs font-extrabold transition hover:border-current; color:var(--tier); }
   .picklist-tag-controls { @apply flex flex-wrap items-center gap-2; }
-  .picklist-tag-filter { @apply inline-flex min-h-9 items-center gap-1.5 rounded-full border border-stuypulse-border bg-stuypulse-bg px-3 text-xs font-bold text-stuypulse-textMuted transition; }
+  .picklist-tag-filter { @apply inline-flex min-h-9 items-center gap-1.5 rounded-full border bg-stuypulse-bg px-3 text-xs font-bold transition; color:var(--tag); border-color:color-mix(in srgb, var(--tag) 45%, transparent); }
   .picklist-tag-filter:hover, .picklist-tag-filter.active { border-color:var(--tag); color:var(--tag); background-color:color-mix(in srgb, var(--tag) 12%, transparent); }
   .picklist-clear-tags { @apply inline-flex min-h-9 items-center gap-1 rounded-full border border-stuypulse-border px-3 text-xs font-bold text-stuypulse-textMuted transition hover:border-stuypulse-text hover:text-stuypulse-text; }
   .picklist-manage-button { @apply grid h-9 w-9 place-items-center rounded-full border border-stuypulse-border bg-stuypulse-bg text-stuypulse-textMuted transition hover:border-stuypulse-text hover:text-stuypulse-text; }
