@@ -137,11 +137,14 @@
   .traversal-options strong { @apply text-sm text-stuypulse-text; }
   .traversal-options small { @apply text-xs font-medium text-stuypulse-textMuted; }
   .auto-path-drawer { @apply rounded-lg border border-stuypulse-border bg-stuypulse-bg p-3; }
-  .auto-path-tools { @apply mb-3 flex flex-wrap items-center gap-2; }
-  .auto-path-tools > button:not(.button) { @apply h-8 w-8 rounded-full border-2 border-white/40 ring-offset-2 ring-offset-stuypulse-bg; background: var(--pen); }
-  .auto-path-tools > button.active { @apply ring-2 ring-stuypulse-text; }
-  .auto-path-tools .button { @apply min-h-8 px-3 py-1 text-xs; }
+  .auto-path-tools { @apply mb-3 flex flex-wrap items-center justify-between gap-3; }
+  .auto-path-colors, .auto-path-actions { @apply flex flex-wrap items-center gap-2; }
+  .auto-path-colors button { @apply inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-stuypulse-border bg-stuypulse-surface px-2 py-1.5 text-xs font-bold text-stuypulse-textMuted transition hover:border-stuypulse-textMuted; }
+  .auto-path-colors button > span { @apply h-4 w-4 rounded-full border-2 border-white/40; background: var(--pen); }
+  .auto-path-colors button.active { @apply border-stuypulse-text bg-stuypulse-elevated text-stuypulse-text ring-1 ring-stuypulse-text; }
+  .auto-path-tools .button { @apply min-h-9 px-3 py-1.5 text-xs; }
   .auto-path-canvas { @apply h-auto w-full touch-none rounded-md border border-stuypulse-border bg-white; aspect-ratio: 1380 / 674; background-image: url('/2026-field-map.png'); background-position: center; background-repeat: no-repeat; background-size: cover; }
+  .auto-notes-label { @apply mb-2 mt-4 block text-xs font-bold text-stuypulse-text; }
   .field label { @apply mb-2 block text-xs font-bold text-stuypulse-text; }
   .field input, .field select, .field textarea, .event-picker select, .assignment-editor select { @apply min-h-11 w-full rounded-lg border border-stuypulse-border bg-stuypulse-bg px-3 py-2.5 text-stuypulse-text outline-none transition-colors placeholder:text-stuypulse-textMuted focus:border-stuypulse-redHover focus:ring-1 focus:ring-stuypulse-redHover; }
   .app-select { @apply relative min-w-0; }

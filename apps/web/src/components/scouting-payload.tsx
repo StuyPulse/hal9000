@@ -1,5 +1,5 @@
 const labels: Record<string, string> = {
-  auto: "Autonomous", auto_fuel: "Autonomous fuel", break_tag: "Breakage type", break_timestamp: "Breakage time", comments: "Comments", defended_teams: "Teams defended", defense: "Played defense", defense_level: "Defense level", ferry: "Ferried", fouls: "Fouls", manual_match: "Manual match", no_show: "No show", no_show_reason: "No-show reason", robot_broke: "Robot broke or was disabled", shoot: "Scored", starting_spot: "Starting position", starting_spot_confirmed: "Starting position confirmed", teleop: "Teleop", teleop_fuel: "Teleop fuel",
+  auto: "Autonomous", auto_fuel: "Autonomous fuel", auto_routines_notes: "Auton notes", break_tag: "Breakage type", break_timestamp: "Breakage time", comments: "Comments", defended_teams: "Teams defended", defense: "Played defense", defense_level: "Defense level", ferry: "Ferried", fouls: "Fouls", manual_match: "Manual match", no_show: "No show", no_show_reason: "No-show reason", robot_broke: "Robot broke or was disabled", shoot: "Scored", starting_spot: "Starting position", starting_spot_confirmed: "Starting position confirmed", teleop: "Teleop", teleop_fuel: "Teleop fuel",
 };
 
 function fieldLabel(key: string) { return labels[key] ?? key.replace(/_/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase()); }
