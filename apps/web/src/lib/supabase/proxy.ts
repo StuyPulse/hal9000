@@ -24,7 +24,7 @@ export async function updateSession(request: NextRequest) {
     const url = request.nextUrl.clone(); url.pathname = "/auth/login"; return NextResponse.redirect(url);
   }
   if (claims && path === "/auth/login") {
-    const url = request.nextUrl.clone(); url.pathname = "/dashboard"; return NextResponse.redirect(url);
+    const url = request.nextUrl.clone(); url.pathname = "/scout/match"; return NextResponse.redirect(url);
   }
   return response;
 }

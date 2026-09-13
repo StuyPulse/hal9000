@@ -25,7 +25,7 @@ export async function signIn(_: AuthState, formData: FormData): Promise<AuthStat
   const supabase = await createClient();
   const { error } = await supabase.auth.signInWithPassword(parsed.data);
   if (error) return { error: "We couldn't sign you in with those details." };
-  redirect("/dashboard");
+  redirect("/scout/match");
 }
 
 export async function signUp(_: AuthState, formData: FormData): Promise<AuthState> {

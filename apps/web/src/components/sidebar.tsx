@@ -21,7 +21,7 @@ function NavLink({ item, active, compact = false, onNavigate }: { item: NavItem;
 export function Sidebar({ active, canManage, eventHref }: Props) {
   const [collapsed, setCollapsed] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
-  const workspace: NavItem[] = [["Dashboard", "/dashboard", LayoutDashboard], ["Teams", `${eventHref}/teams`, Users], ["Summary", `${eventHref}/summary`, BarChart3], ["Schedule", `${eventHref}/matches`, ClipboardList]];
+  const workspace: NavItem[] = [["Assignments", "/dashboard", LayoutDashboard], ["Teams", `${eventHref}/teams`, Users], ["Summary", `${eventHref}/summary`, BarChart3], ["Match schedule", `${eventHref}/matches`, ClipboardList]];
   const scoutingForms: NavItem[] = [["Match scouting", "/scout/match", ClipboardList], ["Pit scouting", "/scout/pit", Camera], ["Global scouting", "/scout/global", Globe2], ["Pre scouting", "/scout/pre-scout", ClipboardCheck]];
   const scoutRecords: NavItem[] = [["Submissions", "/submissions", BarChart3]];
   const strategy: NavItem[] = [["Match strategy", `${eventHref}/strategy`, Map], ["Picklist", `${eventHref}/picklist`, ListOrdered]];
@@ -31,7 +31,7 @@ export function Sidebar({ active, canManage, eventHref }: Props) {
   const mobilePrimary = [...workspace, scoutingForms[0]];
   const mobileMore = [...scoutingForms.slice(1), ...scoutRecords, ...strategy, ...(canManage ? admin : [])];
   return <aside className={`sidebar ${collapsed ? "collapsed" : ""}`}>
-    <div className="sidebar-top"><Link href="/dashboard" className="brand"><BrandLogo/><span className="brand-copy">HAL9000<small>STUYPULSE · 694</small></span></Link><button className="sidebar-toggle" type="button" onClick={() => setCollapsed((current) => !current)} aria-label={collapsed ? "Expand navigation" : "Collapse navigation"}>{collapsed ? <ChevronRight size={17}/> : <ChevronLeft size={17}/>}</button></div>
+    <div className="sidebar-top"><Link href="/scout/match" className="brand"><BrandLogo/><span className="brand-copy">HAL9000<small>STUYPULSE · 694</small></span></Link><button className="sidebar-toggle" type="button" onClick={() => setCollapsed((current) => !current)} aria-label={collapsed ? "Expand navigation" : "Collapse navigation"}>{collapsed ? <ChevronRight size={17}/> : <ChevronLeft size={17}/>}</button></div>
     <nav className="nav-links desktop-nav" aria-label="Primary navigation">{navigation.map(([label, items]) => <div className="nav-section" key={label}><div className="nav-label">{label}</div>{items.map((item) => <NavLink item={item} active={active} compact={collapsed} key={item[0]}/>)}</div>)}</nav>
     <div className="desktop-signout"><SignOutButton /></div>
     <nav className="mobile-nav" aria-label="Mobile navigation">{mobilePrimary.map((item) => <NavLink item={item} active={active} onNavigate={() => setMoreOpen(false)} key={item[0]}/>) }<button className={`nav-item mobile-more-trigger ${mobileMore.some(([name]) => name === active) ? "active" : ""}`} type="button" aria-expanded={moreOpen} aria-label={moreOpen ? "Close more navigation" : "Open more navigation"} onClick={() => setMoreOpen((current) => !current)}>{moreOpen ? <X size={18}/> : <MoreHorizontal size={18}/>}<span>More</span></button></nav>
