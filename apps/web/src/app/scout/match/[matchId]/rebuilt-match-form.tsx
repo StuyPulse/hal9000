@@ -17,13 +17,13 @@ type Score = { shoot: number; ferry: number };
 type BreakageIssue = { id: string; timestamp: string; tag: string; otherIssue: string };
 
 const spots = [
-  { id: "depot", label: "Depot", x: "11.5%", y: "10%", mirrorNudge: true },
-  { id: "depot-bump", label: "Depot Bump", x: "11.5%", y: "30%", mirrorNudge: true },
-  { id: "hub", label: "Hub", x: "11.5%", y: "50%", mirrorNudge: true },
-  { id: "outpost-bump", label: "Outpost Bump", x: "11.5%", y: "70%", mirrorNudge: true },
-  { id: "outpost", label: "Outpost", x: "11.5%", y: "90%", mirrorNudge: true },
-  { id: "depot-trench", label: "Depot Trench", x: "29%", y: "10%" },
-  { id: "outpost-trench", label: "Outpost Trench", x: "29%", y: "90%" },
+  { id: "depot", label: "Depot", allianceLayout: { x: "14.6%", y: "8.5%" }, mirrorLayout: { x: "85.3%", y: "8.5%" } },
+  { id: "depot-bump", label: "Depot Bump", allianceLayout: { x: "14.6%", y: "29.2%" }, mirrorLayout: { x: "85.3%", y: "29.6%" } },
+  { id: "hub", label: "Hub", allianceLayout: { x: "14.6%", y: "49.8%" }, mirrorLayout: { x: "85.3%", y: "50.7%" } },
+  { id: "outpost-bump", label: "Outpost Bump", allianceLayout: { x: "14.6%", y: "70.5%" }, mirrorLayout: { x: "85.3%", y: "71.7%" } },
+  { id: "outpost", label: "Outpost", allianceLayout: { x: "14.6%", y: "91.1%" }, mirrorLayout: { x: "85.3%", y: "92.8%" } },
+  { id: "depot-trench", label: "Depot Trench", allianceLayout: { x: "28%", y: "7.3%" }, mirrorLayout: { x: "72.6%", y: "7.6%" } },
+  { id: "outpost-trench", label: "Outpost Trench", allianceLayout: { x: "28%", y: "92.7%" }, mirrorLayout: { x: "72.6%", y: "92.6%" } },
 ];
 const tags = ["Intake broke", "Shooter broke", "Drive issue", "Electrical", "Other"];
 const empty = (): Score => ({ shoot: 0, ferry: 0 });
@@ -62,16 +62,10 @@ export function RebuiltMatchForm({ eventId, matchId, teamId, assignmentId, allia
 
   const disabled = noShow || saving || submitted;
   const total = (score: Score) => score.shoot + score.ferry;
-  // The base field image has Red on the left. Rotate for Blue so each
-  // alliance's map uses the same physical starting-position arrangement.
+  // Blue rotates only the field art; each layout keeps its chosen control positions.
   const mapRotated = alliance === "blue";
   const mapMirrored = mirrored;
-  const mapPosition = (value: string, axis: "x" | "y", mirrorNudge = false) => {
-    const position = Number.parseFloat(value);
-    const shouldInvert = axis === "x" ? mapRotated !== mapMirrored : mapRotated;
-    const mapped = shouldInvert ? 100 - position : position;
-    return `${mapped + (axis === "x" && mapMirrored && mirrorNudge ? 3 : 0)}%`;
-  };
+  const positionFor = (item: (typeof spots)[number]) => mapMirrored ? item.mirrorLayout : item.allianceLayout;
 
   async function save(finalize: boolean) {
     if (saving || !entryId) return;
@@ -109,7 +103,7 @@ export function RebuiltMatchForm({ eventId, matchId, teamId, assignmentId, allia
   }
 
   return <section className="scouting-card match-form">
-      <div className="form-section"><div className="section-title">Auton starting position</div><div className="form-field-actions"><button type="button" className="button secondary mobile-full" disabled={saving || submitted} aria-pressed={noShow} onClick={() => setNoShow(!noShow)}>{noShow ? "Undo no show" : "Mark no show"}</button><button type="button" className="button secondary mobile-full" disabled={saving || submitted} aria-pressed={mirrored} onClick={() => setMirrored((current) => !current)}><FlipHorizontal2 size={16} aria-hidden="true"/>{mirrored ? "Use alliance view" : "Mirror field"}</button></div><fieldset disabled={disabled}><legend className="sr-only">Autonomous starting position</legend><div className={`field-map ${mapRotated ? "rotated" : ""} ${mapMirrored ? "mirrored" : ""}`}><div className="field-map-art" aria-hidden="true"/>{spots.map((item) => <button type="button" key={item.id} aria-label={`Start at ${item.label}`} aria-pressed={spot === item.id} style={{"--spot-x":mapPosition(item.x, "x", item.mirrorNudge),"--spot-y":mapPosition(item.y, "y")} as CSSProperties} className={spot === item.id ? `spot ${alliance}` : "spot"} onClick={() => setSpot((current) => current === item.id ? undefined : item.id)}><span>{item.label}</span></button>)}</div></fieldset>{spot && <div className="spot-choice" aria-live="polite">Starting position: {spots.find((item)=>item.id===spot)?.label}</div>}</div>
+      <div className="form-section"><div className="section-title">Auton starting position</div><div className="form-field-actions"><button type="button" className="button secondary mobile-full" disabled={saving || submitted} aria-pressed={noShow} onClick={() => setNoShow(!noShow)}>{noShow ? "Undo no show" : "Mark no show"}</button><button type="button" className="button secondary mobile-full" disabled={saving || submitted} aria-pressed={mirrored} onClick={() => setMirrored((current) => !current)}><FlipHorizontal2 size={16} aria-hidden="true"/>{mirrored ? "Use alliance view" : "Mirror field"}</button></div><fieldset disabled={disabled}><legend className="sr-only">Autonomous starting position</legend><div className={`field-map ${mapRotated ? "rotated" : ""} ${mapMirrored ? "mirrored" : ""}`}><div className="field-map-art" aria-hidden="true"/>{spots.map((item) => <button type="button" key={item.id} aria-label={`Start at ${item.label}`} aria-pressed={spot === item.id} style={{"--spot-x":positionFor(item).x,"--spot-y":positionFor(item).y} as CSSProperties} className={spot === item.id ? `spot ${alliance}` : "spot"} onClick={() => setSpot((current) => current === item.id ? undefined : item.id)}><span>{item.label}</span></button>)}</div></fieldset>{spot && <div className="spot-choice" aria-live="polite">Starting position: {spots.find((item)=>item.id===spot)?.label}</div>}</div>
     <fieldset disabled={disabled}><legend className="sr-only">Match scouting details</legend>
       <div className="form-section"><div className="section-title">Scoring</div><div className="scoring-table"><div className="scoring-head"><span>Period</span><span>Scored</span><span>Ferried</span></div><ScoreRow label="Autonomous" value={auto} update={(key, value) => setAuto((score) => ({ ...score, [key]: Math.max(0, value) }))} autoRow /><ScoreRow label="Teleop" value={teleop} update={(key, value) => setTeleop((score) => ({ ...score, [key]: Math.max(0, value) }))} /></div></div>
       <div className="form-section"><div className="section-title">Fouls</div><Counter label="Fouls" value={fouls} by={1} setValue={setFouls} showLabel={false} /></div>
