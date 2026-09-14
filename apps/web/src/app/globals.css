@@ -113,6 +113,15 @@
   .photo-input-actions { @apply flex flex-wrap gap-2; }
   .photo-input-actions input { @apply sr-only; }
   .photo-input-actions label { @apply mb-0; }
+  .pit-photo-queue { @apply mt-3 rounded-lg border border-stuypulse-border bg-stuypulse-bg p-3; }
+  .pit-photo-queue > strong { @apply text-xs font-bold text-stuypulse-text; }
+  .pit-photo-queue ul { @apply mt-2 grid gap-1.5; }
+  .pit-photo-queue li { @apply flex min-w-0 items-center justify-between gap-2 text-xs text-stuypulse-textMuted; }
+  .pit-photo-queue li > span { @apply min-w-0 truncate; }
+  .pit-photo-queue button { @apply grid h-7 w-7 shrink-0 place-items-center rounded-md border border-stuypulse-border text-stuypulse-textMuted transition hover:border-stuypulse-red hover:text-stuypulse-text disabled:cursor-not-allowed disabled:opacity-50; }
+  .pit-photo-submit { @apply mt-4 flex flex-wrap items-center gap-3; }
+  .pit-photo-submit p { @apply mb-0; }
+  .pit-photo-submit > .button:disabled { @apply cursor-not-allowed opacity-50; }
   .muted { @apply text-xs text-stuypulse-textMuted; }
   .section { @apply mt-[18px]; }
   .section-title { @apply mb-2.5 mt-[22px] text-[11px] font-medium uppercase tracking-[0.12em] text-stuypulse-textMuted; font-family: 'DM Mono', monospace; }
