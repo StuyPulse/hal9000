@@ -15,6 +15,9 @@ type Ranking = { id: string; team_id: string; category_id: string | null; rank: 
 type RankingChange = Pick<Ranking, "rank" | "category_id" | "note" | "selected" | "tag_ids">;
 type Change = { id: string; team_id: string; actor_user_id: string | null; action: "baseline" | "created" | "updated" | "deleted"; before_state: Record<string, unknown> | null; after_state: Record<string, unknown> | null; created_at: string; teams?: { team_number: number; name: string } | null; profiles?: { display_name: string } | null };
 type Revision = { id: string; createdAt: string; oldestAt: string; actorUserId: string | null; editor: string; changes: Change[] };
+type HistoricalRankState = { rank: number; category_id: string | null };
+type TierPosition = { categoryId: string | null; position: number; total: number };
+type ChangePositions = { before: TierPosition; after: TierPosition };
 const EDITING_SESSION_IDLE_MS = 5 * 60 * 1_000;
 const UNSORTED_TIER_ID = "__unsorted__";
 const unsortedTier: Category = { id: UNSORTED_TIER_ID, name: "Unsorted", color: "#64748b", sort_order: -1 };
@@ -61,6 +64,28 @@ export function PicklistBoard({ organizationId, eventId, userId, canEdit, catego
     }
     return sessions;
   }, [changes]);
+  const changePositions = useMemo(() => {
+    const defaults = new Map<string, HistoricalRankState>(teams.map((team, index) => [team.id, { rank: (index + 1) * 1024, category_id: null }]));
+    const states = new Map(defaults);
+    for (const ranking of rankings) states.set(ranking.team_id, { rank: ranking.rank ?? defaults.get(ranking.team_id)?.rank ?? Number.MAX_SAFE_INTEGER, category_id: ranking.category_id });
+    const positionFor = (teamId: string): TierPosition => {
+      const state = states.get(teamId) ?? defaults.get(teamId)!;
+      const inTier = teams.filter((team) => (states.get(team.id) ?? defaults.get(team.id))?.category_id === state.category_id).sort((left, right) => ((states.get(left.id) ?? defaults.get(left.id))?.rank ?? Number.MAX_SAFE_INTEGER) - ((states.get(right.id) ?? defaults.get(right.id))?.rank ?? Number.MAX_SAFE_INTEGER) || left.team_number - right.team_number);
+      return { categoryId: state.category_id, position: Math.max(0, inTier.findIndex((team) => team.id === teamId)) + 1, total: inTier.length };
+    };
+    const stateFrom = (snapshot: Record<string, unknown> | null, fallback: HistoricalRankState): HistoricalRankState => ({ rank: typeof snapshot?.rank === "number" ? snapshot.rank : fallback.rank, category_id: typeof snapshot?.category_id === "string" ? snapshot.category_id : snapshot?.category_id === null ? null : fallback.category_id });
+    const positions = new Map<string, ChangePositions>();
+    for (const change of changes) {
+      const fallback: HistoricalRankState = defaults.get(change.team_id) ?? { rank: Number.MAX_SAFE_INTEGER, category_id: null };
+      const after = change.action === "deleted" ? fallback : stateFrom(change.after_state, states.get(change.team_id) ?? fallback);
+      states.set(change.team_id, after);
+      const afterPosition = positionFor(change.team_id);
+      const before = stateFrom(change.before_state, fallback);
+      states.set(change.team_id, before);
+      positions.set(change.id, { before: positionFor(change.team_id), after: afterPosition });
+    }
+    return positions;
+  }, [changes, rankings, teams]);
   const tierCategories = [unsortedTier, ...orderedCategories];
   const databaseCategoryId = (tierId: string) => tierId === UNSORTED_TIER_ID ? null : tierId;
   const allTeamsInTier = (tierId: string) => {
@@ -215,7 +240,7 @@ export function PicklistBoard({ organizationId, eventId, userId, canEdit, catego
 
     <section className="picklist-tier-board" aria-label="Shared picklist tiers">{tierCategories.map((category) => { const allTierTeams = allTeamsInTier(category.id); const tierTeams = teamsInTier(category.id); return <section id={`picklist-tier-${category.id}`} className="card picklist-tier" style={{ "--tier": category.color } as CSSProperties} key={category.id} onDragOver={(event) => { if (canEdit) event.preventDefault(); }} onDrop={(event) => dropOn(event, category.id)}><div className="picklist-tier-head"><div><span className="picklist-tier-label">{category.name}</span><p className="muted">{activeTagIds.length ? `${tierTeams.length} of ${allTierTeams.length}` : tierTeams.length} teams</p></div></div><div className="picklist-tier-list">{tierTeams.map((team) => <TierTeamRow key={team.id} team={team} ranking={byTeam.get(team.id)} categories={tierCategories} tags={orderedTags} tierIndex={allTierTeams.findIndex((item) => item.id === team.id)} tierSize={allTierTeams.length} canEdit={canEdit} saving={savingIds.includes(team.id)} dragging={draggingId === team.id} dropTarget={dropTargetId === team.id} onDragStart={(event) => startDrag(event, team.id)} onDragEnd={finishDrag} onDragOver={(event) => { if (canEdit) { event.preventDefault(); if (dropTargetId !== team.id) setDropTargetId(team.id); } }} onDrop={(event) => dropOn(event, category.id, team.id)} onTierChange={(categoryId) => void moveToTier(team.id, categoryId)} onMove={(direction) => void moveWithinTier(team.id, category.id, direction)} onNote={(note) => void persistTeams([{ team, changes: { note } }], `Note saved for Team ${team.team_number}.`)} onSelected={(selected) => void persistTeams([{ team, changes: { selected } }], selected ? `Team ${team.team_number} selected.` : `Team ${team.team_number} unselected.`)} onTags={(tagIds) => void persistTeams([{ team, changes: { tag_ids: tagIds } }], `Tags saved for Team ${team.team_number}.`)}/>)}</div>{!tierTeams.length && <p className="muted picklist-empty-tier">{activeTagIds.length ? "No teams match these tags." : "Drop a team here."}</p>}</section>; })}</section>
 
-    <section className="card section picklist-history" role="region" aria-label="Picklist version history"><div className="card-head"><div><h2>History</h2><span className="muted">{revisions.length} editing sessions · {changes.length} recorded changes</span></div><button type="button" className="button secondary" aria-expanded={historyOpen} onClick={() => setHistoryOpen((open) => !open)}>{historyOpen ? "Hide" : "View"} full history</button></div>{historyOpen && <div className="picklist-activity">{revisions.length ? revisions.map((revision) => <RevisionCard key={revision.id} revision={revision} categories={orderedCategories} canRestore={canEdit} restoring={restoringRevisionId === revision.id} onRestore={() => void restoreRevision(revision)}/>) : <p className="muted">No shared edits have been recorded yet.</p>}</div>}</section>
+    <section className="card section picklist-history" role="region" aria-label="Picklist version history"><div className="card-head"><div><h2>History</h2><span className="muted">{revisions.length} editing sessions · {changes.length} recorded changes</span></div><button type="button" className="button secondary" aria-expanded={historyOpen} onClick={() => setHistoryOpen((open) => !open)}>{historyOpen ? "Hide" : "View"} full history</button></div>{historyOpen && <div className="picklist-activity">{revisions.length ? revisions.map((revision) => <RevisionCard key={revision.id} revision={revision} categories={orderedCategories} tags={orderedTags} positions={changePositions} canRestore={canEdit} restoring={restoringRevisionId === revision.id} onRestore={() => void restoreRevision(revision)}/>) : <p className="muted">No shared edits have been recorded yet.</p>}</div>}</section>
     {notice && createPortal(<p className="trend picklist-manager-notice" aria-live="polite">{notice}</p>, document.querySelector(".picklist-tier-manager") ?? document.body)}
   </>;
 }
@@ -244,13 +269,20 @@ function restoreRankingState(state: Change["before_state"]): Partial<RankingChan
   return Object.keys(restored).length ? restored : null;
 }
 
-function RevisionCard({ revision, categories, canRestore, restoring, onRestore }: { revision: Revision; categories: Category[]; canRestore: boolean; restoring: boolean; onRestore: () => void }) {
+function RevisionCard({ revision, categories, tags, positions, canRestore, restoring, onRestore }: { revision: Revision; categories: Category[]; tags: PicklistTag[]; positions: Map<string, ChangePositions>; canRestore: boolean; restoring: boolean; onRestore: () => void }) {
   const teamCount = new Set(revision.changes.map((change) => change.team_id)).size;
-  return <article className="picklist-revision"><div className="picklist-revision-head"><div><strong>{revision.changes.length} {revision.changes.length === 1 ? "edit" : "edits"} · {teamCount} {teamCount === 1 ? "team" : "teams"}</strong><span>{revision.editor} · <LocalDateTime value={revision.createdAt}/>{revision.oldestAt !== revision.createdAt && <> · began <LocalDateTime value={revision.oldestAt} format="time"/></>}</span></div>{canRestore && <button type="button" className="picklist-undo-button" disabled={restoring} onClick={onRestore}><RotateCcw size={13} aria-hidden="true"/>{restoring ? "Restoring…" : "Restore version"}</button>}</div><details className="picklist-revision-details"><summary>{revision.changes.length === 1 ? "View edit" : `View ${revision.changes.length} edits`}</summary><div>{revision.changes.map((change) => <ChangeRow key={change.id} change={change} categories={categories}/>)}</div></details></article>;
+  return <article className="picklist-revision"><div className="picklist-revision-head"><div><strong>{revision.changes.length} {revision.changes.length === 1 ? "edit" : "edits"} · {teamCount} {teamCount === 1 ? "team" : "teams"}</strong><span>{revision.editor} · <LocalDateTime value={revision.createdAt}/>{revision.oldestAt !== revision.createdAt && <> · began <LocalDateTime value={revision.oldestAt} format="time"/></>}</span></div>{canRestore && <button type="button" className="picklist-undo-button" disabled={restoring} onClick={onRestore}><RotateCcw size={13} aria-hidden="true"/>{restoring ? "Restoring…" : "Restore version"}</button>}</div><details className="picklist-revision-details"><summary>{revision.changes.length === 1 ? "View edit" : `View ${revision.changes.length} edits`}</summary><div>{revision.changes.map((change) => <ChangeRow key={change.id} change={change} categories={categories} tags={tags} positions={positions.get(change.id)}/>)}</div></details></article>;
 }
 
-function ChangeRow({ change, categories }: { change: Change; categories: Category[] }) {
+function ChangeRow({ change, categories, tags, positions }: { change: Change; categories: Category[]; tags: PicklistTag[]; positions?: ChangePositions }) {
   const before = change.before_state ?? {}; const after = change.after_state ?? {}; const category = (id: unknown) => typeof id === "string" ? categories.find((item) => item.id === id)?.name ?? "Unsorted" : "Unsorted";
-  const details = change.action === "baseline" ? "Adopted as the initial shared ranking" : change.action === "created" ? `Added to ${category(after.category_id)}` : [before.rank !== after.rank && "Changed tier order", before.category_id !== after.category_id && `Tier ${category(before.category_id)} → ${category(after.category_id)}`, before.note !== after.note && "Updated note", before.selected !== after.selected && (after.selected ? "Selected" : "Unselected"), JSON.stringify(before.tag_ids ?? []) !== JSON.stringify(after.tag_ids ?? []) && "Updated tags"].filter(Boolean).join(" · ") || "Updated shared ranking";
+  const placement = (position: TierPosition) => `${category(position.categoryId)} #${position.position}`;
+  const moved = positions && (before.rank !== after.rank || before.category_id !== after.category_id) ? before.category_id !== after.category_id ? `Moved from ${placement(positions.before)} to ${placement(positions.after)}` : positions.before.position !== positions.after.position ? `Order in ${category(positions.after.categoryId)}: #${positions.before.position} → #${positions.after.position}` : `Order updated in ${placement(positions.after)}` : null;
+  const beforeTagIds = Array.isArray(before.tag_ids) ? before.tag_ids.filter((id): id is string => typeof id === "string") : [];
+  const afterTagIds = Array.isArray(after.tag_ids) ? after.tag_ids.filter((id): id is string => typeof id === "string") : [];
+  const addedTags = afterTagIds.filter((id) => !beforeTagIds.includes(id)).map((id) => tags.find((tag) => tag.id === id)?.name).filter((name): name is string => Boolean(name));
+  const removedTags = beforeTagIds.filter((id) => !afterTagIds.includes(id)).map((id) => tags.find((tag) => tag.id === id)?.name).filter((name): name is string => Boolean(name));
+  const tagChange = [...(addedTags.length ? [`Added tag${addedTags.length === 1 ? "" : "s"}: ${addedTags.join(", ")}`] : []), ...(removedTags.length ? [`Removed tag${removedTags.length === 1 ? "" : "s"}: ${removedTags.join(", ")}`] : [])].join(" · ");
+  const details = change.action === "baseline" ? positions ? `Initial placement: ${placement(positions.after)}` : "Adopted as the initial shared ranking" : change.action === "created" ? positions ? `Added to ${placement(positions.after)}` : `Added to ${category(after.category_id)}` : [moved, before.note !== after.note && "Updated note", before.selected !== after.selected && (after.selected ? "Marked selected" : "Marked not selected"), tagChange].filter(Boolean).join(" · ") || "Updated shared ranking";
   return <div className="picklist-activity-row"><div><strong>{change.teams ? `${change.teams.team_number} · ${change.teams.name}` : "Team"}</strong><span>{details}</span></div></div>;
 }
