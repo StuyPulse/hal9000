@@ -79,14 +79,14 @@ export default async function TeamDetail({ params }: { params: Promise<{ eventId
     const theirs = official ? (red ? official.alliances?.blue?.score : official.alliances?.red?.score) : (red ? match.blue_score : match.red_score);
     const outcome = typeof ours === "number" && typeof theirs === "number" ? ours > theirs ? "win" : ours < theirs ? "loss" : "tie" : "pending";
     const report = reportByMatchId.get(match.id); const values = report ? entryBreakdown(report.payload) : null;
-    return { id: official?.key ?? match.id, label: official ? (official.comp_level === "qm" ? `Q${official.match_number}` : `Playoff ${official.match_number}`) : localMatchLabel(match), alliance: red ? "red" : "blue", outcome, score: typeof ours === "number" && typeof theirs === "number" ? `${ours} – ${theirs}` : "Not played", tbaUrl: official ? `https://www.thebluealliance.com/match/${official.key}` : undefined, reportUrl: report ? `/submissions/${report.id}` : undefined, hasScout: Boolean(report), totalFuel: values?.total ?? null, autoFuel: values?.auto ?? null, teleopFuel: values?.teleop ?? null, fouls: values?.fouls ?? null, defense: values?.defense ?? null, broken: values?.broken ?? null };
+    return { id: official?.key ?? match.id, label: official ? (official.comp_level === "qm" ? `Q${official.match_number}` : `Playoff ${official.match_number}`) : localMatchLabel(match), alliance: red ? "red" : "blue", outcome, score: typeof ours === "number" && typeof theirs === "number" ? `${ours} – ${theirs}` : "Not played", tbaUrl: official ? `https://www.thebluealliance.com/match/${official.key}` : undefined, report: report ? { id: report.id, payload: report.payload ?? {}, scout: report.profiles?.display_name ?? "Scout" } : undefined, hasScout: Boolean(report), totalFuel: values?.total ?? null, autoFuel: values?.auto ?? null, teleopFuel: values?.teleop ?? null, fouls: values?.fouls ?? null, defense: values?.defense ?? null, broken: values?.broken ?? null };
   };
   const officialTimeline = tbaMatches.map((match) => { const local = localByKey.get(localMatchKey(tbaMatchType(match), match.match_number)); return local ? toTimeline(local, match) : null; }).filter(Boolean) as TimelineMatch[];
   const timeline = officialTimeline.length ? officialTimeline : teamMatches.map((match) => toTimeline(match));
   const preScoutCount = byType("pre_scout").length;
   const pitEntries = byType("pit");
   const pitCount = pitEntries.length;
-  const teamNames = new Map((eventTeams ?? []).map((row: any) => [row.team_id, `${row.teams?.team_number ?? "Unknown"} · ${row.teams?.name ?? "team"}`]));
+  const teamNames = Object.fromEntries((eventTeams ?? []).map((row: any) => [row.team_id, `${row.teams?.team_number ?? "Unknown"} · ${row.teams?.name ?? "team"}`]));
   const overview = [
     { label: "Scout reports", value: String(stats.entries), detail: stats.entries ? "match reports recorded" : "no match data yet" },
     { label: "Avg fuel / match", value: formatStat(stats.totalFuel), detail: `${formatStat(stats.autoFuel)} auto · ${formatStat(stats.teleopFuel)} teleop` },
@@ -107,7 +107,7 @@ export default async function TeamDetail({ params }: { params: Promise<{ eventId
 
     <TeamRobotProfile eventId={event.id} eventKey={event.event_key} teamId={team.id} teamNumber={team.team_number} drivetrainType={teamLink?.drivetrain_type ?? null} shooterType={teamLink?.shooter_type ?? null}/>
 
-    <div className="section"><TeamMatchTimeline matches={timeline}/></div>
+    <div className="section"><TeamMatchTimeline matches={timeline} teamNames={teamNames}/></div>
     <section className="card section"><div><h2>Research coverage</h2><div className="coverage-list">{pitEntries.length ? <details className="team-pit-details"><summary><strong>Pit scouting</strong><span>{pitCount} report{pitCount === 1 ? "" : "s"} available</span></summary><div className="team-pit-reports">{pitEntries.map((entry: any) => <section key={entry.id} className="team-pit-report"><div className="team-pit-report-head"><span>{entry.profiles?.display_name ?? "Scout"} · {entry.submitted_at ? <LocalDateTime value={entry.submitted_at}/> : "Draft"}</span><Link className="link" href={`/submissions/${entry.id}`}>Open report →</Link></div><PayloadGrid payload={entry.payload ?? {}} compact teamNames={teamNames}/></section>)}</div></details> : <div><strong>Pit scouting</strong><span>Not scouted yet</span></div>}<div><strong>Pre-scouting</strong><span>{preScoutCount ? `${preScoutCount} report${preScoutCount === 1 ? "" : "s"} available` : "Not scouted yet"}</span></div><div><strong>Pit photos</strong><span>{photoUrls.length ? `${photoUrls.length} photo${photoUrls.length === 1 ? "" : "s"} available` : "No photos yet"}</span></div></div><Link className="link" href="/scout/manual">Open scouting forms →</Link></div></section>
 
   </AppShell>;
