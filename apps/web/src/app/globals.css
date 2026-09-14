@@ -106,6 +106,7 @@
   .submission-detail-grid-compact dt { @apply mb-1 text-[9px]; }
   .submission-detail-grid-compact dd { @apply text-xs; }
   .submission-detail-grid > .payload-starting-position { @apply col-span-full; }
+  .submission-detail-grid > .payload-comments { @apply col-span-full; }
   .submission-detail-grid .payload-period dt { @apply text-xs font-extrabold tracking-[0.12em] text-stuypulse-text; }
   .submission-detail-grid-compact .payload-period dt { @apply text-[10px] font-extrabold text-stuypulse-text; }
   .submission-detail-grid > .payload-breakage { @apply border-stuypulse-border; }

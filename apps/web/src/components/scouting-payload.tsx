@@ -1,7 +1,7 @@
 "use client";
 
 const labels: Record<string, string> = {
-  auto: "Autonomous", auto_fuel: "Autonomous fuel", auto_routines_notes: "Auton notes", break_tag: "Breakage type", break_timestamp: "Breakage time", comments: "Comments", defended_teams: "Teams defended", defense: "Played defense", defense_level: "Defense level", ferry: "Ferried", fouls: "Fouls", manual_match: "Manual match", no_show: "No show", no_show_reason: "No-show reason", robot_broke: "Robot broke or was disabled", shoot: "Scored", starting_spot: "Starting position", starting_spot_confirmed: "Starting position confirmed", teleop: "Teleop", teleop_fuel: "Teleop fuel",
+  auto: "Autonomous", auto_fuel: "Autonomous fuel", auto_routines_notes: "Auton notes", break_tag: "Breakage type", break_timestamp: "Time broken", comments: "Comments", defended_teams: "Teams defended", defense: "Played defense", defense_level: "Defense level", ferry: "Ferried", fouls: "Fouls", manual_match: "Manual match", no_show: "No show", no_show_reason: "No-show reason", robot_broke: "Robot broke or was disabled", shoot: "Scored", starting_spot: "Starting position", starting_spot_confirmed: "Starting position confirmed", teleop: "Teleop", teleop_fuel: "Teleop fuel",
 };
 
 function fieldLabel(key: string) { return labels[key] ?? key.replace(/_/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase()); }
@@ -42,17 +42,18 @@ export function PayloadGrid({ payload, compact = false, teamNames }: { payload: 
     defense: 50,
     defense_level: 51,
     defended_teams: 52,
+    comments: 60,
   };
   const fields = Object.entries(payload)
-    .filter(([key, value]) => value !== undefined && value !== null && value !== ""
+    .filter(([key, value]) => ((value !== undefined && value !== null && value !== "") || key === "comments" || (key === "break_timestamp" && robotBroke))
       && !(hasPeriodBreakdown && ["auto_fuel", "teleop_fuel", "starting_spot_confirmed", "report_source"].includes(key))
       && !(key === "no_show" && value === false)
       && !(key === "robot_broke" && !robotBroke)
       && !(["breakage_issues", "break_tag", "break_timestamp"].includes(key) && !robotBroke)
-      && !(hasBreakageIssues && ["break_tag", "break_timestamp"].includes(key))
+      && !(hasBreakageIssues && key === "break_tag")
       && !(key === "defense" && !playedDefense)
       && !(["defense_level", "defended_teams"].includes(key) && !playedDefense))
     .sort(([firstKey], [secondKey]) => (displayOrder[firstKey] ?? 100) - (displayOrder[secondKey] ?? 100));
   if (!fields.length) return <p className="muted">No field values were saved for this entry.</p>;
-  return <dl className={compact ? "submission-detail-grid submission-detail-grid-compact" : "submission-detail-grid"}>{fields.map(([key, value]) => <div className={[key === "auto_routines_drawing" ? "submission-drawing" : "", key === "starting_spot" ? "payload-starting-position" : "", key === "auto" || key === "teleop" ? "payload-period" : "", key === "robot_broke" || key === "breakage_issues" ? "payload-breakage" : ""].filter(Boolean).join(" ") || undefined} key={key}><dt>{fieldLabel(key)}</dt><dd>{key === "auto_routines_drawing" && typeof value === "string" ? <AutoPathPreview svg={value}/> : <PayloadValue value={value} fieldKey={key} teamNames={teamNames}/>}</dd></div>)}</dl>;
+  return <dl className={compact ? "submission-detail-grid submission-detail-grid-compact" : "submission-detail-grid"}>{fields.map(([key, value]) => <div className={[key === "auto_routines_drawing" ? "submission-drawing" : "", key === "starting_spot" ? "payload-starting-position" : "", key === "comments" ? "payload-comments" : "", key === "auto" || key === "teleop" ? "payload-period" : "", key === "robot_broke" || key === "breakage_issues" ? "payload-breakage" : ""].filter(Boolean).join(" ") || undefined} key={key}><dt>{fieldLabel(key)}</dt><dd>{key === "auto_routines_drawing" && typeof value === "string" ? <AutoPathPreview svg={value}/> : <PayloadValue value={value} fieldKey={key} teamNames={teamNames}/>}</dd></div>)}</dl>;
 }
