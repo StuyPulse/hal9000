@@ -17,13 +17,13 @@ type Score = { shoot: number; ferry: number };
 type BreakageIssue = { id: string; timestamp: string; tag: string; otherIssue: string };
 
 const spots = [
-  { id: "depot", label: "Depot", x: "8%", y: "10%" },
-  { id: "depot-bump", label: "Depot Bump", x: "8%", y: "30%" },
-  { id: "hub", label: "Hub", x: "8%", y: "50%" },
-  { id: "outpost-bump", label: "Outpost Bump", x: "8%", y: "70%" },
-  { id: "outpost", label: "Outpost", x: "8%", y: "90%" },
-  { id: "depot-trench", label: "Depot Trench", x: "26%", y: "10%" },
-  { id: "outpost-trench", label: "Outpost Trench", x: "74%", y: "10%" },
+  { id: "depot", label: "Depot", x: "11.5%", y: "10%" },
+  { id: "depot-bump", label: "Depot Bump", x: "11.5%", y: "30%" },
+  { id: "hub", label: "Hub", x: "11.5%", y: "50%" },
+  { id: "outpost-bump", label: "Outpost Bump", x: "11.5%", y: "70%" },
+  { id: "outpost", label: "Outpost", x: "11.5%", y: "90%" },
+  { id: "depot-trench", label: "Depot Trench", x: "31%", y: "10%" },
+  { id: "outpost-trench", label: "Outpost Trench", x: "31%", y: "90%" },
 ];
 const tags = ["Intake broke", "Shooter broke", "Drive issue", "Electrical", "Other"];
 const empty = (): Score => ({ shoot: 0, ferry: 0 });

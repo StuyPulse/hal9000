@@ -173,8 +173,10 @@
   .counter button { @apply h-11 w-11 shrink-0 rounded-lg border border-stuypulse-border bg-stuypulse-elevated text-lg font-extrabold text-stuypulse-text transition-colors hover:bg-stuypulse-red hover:text-stuypulse-text; }
   .counter output { @apply min-w-[25px] text-center text-lg font-semibold; font-family: 'DM Mono', monospace; }
   .counter input { @apply h-11 w-20 rounded-lg border border-stuypulse-border bg-stuypulse-bg px-2 py-1 text-center; }
-  .field-map { @apply relative isolate mt-4 min-h-[440px] overflow-hidden rounded-panel border border-stuypulse-border bg-white; aspect-ratio: 2.04 / 1; }
-  .field-map-art { @apply absolute inset-0 bg-cover bg-center; background-image: url('/2026-field-map.png'); }
+  .match-form, .match-form fieldset, .match-form .form-section { min-width: 0; }
+  .match-form fieldset { min-inline-size: 0; }
+  .field-map { @apply relative isolate mt-4 w-full min-w-0 overflow-hidden rounded-panel border border-stuypulse-border bg-white; aspect-ratio: 1380 / 674; container-type: inline-size; }
+  .field-map-art { @apply absolute inset-0 bg-center bg-no-repeat; background-image: url('/2026-field-map.png'); background-size: contain; }
   .field-map.rotated .field-map-art { transform: rotate(180deg); }
   .field-map.mirrored .field-map-art { transform: scaleX(-1); }
   .field-map.rotated.mirrored .field-map-art { transform: rotate(180deg) scaleX(-1); }
@@ -185,6 +187,10 @@
   .spot.blue { @apply border-sky-500 bg-sky-600 text-white; }
   .spot.blue span { @apply text-white; }
   .spot-choice { @apply mt-3 text-xs font-semibold text-stuypulse-textMuted; font-family: 'DM Mono', monospace; }
+  @container (max-width: 44rem) {
+    .field-map .spot { height: 2.25rem; width: 4.75rem; }
+    .field-map .spot span { font-size: 0.625rem; }
+  }
   .team-picker { @apply mt-3 flex flex-wrap gap-2; }
   .team-pick { @apply min-h-11 rounded-lg border border-stuypulse-border bg-stuypulse-bg px-3 py-2 text-sm font-bold; }
   .team-pick.red { @apply border-stuypulse-red bg-stuypulse-red text-white; }
