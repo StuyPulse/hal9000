@@ -239,8 +239,9 @@ export async function setObjectiveAssignment(_: ActionState, formData: FormData)
       const { data: scout, error: scoutError } = await database.from("organization_members").select("user_id").eq("organization_id", organizationId).eq("user_id", input.data.scoutUserId).in("role", ["scout", "global_scout", "admin", "developer"]).maybeSingle();
       if (scoutError || !scout) return { error: "Choose a scout-capable user from this organization." };
     }
-    const { data: existing, error: existingError } = await database.from("scouting_assignments").select("id,scout_user_id").eq("match_id", match.id).eq("team_id", input.data.teamId).eq("assignment_type", "objective");
+    const { data: existing, error: existingError } = await database.from("scouting_assignments").select("id,scout_user_id,status").eq("match_id", match.id).eq("team_id", input.data.teamId).eq("assignment_type", "objective");
     if (existingError) return { error: "Couldn’t read the current assignment." };
+    if (existing?.some((assignment) => assignment.status === "complete")) return { error: "This assignment already has a submitted report and cannot be reassigned." };
     if (existing?.length) {
       const { data: submitted, error: submittedError } = await database.from("match_submissions").select("id").in("assignment_id", existing.map((assignment) => assignment.id)).limit(1);
       if (submittedError) return { error: "Couldn’t check existing submissions." };

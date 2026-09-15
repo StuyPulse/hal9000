@@ -5,12 +5,9 @@ import { LocalDateTime } from "@/components/local-date-time";
 import { AppSelect } from "@/components/app-select";
 import { getActiveEvent } from "@/lib/active-event";
 import { createClient } from "@/lib/supabase/server";
+import { matchLabel } from "@/lib/match-label";
 
 type PageProps = { searchParams: Promise<{ eventId?: string }> };
-function matchLabel(match: { match_number: number; match_type: string }) {
-  return match.match_type === "qualification" ? `Qual ${match.match_number}` : match.match_type === "practice" ? `Practice ${match.match_number}` : `Playoff ${match.match_number}`;
-}
-
 export default async function AssignmentBoardPage({ searchParams }: PageProps) {
   const { eventId: requestedEventId } = await searchParams;
   const [supabase, viewerActiveEvent] = await Promise.all([createClient(), getActiveEvent()]);
