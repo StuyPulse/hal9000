@@ -89,8 +89,13 @@
   .page-grid { @apply grid grid-cols-[minmax(0,1fr)_320px] gap-[18px]; }
   .list-row { @apply flex items-center justify-between gap-2.5 border-t border-stuypulse-border py-4; }
   .submission-row { @apply transition-colors hover:bg-stuypulse-elevated; }
-  .submission-row > :first-child { @apply min-w-0; }
+  .submission-row-main { @apply flex min-w-0 flex-1 items-center justify-between gap-3; }
+  .submission-row-main > :first-child { @apply min-w-0; }
   .submission-row-action { @apply flex shrink-0 items-center gap-3 text-sm font-bold text-stuypulse-textMuted; }
+  .submission-delete-form { @apply flex flex-wrap items-center gap-2; }
+  .submission-delete-form.compact { @apply shrink-0; }
+  .submission-delete-form.compact .button { @apply min-h-9 px-2.5 py-1.5 text-xs; }
+  .submission-delete-form .error, .submission-delete-form .trend { @apply m-0 basis-full text-xs; }
   .submission-detail { @apply max-w-5xl overflow-hidden p-0; }
   .submission-detail-head { @apply flex items-start justify-between gap-4 border-b border-stuypulse-border bg-stuypulse-elevated/50 px-5 py-5; }
   .submission-detail-head h2 { @apply mt-1 text-xl; }
@@ -263,8 +268,10 @@
   .assignment-alliance-grid { @apply grid grid-cols-2 gap-px bg-stuypulse-border; }
   .assignment-alliance-grid > div { @apply bg-stuypulse-surface p-3; }
   .assignment-alliance-title { @apply mb-2 text-[10px] font-semibold uppercase tracking-[0.1em]; font-family: 'DM Mono', monospace; }
-  .assignment-editor { @apply grid grid-cols-[minmax(116px,1fr)_minmax(130px,1.2fr)_auto] items-center gap-2 border-t border-stuypulse-border py-2; }
+  .assignment-editor { @apply grid grid-cols-[minmax(116px,1fr)_auto_minmax(130px,1.2fr)_auto] items-center gap-2 border-t border-stuypulse-border py-2; }
+  .assignment-editor-team { @apply grid min-w-0 gap-0.5; }
   .assignment-editor strong { @apply text-xs text-stuypulse-text; }
+  .assignment-editor-complete { @apply -mx-1 rounded-md bg-stuypulse-success/10 px-1.5; }
   .assignment-editor select { @apply rounded-md px-2 py-1.5 text-xs; }
   .assignment-editor .button { @apply px-2.5 py-2; }
   .assignment-editor .error, .assignment-editor .trend { @apply col-span-full m-0; }
