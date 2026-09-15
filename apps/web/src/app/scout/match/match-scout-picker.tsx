@@ -2,20 +2,12 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
+import { matchLabel } from "@/lib/match-label";
 
 type Match = { id: string; key: string; number: number; type: string; red: string[]; blue: string[] };
 type Team = { id: string; number: number; name: string };
 
-function label(match: Match) {
-  const suffix = match.key.split("_").pop() ?? "";
-  const qualification = suffix.match(/^qm(\d+)$/);
-  const final = suffix.match(/^f(\d+)m(\d+)$/);
-  const semifinal = suffix.match(/^sf(\d+)m(\d+)$/);
-  if (qualification) return `Qualification ${qualification[1]}`;
-  if (final) return `Final ${final[1]} · Match ${final[2]}`;
-  if (semifinal) return `Semifinal ${semifinal[1]} · Match ${semifinal[2]}`;
-  return `${match.type} · ${suffix.toUpperCase()}`;
-}
+const label = (match: Match) => matchLabel({ match_number: match.number, match_type: match.type, tba_match_key: match.key });
 
 export function MatchScoutPicker({ matches, teams, initialMatchId = "" }: { matches: Match[]; teams: Team[]; initialMatchId?: string }) {
   const [matchId, setMatchId] = useState(initialMatchId);

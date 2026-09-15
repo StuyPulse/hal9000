@@ -8,7 +8,7 @@ import { MatchReportSummary } from "@/components/scouting-payload";
 
 type MetricKey = "totalFuel" | "autoFuel" | "teleopFuel" | "fouls" | "defense" | "broken";
 const metricOptions: { key: MetricKey; label: string; color: string }[] = [{ key: "totalFuel", label: "Avg fuel", color: "#f24444" }, { key: "autoFuel", label: "Auto fuel", color: "#f2bf44" }, { key: "teleopFuel", label: "Teleop fuel", color: "#60a5fa" }, { key: "fouls", label: "Fouls", color: "#c084fc" }, { key: "defense", label: "Defense", color: "#34d399" }, { key: "broken", label: "Broken", color: "#fb7185" }];
-export type TimelineMatch = { id: string; label: string; alliance: "red" | "blue"; outcome: "win" | "loss" | "tie" | "pending"; score: string; tbaUrl?: string; report?: { id: string; payload: Record<string, unknown>; scout: string }; hasScout: boolean; totalFuel: number | null; autoFuel: number | null; teleopFuel: number | null; fouls: number | null; defense: number | null; broken: number | null };
+export type TimelineMatch = { id: string; label: string; roundOrder: number; alliance: "red" | "blue"; outcome: "win" | "loss" | "tie" | "pending"; score: string; tbaUrl?: string; report?: { id: string; payload: Record<string, unknown>; scout: string }; hasScout: boolean; totalFuel: number | null; autoFuel: number | null; teleopFuel: number | null; fouls: number | null; defense: number | null; broken: number | null };
 const label = (outcome: TimelineMatch["outcome"]) => outcome === "win" ? "Won" : outcome === "loss" ? "Lost" : outcome === "tie" ? "Tied" : "Pending";
 const value = (number: number | null) => number === null ? "—" : number.toFixed(2);
 

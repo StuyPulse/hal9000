@@ -8,19 +8,18 @@ import { LocalDateTime } from "@/components/local-date-time";
 import { PayloadGrid } from "@/components/scouting-payload";
 import { TeamMatchTimeline, type TimelineMatch } from "./team-match-timeline";
 import { TeamRobotProfile } from "./team-robot-profile";
+import { matchLabel, matchRoundOrder } from "@/lib/match-label";
 
 type TbaMatch = { key: string; match_number: number; comp_level?: string; actual_time?: number; alliances?: { red?: { team_keys?: string[]; score?: number }; blue?: { team_keys?: string[]; score?: number } } };
-type LocalMatch = { id: string; match_number: number; match_type: string; scheduled_at: string | null; red_teams: string[]; blue_teams: string[]; red_score: number | null; blue_score: number | null };
+type LocalMatch = { id: string; tba_match_key: string; match_number: number; match_type: string; scheduled_at: string | null; red_teams: string[]; blue_teams: string[]; red_score: number | null; blue_score: number | null };
 
 function entryBreakdown(payload: Record<string, any> | null | undefined) {
   const auto = Number(payload?.auto?.shoot ?? 0) + Number(payload?.auto?.ferry ?? 0) || Number(payload?.auto_fuel ?? 0);
   const teleop = Number(payload?.teleop?.shoot ?? payload?.teleop_fuel ?? 0) + Number(payload?.teleop?.ferry ?? 0) || Number(payload?.teleop_fuel ?? 0);
   return { auto, teleop, total: auto + teleop, fouls: Number(payload?.fouls ?? 0), defense: Number(payload?.defense_level ?? 0), broken: payload?.robot_broke ? 1 : 0 };
 }
-const localMatchKey = (type: string, matchNumber: number) => `${type}:${matchNumber}`;
-const tbaMatchType = (match: TbaMatch) => match.comp_level === "qm" ? "qualification" : "playoff";
-const localMatchLabel = (match: LocalMatch) => match.match_type === "qualification" ? `Q${match.match_number}` : match.match_type === "practice" ? `Practice ${match.match_number}` : `Playoff ${match.match_number}`;
-const timelinePhase = (match: TimelineMatch) => match.label.startsWith("Q") ? 0 : match.label.startsWith("Practice") ? 1 : 2;
+const tbaMatchType = (match: TbaMatch) => match.comp_level === "qm" ? "qualification" : match.comp_level === "pm" ? "practice" : "playoff";
+const localMatchLabel = (match: LocalMatch) => matchLabel({ match_number: match.match_number, match_type: match.match_type, tba_match_key: match.tba_match_key });
 
 export default async function TeamDetail({ params }: { params: Promise<{ eventId: string; teamNumber: string }> }) {
   const { eventId: eventKey, teamNumber } = await params;
@@ -37,9 +36,9 @@ export default async function TeamDetail({ params }: { params: Promise<{ eventId
   if (!team) notFound();
 
   const [{ data: entries }, { data: photos }, { data: localMatches }] = await Promise.all([
-    (supabase as any).from("scouting_entries").select("id,entry_type,payload,status,submitted_at,created_at,matches(id,match_number,match_type),profiles(display_name)").eq("event_id", event.id).eq("team_id", team.id).order("created_at", { ascending: false }),
+    (supabase as any).from("scouting_entries").select("id,entry_type,payload,status,submitted_at,created_at,matches(id,match_number,match_type,tba_match_key),profiles(display_name)").eq("event_id", event.id).eq("team_id", team.id).order("created_at", { ascending: false }),
     (supabase as any).from("pit_photos").select("storage_path").eq("event_id", event.id).eq("team_id", team.id).order("created_at", { ascending: false }),
-    (supabase as any).from("matches").select("id,match_number,match_type,scheduled_at,red_teams,blue_teams,red_score,blue_score").eq("event_id", event.id).order("scheduled_at"),
+    (supabase as any).from("matches").select("id,tba_match_key,match_number,match_type,scheduled_at,red_teams,blue_teams,red_score,blue_score").eq("event_id", event.id).order("scheduled_at"),
   ]);
 
   const photoUrls = (await Promise.all((photos ?? []).map(async (photo: any) => {
@@ -51,7 +50,7 @@ export default async function TeamDetail({ params }: { params: Promise<{ eventId
   const byType = (type: string) => (entries ?? []).filter((entry: any) => entry.entry_type === type);
   const stats = calculateScoutStats(matchEntries);
   const teamMatches = ((localMatches ?? []) as LocalMatch[]).filter((match) => [...(match.red_teams ?? []), ...(match.blue_teams ?? [])].includes(team.id));
-  const localByKey = new Map(teamMatches.map((match) => [localMatchKey(match.match_type, match.match_number), match]));
+  const localByTbaKey = new Map(teamMatches.map((match) => [match.tba_match_key, match]));
   const reportByMatchId = new Map<string, any>();
   for (const entry of submittedEntries) if (entry.matches?.id && !reportByMatchId.has(entry.matches.id)) reportByMatchId.set(entry.matches.id, entry);
 
@@ -69,7 +68,7 @@ export default async function TeamDetail({ params }: { params: Promise<{ eventId
     if (matchesResponse.ok && Array.isArray(matchesJson)) tbaMatches = matchesJson.filter((match: TbaMatch) => [
       ...(match.alliances?.red?.team_keys ?? []),
       ...(match.alliances?.blue?.team_keys ?? []),
-    ].includes(`frc${team.team_number}`)).sort((a: TbaMatch, b: TbaMatch) => (tbaMatchType(a) === "qualification" ? 0 : 1) - (tbaMatchType(b) === "qualification" ? 0 : 1) || a.match_number - b.match_number || a.key.localeCompare(b.key));
+    ].includes(`frc${team.team_number}`)).sort((a: TbaMatch, b: TbaMatch) => matchRoundOrder({ match_type: tbaMatchType(a), tba_match_key: a.key }) - matchRoundOrder({ match_type: tbaMatchType(b), tba_match_key: b.key }) || a.key.localeCompare(b.key, undefined, { numeric: true }));
     if (rankingsResponse.ok && Array.isArray(rankingsJson?.rankings)) tba = rankingsJson.rankings.find((ranking: any) => ranking.team_key === `frc${team.team_number}`);
     opr = Number(oprsJson?.oprs?.[`frc${team.team_number}`] ?? 0);
   } catch {}
@@ -80,10 +79,12 @@ export default async function TeamDetail({ params }: { params: Promise<{ eventId
     const theirs = official ? (red ? official.alliances?.blue?.score : official.alliances?.red?.score) : (red ? match.blue_score : match.red_score);
     const outcome = typeof ours === "number" && typeof theirs === "number" ? ours > theirs ? "win" : ours < theirs ? "loss" : "tie" : "pending";
     const report = reportByMatchId.get(match.id); const values = report ? entryBreakdown(report.payload) : null;
-    return { id: official?.key ?? match.id, label: official ? (official.comp_level === "qm" ? `Q${official.match_number}` : `Playoff ${official.match_number}`) : localMatchLabel(match), alliance: red ? "red" : "blue", outcome, score: typeof ours === "number" && typeof theirs === "number" ? `${ours} – ${theirs}` : "Not played", tbaUrl: official ? `https://www.thebluealliance.com/match/${official.key}` : undefined, report: report ? { id: report.id, payload: report.payload ?? {}, scout: report.profiles?.display_name ?? "Scout" } : undefined, hasScout: Boolean(report), totalFuel: values?.total ?? null, autoFuel: values?.auto ?? null, teleopFuel: values?.teleop ?? null, fouls: values?.fouls ?? null, defense: values?.defense ?? null, broken: values?.broken ?? null };
+    const matchType = official ? tbaMatchType(official) : match.match_type;
+    const tbaMatchKey = official?.key ?? match.tba_match_key;
+    return { id: official?.key ?? match.id, label: official ? matchLabel({ match_number: official.match_number, match_type: matchType, tba_match_key: official.key }) : localMatchLabel(match), roundOrder: matchRoundOrder({ match_type: matchType, tba_match_key: tbaMatchKey }), alliance: red ? "red" : "blue", outcome, score: typeof ours === "number" && typeof theirs === "number" ? `${ours} – ${theirs}` : "Not played", tbaUrl: official ? `https://www.thebluealliance.com/match/${official.key}` : undefined, report: report ? { id: report.id, payload: report.payload ?? {}, scout: report.profiles?.display_name ?? "Scout" } : undefined, hasScout: Boolean(report), totalFuel: values?.total ?? null, autoFuel: values?.auto ?? null, teleopFuel: values?.teleop ?? null, fouls: values?.fouls ?? null, defense: values?.defense ?? null, broken: values?.broken ?? null };
   };
-  const officialTimeline = tbaMatches.map((match) => { const local = localByKey.get(localMatchKey(tbaMatchType(match), match.match_number)); return local ? toTimeline(local, match) : null; }).filter(Boolean) as TimelineMatch[];
-  const timeline = (officialTimeline.length ? officialTimeline : teamMatches.map((match) => toTimeline(match))).sort((first, second) => timelinePhase(first) - timelinePhase(second) || first.label.localeCompare(second.label, undefined, { numeric: true }));
+  const officialTimeline = tbaMatches.map((match) => { const local = localByTbaKey.get(match.key); return local ? toTimeline(local, match) : null; }).filter(Boolean) as TimelineMatch[];
+  const timeline = (officialTimeline.length ? officialTimeline : teamMatches.map((match) => toTimeline(match))).sort((first, second) => first.roundOrder - second.roundOrder || first.label.localeCompare(second.label, undefined, { numeric: true }));
   const preScoutEntries = byType("pre_scout");
   const preScoutCount = preScoutEntries.length;
   const pitEntries = byType("pit");

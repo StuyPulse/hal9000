@@ -6,11 +6,12 @@ import { addManualEventTeam, createPracticeMatch, deleteManualMatch, removeManua
 import { formatLocalDateTime } from "@/components/local-date-time";
 import { SearchableTeamSelect } from "@/components/searchable-team-select";
 import { AppSelect } from "@/components/app-select";
+import { matchLabel } from "@/lib/match-label";
 
 type Match = { id: string; key: string; number: number; type: string; red: string[]; blue: string[]; scheduledAt: string | null; status: string; redScore: number | null; blueScore: number | null };
 type Team = { id: string; number: number; name: string };
 const initialActionState: ActionState = {};
-const label = (match: Match) => match.type === "qualification" ? `Q${match.number}` : match.type === "practice" ? `Practice ${match.number}` : `${match.type} ${match.number}`;
+const label = (match: Match) => matchLabel({ match_number: match.number, match_type: match.type, tba_match_key: match.key });
 const teamNumbers = (ids: string[], teams: Team[]) => ids.map((id) => teams.find((team) => team.id === id)?.number ?? "—").join(", ");
 const localInputValue = (value: string | null) => {
   if (!value) return "";

@@ -17,11 +17,22 @@ export function matchLabel({ match_number, match_type, tba_match_key }: MatchLab
   if (practice) return `Practice ${practice[1]}`;
   if (quarterfinal) return `Quarterfinal ${quarterfinal[1]} · Match ${quarterfinal[2]}`;
   if (semifinal) return `Semifinal ${semifinal[1]} · Match ${semifinal[2]}`;
-  if (final) return `Final ${final[1]} · Match ${final[2]}`;
-  if (tiebreaker) return `Tiebreaker ${tiebreaker[1]} · Match ${tiebreaker[2]}`;
+  if (final) return `Final ${final[2]}`;
+  if (tiebreaker) return `Tiebreaker ${tiebreaker[2]}`;
 
   const number = match_number ?? "—";
   if (match_type === "qualification") return `Qualification ${number}`;
   if (match_type === "practice") return `Practice ${number}`;
-  return `Playoff ${number}`;
+  return `Playoff Match ${number}`;
+}
+
+export function matchRoundOrder({ match_type, tba_match_key }: Pick<MatchLabelInput, "match_type" | "tba_match_key">) {
+  if (match_type === "qualification") return 0;
+  if (match_type === "practice") return 1;
+  const key = tba_match_key ?? "";
+  if (/_qf\d+m\d+$/.test(key)) return 2;
+  if (/_sf\d+m\d+$/.test(key)) return 3;
+  if (/_f\d+m\d+$/.test(key)) return 4;
+  if (/_ef\d+m\d+$/.test(key)) return 5;
+  return 2;
 }

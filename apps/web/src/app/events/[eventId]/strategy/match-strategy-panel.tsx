@@ -2,16 +2,17 @@
 
 import { useId, useMemo, useState, type FormEvent } from "react";
 import type { ScoutStats } from "@/lib/scouting-stats";
+import { matchLabel as formatMatchLabel } from "@/lib/match-label";
 
 type Team = { id: string; number: number; name: string; stats: ScoutStats };
-type Match = { id: string; number: number; type: string; scheduledAt: string | null; status: string; red: string[]; blue: string[] };
+type Match = { id: string; key: string; number: number; type: string; scheduledAt: string | null; status: string; red: string[]; blue: string[] };
 type Slot = { id: string; alliance: "red" | "blue"; position: number };
 const slots: Slot[] = [
   { id: "red-1", alliance: "red", position: 1 }, { id: "red-2", alliance: "red", position: 2 }, { id: "red-3", alliance: "red", position: 3 },
   { id: "blue-1", alliance: "blue", position: 1 }, { id: "blue-2", alliance: "blue", position: 2 }, { id: "blue-3", alliance: "blue", position: 3 },
 ];
 const round = (value: number) => value.toFixed(2);
-const matchLabel = (match: Match) => `${match.type === "qualification" ? "Q" : match.type === "playoff" ? "Playoff" : "Practice"} ${match.number}`;
+const matchLabel = (match: Match) => formatMatchLabel({ match_number: match.number, match_type: match.type, tba_match_key: match.key });
 const matchLineupLabel = (match: Match, teamById: Map<string, Team>) => `${match.red.map((teamId) => teamById.get(teamId)?.number ?? "—").join(" ")} vs ${match.blue.map((teamId) => teamById.get(teamId)?.number ?? "—").join(" ")}`;
 const matchSearchLabel = (match: Match, teamById: Map<string, Team>) => `${matchLabel(match)} · ${matchLineupLabel(match, teamById)}${match.scheduledAt ? ` · ${new Date(match.scheduledAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}` : ""}`;
 
