@@ -91,7 +91,8 @@ export function RebuiltMatchForm({ eventId, matchId, teamId, assignmentId, allia
       assignment_id: assignmentId ?? null, scout_user_id: user.id, entry_type: "match", form_version: 4, payload,
       status: finalize ? "submitted" : "draft", submitted_at: submittedAt,
     }, { onConflict: "id" });
-    if (!error && finalize && assignmentId) await supabase.from("scouting_assignments").update({ status: "complete", completed_at: submittedAt }).eq("id", assignmentId);
+    // The database completes the matching assignment on submitted match reports.
+    // That also covers reports opened from the scheduled-match picker.
     if (!error && finalize) setSubmitted(true);
     setMessage(error ? "Could not save. Check your connection and try again." : finalize ? "Scout report submitted and visible in team history." : "Draft saved.");
     setSaving(false);
