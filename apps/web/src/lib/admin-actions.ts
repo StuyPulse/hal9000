@@ -190,11 +190,11 @@ export async function generateObjectiveAssignments(_: ActionState, formData: For
     const { data: event, error: eventError } = await database.from("events").select("id").eq("id", input.data.eventId).eq("organization_id", organizationId).maybeSingle();
     if (eventError || !event) return { error: "This event is unavailable or you no longer have admin access." };
     const [{ data: scouts, error: scoutsError }, { data: matches, error: matchesError }] = await Promise.all([
-      database.from("organization_members").select("user_id").eq("organization_id", organizationId).eq("role", "scout"),
+      database.from("organization_members").select("user_id").eq("organization_id", organizationId).in("role", ["scout", "global_scout", "admin", "developer"]),
       database.from("matches").select("id,red_teams,blue_teams").eq("event_id", event.id).order("scheduled_at"),
     ]);
     if (scoutsError || matchesError) return { error: "Couldn’t read the schedule or scout roster." };
-    if (!scouts?.length) return { error: "Add at least one user with the Scout role before creating assignments." };
+    if (!scouts?.length) return { error: "Add at least one scout-capable user before creating assignments." };
     if (!matches?.length) return { error: "Import a match schedule before creating assignments." };
     const { data: existing, error: existingError } = await database.from("scouting_assignments").select("match_id,team_id,assignment_type").eq("assignment_type", "objective").in("match_id", matches.map((match) => match.id));
     if (existingError) return { error: "Couldn’t read existing scouting assignments." };
@@ -236,8 +236,8 @@ export async function setObjectiveAssignment(_: ActionState, formData: FormData)
     const { data: event, error: eventError } = await database.from("events").select("id").eq("id", match.event_id).eq("organization_id", organizationId).maybeSingle();
     if (eventError || !event || ![...match.red_teams, ...match.blue_teams].includes(input.data.teamId)) return { error: "That team is not scheduled for this match." };
     if (input.data.scoutUserId) {
-      const { data: scout, error: scoutError } = await database.from("organization_members").select("user_id").eq("organization_id", organizationId).eq("user_id", input.data.scoutUserId).eq("role", "scout").maybeSingle();
-      if (scoutError || !scout) return { error: "Choose a Scout-role user from this organization." };
+      const { data: scout, error: scoutError } = await database.from("organization_members").select("user_id").eq("organization_id", organizationId).eq("user_id", input.data.scoutUserId).in("role", ["scout", "global_scout", "admin", "developer"]).maybeSingle();
+      if (scoutError || !scout) return { error: "Choose a scout-capable user from this organization." };
     }
     const { data: existing, error: existingError } = await database.from("scouting_assignments").select("id,scout_user_id").eq("match_id", match.id).eq("team_id", input.data.teamId).eq("assignment_type", "objective");
     if (existingError) return { error: "Couldn’t read the current assignment." };
@@ -279,8 +279,8 @@ export async function setPrescoutAssignment(_: ActionState, formData: FormData):
     const { data: eventTeam } = await database.from("event_teams").select("team_id").eq("event_id", event.id).eq("team_id", input.data.teamId).maybeSingle();
     if (!eventTeam) return { error: "That team is not part of this event." };
     if (input.data.scoutUserId) {
-      const { data: scout } = await database.from("organization_members").select("user_id").eq("organization_id", organizationId).eq("user_id", input.data.scoutUserId).eq("role", "scout").maybeSingle();
-      if (!scout) return { error: "Choose a Scout-role user from this organization." };
+      const { data: scout } = await database.from("organization_members").select("user_id").eq("organization_id", organizationId).eq("user_id", input.data.scoutUserId).in("role", ["scout", "global_scout", "admin", "developer"]).maybeSingle();
+      if (!scout) return { error: "Choose a scout-capable user from this organization." };
       const { error } = await database.from("prescout_assignments").upsert({ organization_id: organizationId, event_id: event.id, team_id: input.data.teamId, scout_user_id: input.data.scoutUserId }, { onConflict: "event_id,team_id,scout_user_id" });
       if (error) return { error: "Couldn’t save that prescout assignment." };
     } else {

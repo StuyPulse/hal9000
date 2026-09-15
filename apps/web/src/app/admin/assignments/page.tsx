@@ -25,7 +25,7 @@ export default async function AssignmentBoardPage({ searchParams }: PageProps) {
       : events?.[0]?.id;
   if (!activeEventId) return <AppShell active="Assignments"><PageHeader eyebrow="Administration" title="Assignments."/><section className="card"><p className="muted">Import an event before creating scout assignments.</p><Link className="button" href="/admin/sync">Import from TBA</Link></section></AppShell>;
   const [{ data: scouts }, { data: matches }, { data: eventTeams }, { data: prescoutAssignments }] = await Promise.all([
-    supabase.from("organization_members").select("user_id,profiles(display_name)").eq("organization_id", membership.organization_id).eq("role", "scout").order("created_at"),
+    supabase.from("organization_members").select("user_id,profiles(display_name)").eq("organization_id", membership.organization_id).in("role", ["scout", "global_scout", "admin", "developer"]).order("created_at"),
     supabase.from("matches").select("id,tba_match_key,match_number,match_type,red_teams,blue_teams,scheduled_at,status").eq("event_id", activeEventId).order("scheduled_at"),
     supabase.from("event_teams").select("team_id,teams(team_number,name)").eq("event_id", activeEventId),
     (supabase as any).from("prescout_assignments").select("team_id,scout_user_id").eq("event_id", activeEventId),
