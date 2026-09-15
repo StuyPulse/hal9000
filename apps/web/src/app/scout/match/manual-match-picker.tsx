@@ -16,6 +16,7 @@ const stages = [
 
 export function ManualMatchPicker({ teams }: { teams: Team[] }) {
   const [stage, setStage] = useState<(typeof stages)[number][0]>("qualification");
+  const [alliance, setAlliance] = useState<"" | "red" | "blue">("");
   const [matchLabel, setMatchLabel] = useState("");
   const [query, setQuery] = useState("");
   const [selectedTeamId, setSelectedTeamId] = useState("");
@@ -24,7 +25,7 @@ export function ManualMatchPicker({ teams }: { teams: Team[] }) {
     const normalized = query.trim().toLowerCase();
     return teams.filter((team) => !normalized || String(team.number).includes(normalized) || team.name.toLowerCase().includes(normalized)).slice(0, 8);
   }, [query, teams]);
-  const params = new URLSearchParams({ team: selectedTeamId, stage });
+  const params = new URLSearchParams({ team: selectedTeamId, stage, alliance });
   if (matchLabel.trim()) params.set("match", matchLabel.trim());
 
   return <section id="manual" className="scouting-card manual-match-card">
@@ -44,6 +45,7 @@ export function ManualMatchPicker({ teams }: { teams: Team[] }) {
         <input id="manual-match-label" value={matchLabel} onChange={(event) => setMatchLabel(event.target.value)} placeholder="e.g. 18 or 2–1" />
       </div>
     </div>
+    <fieldset className="field manual-alliance-picker"><legend>Alliance</legend><div role="radiogroup" aria-label="Manual scouting alliance" className="alliance-toggle"><button type="button" role="radio" aria-checked={alliance === "red"} className={alliance === "red" ? "red" : ""} onClick={() => setAlliance("red")}>Red</button><button type="button" role="radio" aria-checked={alliance === "blue"} className={alliance === "blue" ? "blue" : ""} onClick={() => setAlliance("blue")}>Blue</button></div></fieldset>
     <div className="field manual-team-search">
       <label htmlFor="manual-team-search">Team number or name</label>
       <input id="manual-team-search" value={query} onChange={(event) => { setQuery(event.target.value); setSelectedTeamId(""); }} placeholder="Search 694, 1678, robot name…" autoComplete="off" />
@@ -53,7 +55,7 @@ export function ManualMatchPicker({ teams }: { teams: Team[] }) {
       {selectedTeam && <p className="manual-selection">Selected: <strong>{selectedTeam.number} · {selectedTeam.name}</strong></p>}
     </div>
     <div className="form-actions">
-      {selectedTeamId ? <Link className="button" href={`/scout/match/manual?${params.toString()}`}>Open manual match form</Link> : <button className="button" disabled>Choose a team to continue</button>}
+      {selectedTeamId && alliance ? <Link className="button" href={`/scout/match/manual?${params.toString()}`}>Open manual match form</Link> : <button className="button" disabled>{selectedTeamId ? "Choose an alliance to continue" : "Choose a team to continue"}</button>}
     </div>
   </section>;
 }

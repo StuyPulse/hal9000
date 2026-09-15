@@ -3,6 +3,7 @@ import { AppShell, PageHeader } from "@/components/app-shell";
 import { AssignmentEditor, GenerateAssignmentsForm, PrescoutAssignmentEditor } from "@/components/admin-forms";
 import { LocalDateTime } from "@/components/local-date-time";
 import { AppSelect } from "@/components/app-select";
+import { getActiveEvent } from "@/lib/active-event";
 import { createClient } from "@/lib/supabase/server";
 
 type PageProps = { searchParams: Promise<{ eventId?: string }> };
@@ -12,12 +13,16 @@ function matchLabel(match: { match_number: number; match_type: string }) {
 
 export default async function AssignmentBoardPage({ searchParams }: PageProps) {
   const { eventId: requestedEventId } = await searchParams;
-  const supabase = await createClient();
+  const [supabase, viewerActiveEvent] = await Promise.all([createClient(), getActiveEvent()]);
   const { data: { user } } = await supabase.auth.getUser();
   const { data: membership } = user ? await supabase.from("organization_members").select("organization_id").eq("user_id", user.id).in("role", ["admin", "developer"]).limit(1).maybeSingle() : { data: null };
   if (!membership) return <AppShell active="Assignments"><PageHeader eyebrow="Administration" title="Assignments."/><section className="card"><p className="muted">Admin access is required to manage scout assignments.</p></section></AppShell>;
   const { data: events } = await supabase.from("events").select("id,name,event_key,starts_at").eq("organization_id", membership.organization_id).order("starts_at", { ascending: false });
-  const activeEventId = events?.some((event) => event.id === requestedEventId) ? requestedEventId! : events?.[0]?.id;
+  const activeEventId = events?.some((event) => event.id === requestedEventId)
+    ? requestedEventId!
+    : events?.some((event) => event.id === viewerActiveEvent?.id)
+      ? viewerActiveEvent!.id
+      : events?.[0]?.id;
   if (!activeEventId) return <AppShell active="Assignments"><PageHeader eyebrow="Administration" title="Assignments."/><section className="card"><p className="muted">Import an event before creating scout assignments.</p><Link className="button" href="/admin/sync">Import from TBA</Link></section></AppShell>;
   const [{ data: scouts }, { data: matches }, { data: eventTeams }, { data: prescoutAssignments }] = await Promise.all([
     supabase.from("organization_members").select("user_id,profiles(display_name)").eq("organization_id", membership.organization_id).eq("role", "scout").order("created_at"),
