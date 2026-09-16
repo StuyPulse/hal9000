@@ -92,6 +92,11 @@
   .submission-row-main { @apply flex min-w-0 flex-1 items-center justify-between gap-3; }
   .submission-row-main > :first-child { @apply min-w-0; }
   .submission-row-action { @apply flex shrink-0 items-center gap-3 text-sm font-bold text-stuypulse-textMuted; }
+  .submission-filter-row { @apply mb-5 max-w-sm; }
+  .submission-scout-filter .searchable-team-input { @apply items-center; }
+  .submission-scout-search { @apply ml-3 shrink-0 text-stuypulse-textMuted; }
+  .submission-scout-filter .searchable-team-input input { @apply pl-2; }
+  .submission-scout-filter .searchable-team-results button strong { @apply min-w-0 flex-1 truncate; }
   .submission-delete-form { @apply flex flex-wrap items-center gap-2; }
   .submission-delete-form.compact { @apply shrink-0; }
   .submission-delete-form.compact .button { @apply min-h-9 px-2.5 py-1.5 text-xs; }
