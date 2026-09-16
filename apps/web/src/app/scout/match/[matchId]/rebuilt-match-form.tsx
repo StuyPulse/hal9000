@@ -29,6 +29,14 @@ const tags = ["Intake broke", "Shooter broke", "Drive issue", "Electrical", "Oth
 const empty = (): Score => ({ shoot: 0, ferry: 0 });
 const emptyBreakageIssue = (): BreakageIssue => ({ id: crypto.randomUUID(), timestamp: "", tag: "", otherIssue: "" });
 
+function normalizeMatchTimestamp(value: string) {
+  const [rawMinutes = "", rawSeconds = ""] = value.split(":");
+  const minutes = rawMinutes.replace(/\D/g, "").slice(0, 1);
+  const seconds = rawSeconds.replace(/\D/g, "").slice(0, 2);
+  if (!minutes && !seconds) return "";
+  return `${minutes || "0"}:${String(Math.min(59, Number(seconds || 0))).padStart(2, "0")}`;
+}
+
 export function RebuiltMatchForm({ eventId, matchId, teamId, assignmentId, alliance = "red", otherTeams, manualMatch }: Props) {
   const [noShow, setNoShow] = useState(false);
   const [spot, setSpot] = useState<string>();
@@ -74,7 +82,7 @@ export function RebuiltMatchForm({ eventId, matchId, teamId, assignmentId, allia
       setSaving(false);
       return;
     }
-    const savedBreakageIssues = broke ? breakageIssues.map(({ timestamp, tag, otherIssue }) => ({ timestamp, issue: tag === "Other" ? otherIssue.trim() || "Other" : tag || null })).filter((issue) => issue.timestamp || issue.issue) : [];
+    const savedBreakageIssues = broke ? breakageIssues.map(({ timestamp, tag, otherIssue }) => ({ timestamp: normalizeMatchTimestamp(timestamp), issue: tag === "Other" ? otherIssue.trim() || "Other" : tag || null })).filter((issue) => issue.timestamp || issue.issue) : [];
     const payload = {
       no_show: noShow, starting_spot: noShow ? null : spot, starting_spot_confirmed: Boolean(!noShow && spot),
       auto: { shoot: auto.shoot, ferry: auto.ferry }, teleop: { shoot: teleop.shoot, ferry: teleop.ferry },
@@ -132,5 +140,6 @@ function Counter({ label, value, by, setValue, showLabel = true }: { label: stri
 function MatchTimestampInput({ value, onChange }: { value: string; onChange: (value: string) => void }) {
   const [minutes = "", seconds = ""] = value.split(":");
   const update = (nextMinutes: string, nextSeconds: string) => onChange(nextMinutes || nextSeconds ? `${nextMinutes}:${nextSeconds}` : "");
-  return <div className="match-timestamp" aria-label="Breakage timestamp"><input aria-label="Breakage minute" value={minutes} inputMode="numeric" pattern="[0-9]*" maxLength={1} onChange={(event) => update(event.currentTarget.value.replace(/\D/g, "").slice(0, 1), seconds)} placeholder="0"/><span aria-hidden="true">:</span><input aria-label="Breakage seconds" value={seconds} inputMode="numeric" pattern="[0-9]*" maxLength={2} onChange={(event) => update(minutes, event.currentTarget.value.replace(/\D/g, "").slice(0, 2))} placeholder="00"/></div>;
+  const finish = () => onChange(normalizeMatchTimestamp(value));
+  return <div className="match-timestamp" aria-label="Breakage timestamp"><input aria-label="Breakage minute" value={minutes} inputMode="numeric" pattern="[0-9]*" maxLength={1} onChange={(event) => update(event.currentTarget.value.replace(/\D/g, "").slice(0, 1), seconds)} onBlur={finish} placeholder="0"/><span aria-hidden="true">:</span><input aria-label="Breakage seconds" value={seconds} inputMode="numeric" pattern="[0-9]*" maxLength={2} onChange={(event) => update(minutes, event.currentTarget.value.replace(/\D/g, "").slice(0, 2))} onBlur={finish} placeholder="00"/></div>;
 }
