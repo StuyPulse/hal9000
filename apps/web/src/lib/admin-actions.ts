@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { revalidatePath } from "next/cache";
 import { randomUUID } from "crypto";
+import { getViewerContext, viewerCanManage } from "@/lib/viewer-context";
 
 export type ActionState = { error?: string; success?: string };
 async function adminContext() {
@@ -169,7 +170,9 @@ export async function deleteScoutingEntry(_: ActionState, formData: FormData): P
     const input = z.object({ entryId: z.string().uuid() }).safeParse({ entryId: formData.get("entryId") });
     if (!input.success) return { error: "This submission could not be identified." };
 
-    const { organizationId } = await adminContext();
+    const viewer = await getViewerContext();
+    if (!viewer?.organizationId) return { error: "Sign in again before deleting this submission." };
+    const organizationId = viewer.organizationId;
     const database: any = createAdminClient();
     const { data: entry, error: entryError } = await database
       .from("scouting_entries")
@@ -178,6 +181,7 @@ export async function deleteScoutingEntry(_: ActionState, formData: FormData): P
       .eq("organization_id", organizationId)
       .maybeSingle();
     if (entryError || !entry) return { error: "This submission is unavailable or you no longer have access." };
+    if (entry.scout_user_id !== viewer.userId && !viewerCanManage(viewer)) return { error: "You can only delete your own submissions." };
 
     const { error: deleteError } = await database
       .from("scouting_entries")
@@ -217,7 +221,7 @@ export async function deleteScoutingEntry(_: ActionState, formData: FormData): P
     revalidatePath("/scout/match");
     return { success: "Submission deleted." };
   } catch {
-    return { error: "Admin access is required to delete submissions." };
+    return { error: "Couldn’t verify permission to delete this submission." };
   }
 }
 

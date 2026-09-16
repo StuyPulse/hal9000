@@ -6,6 +6,7 @@ import { LocalDateTime } from "@/components/local-date-time";
 import { PayloadGrid } from "@/components/scouting-payload";
 import { matchLabel } from "@/lib/match-label";
 import { getViewerContext, viewerCanManage } from "@/lib/viewer-context";
+import { DeleteSubmissionForm } from "@/components/delete-submission-form";
 
 export default async function SubmissionDetailPage({ params }: { params: Promise<{ entryId: string }> }) {
   const { entryId } = await params;
@@ -17,6 +18,7 @@ export default async function SubmissionDetailPage({ params }: { params: Promise
   const timestamp = entry.submitted_at ?? entry.created_at;
   const teamName = [entry.teams?.team_number, entry.teams?.name].filter(Boolean).join(" · ") || "Team report";
   const canEdit = entry.entry_type === "match" && entry.match_id && viewer && (entry.scout_user_id === viewer.userId || viewerCanManage(viewer));
+  const canDelete = viewer && (entry.scout_user_id === viewer.userId || viewerCanManage(viewer));
   const editHref = canEdit ? `/scout/match/${entry.match_id}?edit=${entry.id}&returnTo=${encodeURIComponent(`/submissions/${entry.id}`)}` : null;
-  return <AppShell active="Submissions"><PageHeader title={teamName}><Link className="link" href="/submissions">All submissions</Link></PageHeader><section className="card submission-detail"><div className="submission-detail-head"><div><span className="submission-kind">{entry.entry_type.replace("_", " ")} report</span><h2>{entry.entry_type === "match" && entry.matches ? matchLabel(entry.matches) : "Scouting report"}</h2><p className="muted">{entry.profiles?.display_name ?? "Scout"} · {timestamp ? <LocalDateTime value={timestamp}/> : "Saved draft"}</p></div><div className="row-actions">{editHref && <Link className="button secondary" href={editHref}>Edit report</Link>}<span className={`tag ${entry.status === "submitted" ? "complete" : "pending"}`}>{entry.status}</span></div></div><div className="submission-meta"><span>Updated <LocalDateTime value={entry.updated_at}/></span></div><PayloadGrid payload={entry.payload ?? {}} teamNames={teamNames}/></section></AppShell>;
+  return <AppShell active="Submissions"><PageHeader title={teamName}><Link className="link" href="/submissions">All submissions</Link></PageHeader><section className="card submission-detail"><div className="submission-detail-head"><div><span className="submission-kind">{entry.entry_type.replace("_", " ")} report</span><h2>{entry.entry_type === "match" && entry.matches ? matchLabel(entry.matches) : "Scouting report"}</h2><p className="muted">{entry.profiles?.display_name ?? "Scout"} · {timestamp ? <LocalDateTime value={timestamp}/> : "Saved draft"}</p></div><div className="row-actions">{editHref && <Link className="button secondary" href={editHref}>Edit report</Link>}{canDelete && <DeleteSubmissionForm entryId={entry.id} compact/>}<span className={`tag ${entry.status === "submitted" ? "complete" : "pending"}`}>{entry.status}</span></div></div><div className="submission-meta"><span>Updated <LocalDateTime value={entry.updated_at}/></span></div><PayloadGrid payload={entry.payload ?? {}} teamNames={teamNames}/></section></AppShell>;
 }
