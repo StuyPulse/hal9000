@@ -2,7 +2,9 @@
 
 import { FlipHorizontal2, Plus, Trash2 } from "lucide-react";
 import { useState, type CSSProperties } from "react";
+import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { updateMatchScoutingEntry } from "./actions";
 
 type Props = {
   eventId: string;
@@ -12,6 +14,9 @@ type Props = {
   alliance?: "red" | "blue" | "manual";
   otherTeams: { id: string; number: number; alliance: "red" | "blue" | "manual" }[];
   manualMatch?: { stage: string; label?: string; alliance?: "red" | "blue" };
+  editingEntryId?: string;
+  initialPayload?: Record<string, unknown>;
+  returnTo?: string;
 };
 type Score = { shoot: number; ferry: number };
 type BreakageIssue = { id: string; timestamp: string; tag: string; otherIssue: string };
@@ -29,6 +34,25 @@ const tags = ["Intake broke", "Shooter broke", "Drive issue", "Electrical", "Oth
 const empty = (): Score => ({ shoot: 0, ferry: 0 });
 const emptyBreakageIssue = (): BreakageIssue => ({ id: crypto.randomUUID(), timestamp: "", tag: "", otherIssue: "" });
 
+const asNumber = (value: unknown, fallback = 0) => typeof value === "number" && Number.isFinite(value) ? Math.max(0, value) : fallback;
+const asRecord = (value: unknown): Record<string, unknown> => value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
+
+function initialIssues(payload: Record<string, unknown>) {
+  const saved = Array.isArray(payload.breakage_issues) ? payload.breakage_issues : [];
+  const issues = saved.map((value) => {
+    const issue = asRecord(value);
+    const issueText = typeof issue.issue === "string" ? issue.issue : "";
+    const tag = tags.includes(issueText) ? issueText : issueText ? "Other" : "";
+    return { id: crypto.randomUUID(), timestamp: typeof issue.timestamp === "string" ? normalizeMatchTimestamp(issue.timestamp) : "", tag, otherIssue: tag === "Other" ? issueText : "" };
+  });
+  if (issues.length) return issues;
+  const legacyIssue = typeof payload.break_tag === "string" ? payload.break_tag : "";
+  const legacyTimestamp = typeof payload.break_timestamp === "string" ? normalizeMatchTimestamp(payload.break_timestamp) : "";
+  if (!legacyIssue && !legacyTimestamp) return [];
+  const tag = tags.includes(legacyIssue) ? legacyIssue : legacyIssue ? "Other" : "";
+  return [{ id: crypto.randomUUID(), timestamp: legacyTimestamp, tag, otherIssue: tag === "Other" ? legacyIssue : "" }];
+}
+
 function normalizeMatchTimestamp(value: string) {
   const [rawMinutes = "", rawSeconds = ""] = value.split(":");
   const minutes = rawMinutes.replace(/\D/g, "").slice(0, 1);
@@ -37,24 +61,26 @@ function normalizeMatchTimestamp(value: string) {
   return `${minutes || "0"}:${String(Math.min(59, Number(seconds || 0))).padStart(2, "0")}`;
 }
 
-export function RebuiltMatchForm({ eventId, matchId, teamId, assignmentId, alliance = "red", otherTeams, manualMatch }: Props) {
-  const [noShow, setNoShow] = useState(false);
-  const [spot, setSpot] = useState<string>();
-  const [auto, setAuto] = useState(empty);
-  const [teleop, setTeleop] = useState(empty);
-  const [fouls, setFouls] = useState(0);
-  const [defense, setDefense] = useState(false);
-  const [level, setLevel] = useState(5);
-  const [defended, setDefended] = useState<string[]>([]);
-  const [broke, setBroke] = useState(false);
-  const [breakageIssues, setBreakageIssues] = useState<BreakageIssue[]>([]);
-  const [comments, setComments] = useState("");
+export function RebuiltMatchForm({ eventId, matchId, teamId, assignmentId, alliance = "red", otherTeams, manualMatch, editingEntryId, initialPayload = {}, returnTo }: Props) {
+  const router = useRouter();
+  const [noShow, setNoShow] = useState(() => Boolean(initialPayload.no_show));
+  const [spot, setSpot] = useState<string | undefined>(() => typeof initialPayload.starting_spot === "string" ? initialPayload.starting_spot : undefined);
+  const [auto, setAuto] = useState(() => { const score = asRecord(initialPayload.auto); return { shoot: asNumber(score.shoot), ferry: asNumber(score.ferry) }; });
+  const [teleop, setTeleop] = useState(() => { const score = asRecord(initialPayload.teleop); return { shoot: asNumber(score.shoot), ferry: asNumber(score.ferry) }; });
+  const [fouls, setFouls] = useState(() => asNumber(initialPayload.fouls));
+  const [defense, setDefense] = useState(() => Boolean(initialPayload.defense));
+  const [level, setLevel] = useState(() => Math.min(10, Math.max(1, asNumber(initialPayload.defense_level, 5))));
+  const [defended, setDefended] = useState<string[]>(() => Array.isArray(initialPayload.defended_teams) ? initialPayload.defended_teams.filter((value): value is string => typeof value === "string") : []);
+  const [broke, setBroke] = useState(() => Boolean(initialPayload.robot_broke));
+  const [breakageIssues, setBreakageIssues] = useState<BreakageIssue[]>(() => initialIssues(initialPayload));
+  const [comments, setComments] = useState(() => typeof initialPayload.comments === "string" ? initialPayload.comments : "");
   const [message, setMessage] = useState("");
   const [saving, setSaving] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [mirrored, setMirrored] = useState(false);
   const [entryId] = useState(() => {
     if (typeof window === "undefined") return "";
+    if (editingEntryId) return editingEntryId;
     const reportKey = assignmentId ?? (matchId ? `${matchId}:${teamId}` : `manual:${manualMatch?.stage ?? "other"}:${manualMatch?.label ?? ""}:${teamId}`);
     const key = `wildcard-pulse:scouting-entry:${reportKey}`;
     const existing = window.localStorage.getItem(key);
@@ -94,16 +120,24 @@ export function RebuiltMatchForm({ eventId, matchId, teamId, assignmentId, allia
       manual_match: manualMatch ? { stage: manualMatch.stage, label: manualMatch.label || null, alliance: manualMatch.alliance ?? alliance } : null,
     };
     const submittedAt = finalize ? new Date().toISOString() : null;
-    const { error } = await supabase.from("scouting_entries").upsert({
-      id: entryId, organization_id: member.organization_id, event_id: eventId, team_id: teamId, match_id: matchId ?? null,
-      assignment_id: assignmentId ?? null, scout_user_id: user.id, entry_type: "match", form_version: 4, payload,
-      status: finalize ? "submitted" : "draft", submitted_at: submittedAt,
-    }, { onConflict: "id" });
+    const result = editingEntryId
+      ? await updateMatchScoutingEntry({ entryId: editingEntryId, payload })
+      : await supabase.from("scouting_entries").upsert({
+          id: entryId, organization_id: member.organization_id, event_id: eventId, team_id: teamId, match_id: matchId ?? null,
+          assignment_id: assignmentId ?? null, scout_user_id: user.id, entry_type: "match", form_version: 4, payload,
+          status: finalize ? "submitted" : "draft", submitted_at: submittedAt,
+        }, { onConflict: "id" });
+    const error = result.error;
     // The database completes the matching assignment on submitted match reports.
     // That also covers reports opened from the scheduled-match picker.
     if (!error && finalize) setSubmitted(true);
-    setMessage(error ? "Could not save. Check your connection and try again." : finalize ? "Scout report submitted and visible in team history." : "Draft saved.");
+    setMessage(error ? ("error" in result && typeof error === "string" ? error : "Could not save. Check your connection and try again.") : editingEntryId ? "Changes saved." : finalize ? "Scout report submitted and visible in team history." : "Draft saved.");
     setSaving(false);
+    if (!error && (editingEntryId || finalize)) {
+      if (returnTo) router.replace(returnTo);
+      else if (window.history.length > 1) router.back();
+      else router.replace("/scout/match");
+    }
   }
 
   return <section className="scouting-card match-form">
@@ -116,7 +150,7 @@ export function RebuiltMatchForm({ eventId, matchId, teamId, assignmentId, allia
     </fieldset>
     <div className="form-section"><div className="section-title">Comments</div><div className="field"><textarea id="match-comments" aria-label="Comments" disabled={saving || submitted} value={comments} onChange={(event) => setComments(event.target.value)} placeholder="Be succinct and include what the data won't show" /></div></div>
     {noShow && <p className="trend">No show records all scoring as zero; comments remain available.</p>}
-    <div className="form-actions"><button type="button" className="button secondary" disabled={saving || submitted} onClick={() => save(false)}>Save draft</button><button type="button" className="button" disabled={saving || submitted} onClick={() => save(true)}>{saving ? "Saving…" : submitted ? "Submitted" : "Submit scout report"}</button></div>
+    <div className="form-actions">{!editingEntryId && <button type="button" className="button secondary" disabled={saving || submitted} onClick={() => save(false)}>Save draft</button>}<button type="button" className="button" disabled={saving || submitted} onClick={() => save(true)}>{saving ? "Saving…" : submitted ? "Submitted" : editingEntryId ? "Save changes" : "Submit scout report"}</button></div>
     {message && <p aria-live="polite" className={message.startsWith("Could") ? "error" : "trend"}>{message}</p>}
   </section>;
 }
