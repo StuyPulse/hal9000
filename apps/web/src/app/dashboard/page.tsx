@@ -12,7 +12,7 @@ export default async function Dashboard() {
       supabase.from("organizations").select("name").eq("id", viewer.organizationId).maybeSingle(),
       viewer.activeEvent ? supabase.from("scouting_entries").select("id", { count: "exact", head: true }).eq("event_id", viewer.activeEvent.id).eq("status", "submitted") : Promise.resolve({ count: 0 }),
       viewer.activeEvent
-        ? supabase.from("scouting_assignments").select("id,status,assignment_type,matches!inner(id,match_number,match_type,tba_match_key,event_id),teams(team_number,name)").eq("scout_user_id", viewer.userId).eq("matches.event_id", viewer.activeEvent.id).neq("status", "complete").order("created_at", { ascending: false }).limit(5)
+        ? supabase.from("scouting_assignments").select("id,status,assignment_type,matches!inner(id,match_number,match_type,tba_match_key,event_id),teams(team_number,name)").eq("scout_user_id", viewer.userId).eq("matches.event_id", viewer.activeEvent.id).neq("status", "complete").order("created_at", { ascending: false })
         : Promise.resolve({ data: [] }),
     ])
     : [{ data: null }, { count: 0 }, { data: [] }];
