@@ -1,10 +1,12 @@
 "use client";
 
 import { useState, type CSSProperties } from "react";
+import { useRouter } from "next/navigation";
 import { AppSelect } from "@/components/app-select";
 import { AutoPathDrawer } from "@/components/auto-path-drawer";
 import { SearchableTeamSelect } from "@/components/searchable-team-select";
 import { createClient } from "@/lib/supabase/client";
+import { updateManualScoutingEntry } from "./actions";
 
 type EntryType = "pre_scout" | "pit";
 type Team = { id: string; number: number; name: string };
@@ -76,22 +78,37 @@ function RangeInput({ id, label, value, onChange }: { id: string; label: string;
   return <label htmlFor={id}><span>{label} <strong>{value} in</strong></span><input id={id} className="scouting-slider" style={{ "--range-progress": `${(value / 55) * 100}%` } as CSSProperties} type="range" min="0" max="55" step="1" value={value} onChange={(event) => onChange(Number(event.target.value))}/></label>;
 }
 
-export function ManualScouting({ eventId, teams, type = "pre_scout", restricted = false }: { eventId: string; teams: Team[]; type?: EntryType; restricted?: boolean }) {
-  const [teamId, setTeamId] = useState("");
-  const [payload, setPayload] = useState<Payload>({});
+function initialPayloadValue(value: Record<string, unknown> | undefined): Payload {
+  return Object.fromEntries(Object.entries(value ?? {}).filter(([, fieldValue]) => typeof fieldValue === "string")) as Payload;
+}
+
+export function ManualScouting({ eventId, teams, type = "pre_scout", restricted = false, editingEntryId, initialTeamId = "", initialPayload, returnTo }: { eventId: string; teams: Team[]; type?: EntryType; restricted?: boolean; editingEntryId?: string; initialTeamId?: string; initialPayload?: Record<string, unknown>; returnTo?: string }) {
+  const router = useRouter();
+  const [teamId, setTeamId] = useState(initialTeamId);
+  const [payload, setPayload] = useState<Payload>(() => initialPayloadValue(initialPayload));
   const [message, setMessage] = useState("");
   const sorted = [...teams].sort((a, b) => a.number - b.number);
   const set = (id: string, value: string) => setPayload((current) => ({ ...current, [id]: value }));
 
   async function submit() {
     if (!teamId) return setMessage("Choose a team.");
+    if (editingEntryId) {
+      const result = await updateManualScoutingEntry({ entryId: editingEntryId, entryType: type, payload });
+      if (result.error) return setMessage(result.error);
+      setMessage("Changes saved.");
+      if (returnTo) router.replace(returnTo);
+      return;
+    }
     const supabase: any = createClient();
     const { data: { user } } = await supabase.auth.getUser();
     const { data: member } = await supabase.from("organization_members").select("organization_id").eq("user_id", user?.id).limit(1).maybeSingle();
     if (!user || !member) return setMessage("Sign in again before submitting.");
     const { error } = await supabase.from("scouting_entries").insert({ organization_id: member.organization_id, event_id: eventId, team_id: teamId, scout_user_id: user.id, entry_type: type, form_version: 2, payload, status: "submitted", submitted_at: new Date().toISOString() });
-    setMessage(error ? "Could not save. Check your connection and try again." : `${title[type]} saved to this team’s record.`);
+    if (error) return setMessage("Could not save. Check your connection and try again.");
+    setMessage(`${title[type]} saved to this team’s record.`);
+    if (returnTo) router.replace(returnTo);
   }
 
-  return <section className="scouting-card"><div className="form-intro"><div className="form-kicker">{title[type]}</div><h2>Record what you observed.</h2><p>{restricted ? "Your team queue is assigned by an admin. Select one of your teams to begin." : "Choose a team from the active event. Example responses make the expected level of detail clear; climb is sourced from FIRST data and is not collected here."}</p></div>{restricted && !sorted.length ? <p className="muted">You do not have any prescout teams assigned yet.</p> : <><div className="form-grid"><div className="field"><label htmlFor="team">Team</label><SearchableTeamSelect id="team" value={teamId} onValueChange={setTeamId} teams={sorted}/></div></div><div className="form-grid">{type === "pre_scout" && <><div className="field"><label htmlFor="average-pieces">Average game pieces scored</label><input id="average-pieces" value={payload.average_pieces ?? ""} onChange={(event) => set("average_pieces", event.target.value.replace(/\D/g, "").slice(0, 3))} inputMode="numeric" pattern="[0-9]*" maxLength={3} placeholder="e.g. 35"/></div>{preScoutFields.map(([id, label, placeholder]) => <Field key={id} id={id} label={label} value={payload[id] ?? ""} onChange={(value) => set(id, value)} placeholder={placeholder}/>)}</>}{type === "pit" && <PitFields payload={payload} setPayload={setPayload}/>}</div><div className="form-actions"><button type="button" className="button" onClick={submit}>Submit {title[type]}</button></div>{message && <p aria-live="polite" className={message.startsWith("Could") ? "error" : "trend"}>{message}</p>}</>}</section>;
+  const selectedTeam = sorted.find((team) => team.id === teamId);
+  return <section className="scouting-card"><div className="form-intro"><div className="form-kicker">{title[type]}</div><h2>{editingEntryId ? "Update this report." : "Record what you observed."}</h2><p>{editingEntryId ? "The report stays attached to its original team and event." : restricted ? "Your team queue is assigned by an admin. Select one of your teams to begin." : "Choose a team from the active event. Example responses make the expected level of detail clear; climb is sourced from FIRST data and is not collected here."}</p></div>{restricted && !sorted.length ? <p className="muted">You do not have any prescout teams assigned yet.</p> : <><div className="form-grid"><div className="field"><label htmlFor="team">Team</label>{editingEntryId ? <div className="selection-value" aria-label="Selected team">{selectedTeam ? `${selectedTeam.number} · ${selectedTeam.name}` : "Team unavailable"}</div> : <SearchableTeamSelect id="team" value={teamId} onValueChange={setTeamId} teams={sorted}/>}</div></div><div className="form-grid">{type === "pre_scout" && <><div className="field"><label htmlFor="average-pieces">Average game pieces scored</label><input id="average-pieces" value={payload.average_pieces ?? ""} onChange={(event) => set("average_pieces", event.target.value.replace(/\D/g, "").slice(0, 3))} inputMode="numeric" pattern="[0-9]*" maxLength={3} placeholder="e.g. 35"/></div>{preScoutFields.map(([id, label, placeholder]) => <Field key={id} id={id} label={label} value={payload[id] ?? ""} onChange={(value) => set(id, value)} placeholder={placeholder}/>)}</>}{type === "pit" && <PitFields payload={payload} setPayload={setPayload}/>}</div><div className="form-actions"><button type="button" className="button" onClick={submit}>{editingEntryId ? "Save changes" : `Submit ${title[type]}`}</button></div>{message && <p aria-live="polite" className={message.includes("Could") || message.includes("only edit") ? "error" : "trend"}>{message}</p>}</>}</section>;
 }

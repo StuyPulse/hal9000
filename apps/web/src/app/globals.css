@@ -397,6 +397,7 @@
   .manual-match-list button span { @apply text-stuypulse-textMuted; }
   .schedule-filters select { @apply w-full rounded-lg border border-stuypulse-border bg-stuypulse-bg px-3 py-2 text-sm text-stuypulse-text; }
   .searchable-team-select { @apply relative min-w-0; }
+  .selection-value { @apply flex min-h-11 items-center rounded-lg border border-stuypulse-border bg-stuypulse-elevated px-3 text-sm font-semibold text-stuypulse-text; }
   .searchable-team-input { @apply flex min-h-11 overflow-hidden rounded-lg border border-stuypulse-border bg-stuypulse-bg; }
   .searchable-team-input input { @apply min-w-0 flex-1 bg-transparent px-3 text-sm text-stuypulse-text outline-none placeholder:text-stuypulse-textMuted; }
   .searchable-team-input:focus-within { @apply border-stuypulse-red ring-2 ring-stuypulse-red/20; }
