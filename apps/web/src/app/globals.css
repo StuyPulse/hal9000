@@ -651,9 +651,9 @@
   .strategy-alliance-teams small { @apply mt-1 font-medium; font-family:'DM Mono',monospace; }
   .strategy-alliance-totals { @apply mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[10px] text-stuypulse-textMuted; font-family:'DM Mono',monospace; }
   .strategy-alliance-totals strong { @apply text-stuypulse-text; }
-  .strategy-field { @apply relative isolate min-h-[620px] overflow-hidden rounded-panel border border-stuypulse-border bg-white; aspect-ratio:2.04 / 1; }
+  .strategy-field { @apply relative isolate overflow-hidden rounded-panel border border-stuypulse-border bg-white; aspect-ratio:1380 / 674; }
   .strategy-field-art, .strategy-drawing-canvas { @apply absolute inset-0 h-full w-full; }
-  .strategy-field-art { @apply z-0 bg-cover bg-center; background-image:url('/2026-field-map.png'); }
+  .strategy-field-art { @apply z-0 bg-contain bg-center bg-no-repeat; background-image:url('/2026-field-map.png'); }
   .strategy-drawing-canvas { @apply z-[1] cursor-crosshair touch-none; }
   .strategy-slot { @apply absolute z-10 w-[clamp(154px,15vw,216px)] rounded-lg border-2 bg-stuypulse-surface/95 p-2.5 text-stuypulse-text shadow-elevated; backdrop-filter:blur(8px); }
   .strategy-slot.red { @apply border-stuypulse-red; }
@@ -846,7 +846,7 @@
   .strategy-manual-lineup > .button { @apply col-span-3; }
   .strategy-clear-lineup { @apply col-span-3; }
   .strategy-lineup-error { @apply col-span-3; }
-  .strategy-field { @apply min-h-[500px] aspect-auto; }
+  .strategy-field { @apply min-h-0; aspect-ratio:1380 / 674; }
   .strategy-slot { @apply w-[clamp(124px,37vw,154px)] p-2; }
   .strategy-slot.red.strategy-slot-1, .strategy-slot.red.strategy-slot-2, .strategy-slot.red.strategy-slot-3 { left:3%; }
   .strategy-slot.blue.strategy-slot-1, .strategy-slot.blue.strategy-slot-2, .strategy-slot.blue.strategy-slot-3 { right:3%; }
