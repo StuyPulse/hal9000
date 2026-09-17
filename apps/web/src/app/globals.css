@@ -659,6 +659,10 @@
   .strategy-alliance-teams small { @apply mt-1 font-medium; font-family:'DM Mono',monospace; }
   .strategy-alliance-totals { @apply mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[10px] text-stuypulse-textMuted; font-family:'DM Mono',monospace; }
   .strategy-alliance-totals strong { @apply text-stuypulse-text; }
+  @media (max-width: 900px) {
+    .strategy-alliance-overviews { @apply grid-cols-1 gap-2; }
+    .strategy-alliance-overviews > span { @apply justify-self-center; }
+  }
   .strategy-field { @apply relative isolate overflow-hidden rounded-panel border border-stuypulse-border bg-white; aspect-ratio:1380 / 674; }
   .strategy-field-art, .strategy-drawing-canvas { @apply absolute inset-0 h-full w-full; }
   .strategy-field-art { @apply z-0 bg-contain bg-center bg-no-repeat; background-image:url('/2026-field-map.png'); }

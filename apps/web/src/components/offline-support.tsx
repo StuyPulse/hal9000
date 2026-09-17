@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { CloudOff, RefreshCw } from "lucide-react";
 import { useOffline } from "next/offline";
 import { useCallback, useEffect, useState } from "react";
@@ -36,6 +35,5 @@ export function OfflineSupport() {
     <CloudOff size={16} aria-hidden="true"/>
     <span>{offline ? "Offline — saved reports will stay on this device and upload when connection returns." : `${pending} report${pending === 1 ? "" : "s"} saved locally and waiting to upload.`}</span>
     {!offline && <button type="button" onClick={() => void sync()} disabled={syncing}>{syncing ? "Syncing…" : <><RefreshCw size={14} aria-hidden="true"/>Retry</>}</button>}
-    <Link href="/scout/offline">Sync details</Link>
   </aside>;
 }
