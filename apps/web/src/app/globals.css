@@ -56,6 +56,14 @@
   .event-chip { @apply flex items-center gap-2 rounded-lg border border-stuypulse-border bg-stuypulse-surface px-3 py-2 text-xs text-stuypulse-textMuted no-underline shadow-panel; }
   .main :target { scroll-margin-top: 1rem; }
   .online { @apply h-[7px] w-[7px] rounded-full bg-stuypulse-success shadow-status; }
+  .offline-banner { @apply fixed bottom-4 right-4 z-50 flex max-w-[min(34rem,calc(100vw-2rem))] items-center gap-2 rounded-lg border border-sky-400/30 bg-stuypulse-elevated px-3 py-2 text-xs font-semibold text-stuypulse-text shadow-elevated; }
+  .offline-banner.is-offline { @apply border-stuypulse-warning/40 bg-stuypulse-warning/10 text-stuypulse-text; }
+  .offline-banner button, .offline-banner a { @apply inline-flex shrink-0 items-center gap-1 rounded-md px-2 py-1 text-xs font-bold text-stuypulse-textMuted transition hover:bg-stuypulse-bg hover:text-stuypulse-text; }
+  .offline-queue-actions { @apply flex flex-wrap gap-2; }
+  .offline-queue-actions .button { @apply min-h-9 px-3 py-1.5 text-xs; }
+  .offline-queue-list { @apply grid gap-2; }
+  .offline-queue-list > div { @apply flex flex-wrap items-center justify-between gap-2 rounded-lg border border-stuypulse-border bg-stuypulse-bg/50 px-3 py-2 text-sm; }
+  .offline-queue-list span { @apply text-xs text-stuypulse-textMuted; }
 
   .grid { display: grid; gap: theme('spacing.4'); }
   .stats { @apply grid-cols-4; }

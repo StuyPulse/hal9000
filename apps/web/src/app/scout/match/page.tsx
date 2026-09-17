@@ -3,6 +3,7 @@ import { getActiveEvent } from "@/lib/active-event";
 import { createClient } from "@/lib/supabase/server";
 import { ManualMatchPicker } from "./manual-match-picker";
 import { MatchScoutPicker } from "./match-scout-picker";
+import { ScheduleOfflineCache } from "@/components/schedule-offline-cache";
 
 export default async function MatchScoutPage({ searchParams }: { searchParams: Promise<{ match?: string }> }) {
   const { match: requestedMatchId } = await searchParams;
@@ -15,6 +16,7 @@ export default async function MatchScoutPage({ searchParams }: { searchParams: P
   const teams = (eventTeams ?? []).map((row: any) => ({ id: row.team_id, number: row.teams?.team_number, name: row.teams?.name })).sort((a, b) => a.number - b.number);
 
   return <AppShell active="Manual scouting">
+    <ScheduleOfflineCache path="/scout/match"/>
     <PageHeader eyebrow={event?.name ?? "No active event"} title="Match scouting." />
     {event ? <div className="match-scout-grid">
       <MatchScoutPicker matches={(matches ?? []).map((match) => ({ id: match.id, key: match.tba_match_key, number: match.match_number, type: match.match_type, red: match.red_teams, blue: match.blue_teams }))} teams={teams} initialMatchId={(matches ?? []).some((match) => match.id === requestedMatchId) ? requestedMatchId : ""} />

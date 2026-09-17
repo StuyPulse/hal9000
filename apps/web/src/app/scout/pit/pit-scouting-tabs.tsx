@@ -7,7 +7,7 @@ import { ManualScouting } from "../manual/manual-scouting";
 type Team = { id: string; number: number; name: string };
 type Tab = "coverage" | "scouting";
 
-export function PitScoutingTabs({ eventId, teams, missing, photographed, editingEntryId, initialTeamId, initialPayload, returnTo }: { eventId: string; teams: Team[]; missing: Team[]; photographed: number; editingEntryId?: string; initialTeamId?: string; initialPayload?: Record<string, unknown>; returnTo?: string }) {
+export function PitScoutingTabs({ eventId, organizationId, scoutUserId, teams, missing, photographed, editingEntryId, initialTeamId, initialPayload, returnTo }: { eventId: string; organizationId: string; scoutUserId: string; teams: Team[]; missing: Team[]; photographed: number; editingEntryId?: string; initialTeamId?: string; initialPayload?: Record<string, unknown>; returnTo?: string }) {
   const [activeTab, setActiveTab] = useState<Tab>("scouting");
   const [photoTeamId, setPhotoTeamId] = useState("");
   const showPhotoUpload = (teamId: string) => { setPhotoTeamId(teamId); setActiveTab("coverage"); };
@@ -15,7 +15,7 @@ export function PitScoutingTabs({ eventId, teams, missing, photographed, editing
 
   return <section className="pit-tabs-workspace">
     <div className="pit-tabs" role="tablist" aria-label="Pit scouting sections">{tabs.map((tab) => <button key={tab.id} id={`pit-tab-${tab.id}`} type="button" role="tab" aria-selected={activeTab === tab.id} aria-controls={`pit-panel-${tab.id}`} className={activeTab === tab.id ? "active" : ""} onClick={() => setActiveTab(tab.id)}>{tab.label}{tab.id === "coverage" && missing.length > 0 && <span>{missing.length}</span>}</button>)}</div>
-    <div id="pit-panel-scouting" role="tabpanel" aria-labelledby="pit-tab-scouting" hidden={activeTab !== "scouting"}><ManualScouting eventId={eventId} teams={teams} type="pit" editingEntryId={editingEntryId} initialTeamId={initialTeamId} initialPayload={initialPayload} returnTo={returnTo}/></div>
+    <div id="pit-panel-scouting" role="tabpanel" aria-labelledby="pit-tab-scouting" hidden={activeTab !== "scouting"}><ManualScouting eventId={eventId} organizationId={organizationId} scoutUserId={scoutUserId} teams={teams} type="pit" editingEntryId={editingEntryId} initialTeamId={initialTeamId} initialPayload={initialPayload} returnTo={returnTo}/></div>
     <div id="pit-panel-coverage" role="tabpanel" aria-labelledby="pit-tab-coverage" hidden={activeTab !== "coverage"}><PitPhotoUpload eventId={eventId} teams={teams} selectedTeamId={photoTeamId} onSelectedTeamChange={setPhotoTeamId}/><section className="card pit-photo-coverage"><div className="card-head"><div><h2>Pit-photo coverage</h2><p className="muted">{photographed} of {teams.length} teams have at least one pit photo.</p></div>{missing.length > 0 && <span className="tag pending">{missing.length} remaining</span>}</div>{missing.length ? <div className="pit-photo-missing"><p>Teams still needing a pit photo</p><div className="pit-photo-missing-list">{missing.map((team) => <button type="button" key={team.id} onClick={() => showPhotoUpload(team.id)}><strong>{team.number}</strong><small>{team.name}</small></button>)}</div></div> : <div className="pit-photo-complete" role="status"><span aria-hidden="true">✓</span><div><strong>Every team has a pit photo.</strong><p>Coverage complete — great work, PulseCrew.</p></div></div>}</section></div>
   </section>;
 }

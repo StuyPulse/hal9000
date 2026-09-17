@@ -51,8 +51,9 @@ export default async function ManualMatchFormPage({ searchParams }: { searchPara
   const otherTeams = (eventTeams ?? []).filter((row) => row.team_id !== selectedEventTeam.team_id).map((row: any) => ({ id: row.team_id, number: row.teams?.team_number ?? 0, alliance: "manual" as const }));
 
   const returnTo = requestedReturnTo?.startsWith("/") && !requestedReturnTo.startsWith("//") ? requestedReturnTo : undefined;
+  if (!viewer?.organizationId) notFound();
   return <AppShell active="Manual scouting">
     <PageHeader eyebrow={`${stage}${label ? ` · ${label}` : ""} · ${alliance} alliance`} title={`${team?.team_number} · ${team?.name}`} />
-    <RebuiltMatchForm eventId={event.id} teamId={selectedEventTeam.team_id} alliance={alliance} otherTeams={otherTeams} manualMatch={{ stage, label, alliance }} editingEntryId={editingEntry?.id} initialPayload={editingEntry?.payload ?? {}} returnTo={returnTo}/>
+    <RebuiltMatchForm eventId={event.id} organizationId={viewer.organizationId} scoutUserId={viewer.userId} teamId={selectedEventTeam.team_id} alliance={alliance} otherTeams={otherTeams} manualMatch={{ stage, label, alliance }} editingEntryId={editingEntry?.id} initialPayload={editingEntry?.payload ?? {}} returnTo={returnTo}/>
   </AppShell>;
 }

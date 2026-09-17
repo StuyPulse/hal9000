@@ -4,10 +4,12 @@ import { FlipHorizontal2, Plus, Trash2 } from "lucide-react";
 import { useState, type CSSProperties } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-import { updateMatchScoutingEntry } from "./actions";
+import { queueScoutingEntry, removeQueuedScoutingEntry } from "@/lib/offline-scouting-queue";
 
 type Props = {
   eventId: string;
+  organizationId: string;
+  scoutUserId: string;
   matchId?: string;
   teamId: string;
   assignmentId?: string;
@@ -61,7 +63,7 @@ function normalizeMatchTimestamp(value: string) {
   return `${minutes || "0"}:${String(Math.min(59, Number(seconds || 0))).padStart(2, "0")}`;
 }
 
-export function RebuiltMatchForm({ eventId, matchId, teamId, assignmentId, alliance = "red", otherTeams, manualMatch, editingEntryId, initialPayload = {}, returnTo }: Props) {
+export function RebuiltMatchForm({ eventId, organizationId, scoutUserId, matchId, teamId, assignmentId, alliance = "red", otherTeams, manualMatch, editingEntryId, initialPayload = {}, returnTo }: Props) {
   const router = useRouter();
   const [noShow, setNoShow] = useState(() => Boolean(initialPayload.no_show));
   const [spot, setSpot] = useState<string | undefined>(() => typeof initialPayload.starting_spot === "string" ? initialPayload.starting_spot : undefined);
@@ -100,10 +102,7 @@ export function RebuiltMatchForm({ eventId, matchId, teamId, assignmentId, allia
     if (saving || !entryId) return;
     setSaving(true);
     setMessage("");
-    const supabase: any = createClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    const { data: member } = await supabase.from("organization_members").select("organization_id").eq("user_id", user?.id).limit(1).maybeSingle();
-    if (!user || !member) {
+    if (!organizationId || !scoutUserId) {
       setMessage("Sign in again before saving.");
       setSaving(false);
       return;
@@ -120,18 +119,25 @@ export function RebuiltMatchForm({ eventId, matchId, teamId, assignmentId, allia
       manual_match: manualMatch ? { stage: manualMatch.stage, label: manualMatch.label || null, alliance: manualMatch.alliance ?? alliance } : null,
     };
     const submittedAt = finalize ? new Date().toISOString() : null;
-    const result = editingEntryId
-      ? await updateMatchScoutingEntry({ entryId: editingEntryId, payload })
-      : await supabase.from("scouting_entries").upsert({
-          id: entryId, organization_id: member.organization_id, event_id: eventId, team_id: teamId, match_id: matchId ?? null,
-          assignment_id: assignmentId ?? null, scout_user_id: user.id, entry_type: "match", form_version: 4, payload,
-          status: finalize ? "submitted" : "draft", submitted_at: submittedAt,
-        }, { onConflict: "id" });
-    const error = result.error;
+    const entry = {
+      id: entryId, organization_id: organizationId, event_id: eventId, team_id: teamId, match_id: matchId ?? null,
+      assignment_id: assignmentId ?? null, scout_user_id: scoutUserId, entry_type: "match" as const, form_version: 4, payload,
+      status: finalize ? "submitted" as const : "draft" as const, submitted_at: submittedAt,
+    };
+    const supabase: any = createClient();
+    const { error } = await supabase.from("scouting_entries").upsert(entry, { onConflict: "id" });
+    const offlineFailure = !navigator.onLine || /fetch|network|failed to fetch|offline/i.test(String(error?.message ?? ""));
+    if (error && offlineFailure) {
+      await queueScoutingEntry(entry);
+      setMessage(finalize ? "Report saved on this device. It will submit automatically when you reconnect." : "Draft saved on this device. It will sync automatically when you reconnect.");
+      setSaving(false);
+      return;
+    }
     // The database completes the matching assignment on submitted match reports.
     // That also covers reports opened from the scheduled-match picker.
+    if (!error) await removeQueuedScoutingEntry(entryId);
     if (!error && finalize) setSubmitted(true);
-    setMessage(error ? ("error" in result && typeof error === "string" ? error : "Could not save. Check your connection and try again.") : editingEntryId ? "Changes saved." : finalize ? "Scout report submitted and visible in team history." : "Draft saved.");
+    setMessage(error ? "Could not save. Check your connection and try again." : editingEntryId ? "Changes saved." : finalize ? "Scout report submitted and visible in team history." : "Draft saved.");
     setSaving(false);
     if (!error && (editingEntryId || finalize)) {
       if (returnTo) router.replace(returnTo);

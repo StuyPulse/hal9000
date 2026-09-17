@@ -6,7 +6,7 @@ import { AppSelect } from "@/components/app-select";
 import { AutoPathDrawer } from "@/components/auto-path-drawer";
 import { SearchableTeamSelect } from "@/components/searchable-team-select";
 import { createClient } from "@/lib/supabase/client";
-import { updateManualScoutingEntry } from "./actions";
+import { queueScoutingEntry, removeQueuedScoutingEntry } from "@/lib/offline-scouting-queue";
 
 type EntryType = "pre_scout" | "pit";
 type Team = { id: string; number: number; name: string };
@@ -82,30 +82,29 @@ function initialPayloadValue(value: Record<string, unknown> | undefined): Payloa
   return Object.fromEntries(Object.entries(value ?? {}).filter(([, fieldValue]) => typeof fieldValue === "string")) as Payload;
 }
 
-export function ManualScouting({ eventId, teams, type = "pre_scout", restricted = false, editingEntryId, initialTeamId = "", initialPayload, returnTo }: { eventId: string; teams: Team[]; type?: EntryType; restricted?: boolean; editingEntryId?: string; initialTeamId?: string; initialPayload?: Record<string, unknown>; returnTo?: string }) {
+export function ManualScouting({ eventId, organizationId, scoutUserId, teams, type = "pre_scout", restricted = false, editingEntryId, initialTeamId = "", initialPayload, returnTo }: { eventId: string; organizationId: string; scoutUserId: string; teams: Team[]; type?: EntryType; restricted?: boolean; editingEntryId?: string; initialTeamId?: string; initialPayload?: Record<string, unknown>; returnTo?: string }) {
   const router = useRouter();
   const [teamId, setTeamId] = useState(initialTeamId);
   const [payload, setPayload] = useState<Payload>(() => initialPayloadValue(initialPayload));
   const [message, setMessage] = useState("");
+  const [entryId] = useState(() => editingEntryId || (typeof window === "undefined" ? "" : crypto.randomUUID()));
   const sorted = [...teams].sort((a, b) => a.number - b.number);
   const set = (id: string, value: string) => setPayload((current) => ({ ...current, [id]: value }));
 
   async function submit() {
     if (!teamId) return setMessage("Choose a team.");
-    if (editingEntryId) {
-      const result = await updateManualScoutingEntry({ entryId: editingEntryId, entryType: type, payload });
-      if (result.error) return setMessage(result.error);
-      setMessage("Changes saved.");
-      if (returnTo) router.replace(returnTo);
-      return;
-    }
+    if (!entryId || !organizationId || !scoutUserId) return setMessage("Sign in again before submitting.");
     const supabase: any = createClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    const { data: member } = await supabase.from("organization_members").select("organization_id").eq("user_id", user?.id).limit(1).maybeSingle();
-    if (!user || !member) return setMessage("Sign in again before submitting.");
-    const { error } = await supabase.from("scouting_entries").insert({ organization_id: member.organization_id, event_id: eventId, team_id: teamId, scout_user_id: user.id, entry_type: type, form_version: 2, payload, status: "submitted", submitted_at: new Date().toISOString() });
+    const entry = { id: entryId, organization_id: organizationId, event_id: eventId, team_id: teamId, match_id: null, assignment_id: null, scout_user_id: scoutUserId, entry_type: type, form_version: 2, payload, status: "submitted" as const, submitted_at: new Date().toISOString() };
+    const { error } = await supabase.from("scouting_entries").upsert(entry, { onConflict: "id" });
+    const offlineFailure = !navigator.onLine || /fetch|network|failed to fetch|offline/i.test(String(error?.message ?? ""));
+    if (error && offlineFailure) {
+      await queueScoutingEntry(entry);
+      return setMessage(`${title[type]} saved on this device and will upload automatically when you reconnect.`);
+    }
     if (error) return setMessage("Could not save. Check your connection and try again.");
-    setMessage(`${title[type]} saved to this team’s record.`);
+    await removeQueuedScoutingEntry(entryId);
+    setMessage(editingEntryId ? "Changes saved." : `${title[type]} saved to this team’s record.`);
     if (returnTo) router.replace(returnTo);
   }
 
