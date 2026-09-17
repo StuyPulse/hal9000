@@ -104,6 +104,26 @@ export async function syncQueuedScoutingEntries() {
   return { synced, failed, pending: failed };
 }
 
+/** A captive portal can leave fetch pending even though navigator.onLine says
+ * true. Prefer the local queue over keeping a scout-facing form disabled. */
+export async function tryUpsertScoutingEntry(entry: Omit<QueuedScoutingEntry, "queued_at">) {
+  if (!navigator.onLine) return { error: null as string | null, shouldQueue: true };
+  const supabase: any = createClient();
+  let timeout: number | undefined;
+  try {
+    const outcome: any = await Promise.race([
+      supabase.from("scouting_entries").upsert(entry, { onConflict: "id" }).then((result: any) => ({ kind: "result", result })).catch(() => ({ kind: "network" })),
+      new Promise((resolve) => { timeout = window.setTimeout(() => resolve({ kind: "timeout" }), 6000); }),
+    ]);
+    if (outcome.kind === "timeout" || outcome.kind === "network") return { error: null as string | null, shouldQueue: true };
+    const error = outcome.result?.error;
+    const message = String(error?.message ?? "");
+    return { error: error ? message || "Could not save your report." : null, shouldQueue: Boolean(error && /fetch|network|failed to fetch|offline/i.test(message)) };
+  } finally {
+    if (timeout !== undefined) window.clearTimeout(timeout);
+  }
+}
+
 export function onOfflineQueueChanged(listener: () => void) {
   window.addEventListener(queueChangedEvent, listener);
   return () => window.removeEventListener(queueChangedEvent, listener);

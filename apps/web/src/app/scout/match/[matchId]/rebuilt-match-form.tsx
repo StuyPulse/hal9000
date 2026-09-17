@@ -3,8 +3,7 @@
 import { FlipHorizontal2, Plus, Trash2 } from "lucide-react";
 import { useState, type CSSProperties } from "react";
 import { useRouter } from "next/navigation";
-import { createClient } from "@/lib/supabase/client";
-import { queueScoutingEntry, removeQueuedScoutingEntry } from "@/lib/offline-scouting-queue";
+import { queueScoutingEntry, removeQueuedScoutingEntry, tryUpsertScoutingEntry } from "@/lib/offline-scouting-queue";
 
 type Props = {
   eventId: string;
@@ -124,10 +123,8 @@ export function RebuiltMatchForm({ eventId, organizationId, scoutUserId, matchId
       assignment_id: assignmentId ?? null, scout_user_id: scoutUserId, entry_type: "match" as const, form_version: 4, payload,
       status: finalize ? "submitted" as const : "draft" as const, submitted_at: submittedAt,
     };
-    const supabase: any = createClient();
-    const { error } = await supabase.from("scouting_entries").upsert(entry, { onConflict: "id" });
-    const offlineFailure = !navigator.onLine || /fetch|network|failed to fetch|offline/i.test(String(error?.message ?? ""));
-    if (error && offlineFailure) {
+    const { error, shouldQueue } = await tryUpsertScoutingEntry(entry);
+    if (shouldQueue) {
       await queueScoutingEntry(entry);
       setMessage(finalize ? "Report saved on this device. It will submit automatically when you reconnect." : "Draft saved on this device. It will sync automatically when you reconnect.");
       setSaving(false);
@@ -137,7 +134,7 @@ export function RebuiltMatchForm({ eventId, organizationId, scoutUserId, matchId
     // That also covers reports opened from the scheduled-match picker.
     if (!error) await removeQueuedScoutingEntry(entryId);
     if (!error && finalize) setSubmitted(true);
-    setMessage(error ? "Could not save. Check your connection and try again." : editingEntryId ? "Changes saved." : finalize ? "Scout report submitted and visible in team history." : "Draft saved.");
+    setMessage(error ?? (editingEntryId ? "Changes saved." : finalize ? "Scout report submitted and visible in team history." : "Draft saved."));
     setSaving(false);
     if (!error && (editingEntryId || finalize)) {
       if (returnTo) router.replace(returnTo);

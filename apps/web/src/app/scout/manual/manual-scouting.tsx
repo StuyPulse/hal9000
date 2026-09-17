@@ -5,8 +5,7 @@ import { useRouter } from "next/navigation";
 import { AppSelect } from "@/components/app-select";
 import { AutoPathDrawer } from "@/components/auto-path-drawer";
 import { SearchableTeamSelect } from "@/components/searchable-team-select";
-import { createClient } from "@/lib/supabase/client";
-import { queueScoutingEntry, removeQueuedScoutingEntry } from "@/lib/offline-scouting-queue";
+import { queueScoutingEntry, removeQueuedScoutingEntry, tryUpsertScoutingEntry } from "@/lib/offline-scouting-queue";
 
 type EntryType = "pre_scout" | "pit";
 type Team = { id: string; number: number; name: string };
@@ -94,15 +93,13 @@ export function ManualScouting({ eventId, organizationId, scoutUserId, teams, ty
   async function submit() {
     if (!teamId) return setMessage("Choose a team.");
     if (!entryId || !organizationId || !scoutUserId) return setMessage("Sign in again before submitting.");
-    const supabase: any = createClient();
     const entry = { id: entryId, organization_id: organizationId, event_id: eventId, team_id: teamId, match_id: null, assignment_id: null, scout_user_id: scoutUserId, entry_type: type, form_version: 2, payload, status: "submitted" as const, submitted_at: new Date().toISOString() };
-    const { error } = await supabase.from("scouting_entries").upsert(entry, { onConflict: "id" });
-    const offlineFailure = !navigator.onLine || /fetch|network|failed to fetch|offline/i.test(String(error?.message ?? ""));
-    if (error && offlineFailure) {
+    const { error, shouldQueue } = await tryUpsertScoutingEntry(entry);
+    if (shouldQueue) {
       await queueScoutingEntry(entry);
       return setMessage(`${title[type]} saved on this device and will upload automatically when you reconnect.`);
     }
-    if (error) return setMessage("Could not save. Check your connection and try again.");
+    if (error) return setMessage(error);
     await removeQueuedScoutingEntry(entryId);
     setMessage(editingEntryId ? "Changes saved." : `${title[type]} saved to this team’s record.`);
     if (returnTo) router.replace(returnTo);
