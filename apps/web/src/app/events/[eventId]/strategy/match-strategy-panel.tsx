@@ -58,7 +58,7 @@ function AllianceOverview({ alliance, teams, eventKey }: { alliance: "red" | "bl
   </section>;
 }
 
-function StrategyDrawing({ strokes, onChange, color }: { strokes: Stroke[]; onChange: (strokes: Stroke[]) => void; color: string }) {
+function StrategyDrawing({ strokes, onChange, color, flipped }: { strokes: Stroke[]; onChange: (strokes: Stroke[]) => void; color: string; flipped: boolean }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const drawingRef = useRef(false);
 
@@ -100,7 +100,9 @@ function StrategyDrawing({ strokes, onChange, color }: { strokes: Stroke[]; onCh
 
   const pointFromEvent = (event: ReactPointerEvent<HTMLCanvasElement>): Point => {
     const rect = event.currentTarget.getBoundingClientRect();
-    return { x: Math.min(1, Math.max(0, (event.clientX - rect.left) / rect.width)), y: Math.min(1, Math.max(0, (event.clientY - rect.top) / rect.height)) };
+    const x = Math.min(1, Math.max(0, (event.clientX - rect.left) / rect.width));
+    const y = Math.min(1, Math.max(0, (event.clientY - rect.top) / rect.height));
+    return flipped ? { x: 1 - x, y: 1 - y } : { x, y };
   };
   const start = (event: ReactPointerEvent<HTMLCanvasElement>) => {
     if (event.button !== 0) return;
@@ -173,7 +175,7 @@ export function MatchStrategyPanel({ matches, teams, eventId, eventKey, organiza
     <div className="strategy-drawing-toolbar"><div className="strategy-color-picker" aria-label="Drawing color">{drawingColors.map((value) => <button key={value} type="button" className={color === value ? "selected" : ""} style={{ backgroundColor: value }} aria-label={`Use ${value} drawing color`} onClick={() => setColor(value)}/>)}</div><button type="button" className="button secondary strategy-tool-button" disabled={!strokes.length} onClick={() => { setStrokes((current) => current.slice(0, -1)); setSaveState(""); }}>Undo</button><button type="button" className="button secondary strategy-tool-button" disabled={!strokes.length} onClick={() => { setStrokes([]); setSaveState(""); }}>Clear</button><button type="button" className="button strategy-tool-button" disabled={!userId || saving} onClick={saveDrawing}>{saving ? "Saving…" : "Save drawing"}</button>{saveState && <span className="strategy-save-state" role="status">{saveState}</span>}<button type="button" className="button secondary strategy-flip-button" aria-pressed={flipped} onClick={() => setFlipped((current) => !current)}>Flip alliance view</button></div>
     <div className={`strategy-field${flipped ? " flip-alliance-view" : ""}`} aria-label={`${selectedMatch ? matchLabel(selectedMatch) : "Selected"} strategy field`}>
       <div className="strategy-field-art" aria-hidden="true"/>
-      <StrategyDrawing strokes={strokes} onChange={(next) => { setStrokes(next); setSaveState(""); }} color={color}/>
+      <StrategyDrawing strokes={strokes} onChange={(next) => { setStrokes(next); setSaveState(""); }} color={color} flipped={flipped}/>
     </div>
   </section>;
 }
