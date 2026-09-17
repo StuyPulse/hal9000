@@ -45,21 +45,22 @@ function SearchableMatchSelect({ matches, teams, value, onValueChange }: { match
   </div>;
 }
 
-function SlotCard({ slot, team, teams, unavailable, eventKey, onChange }: { slot: Slot; team?: Team; teams: Team[]; unavailable: Set<string>; eventKey: string; onChange: (teamId: string) => void }) {
-  return <article className={`strategy-slot ${slot.alliance} strategy-slot-${slot.position}`}>
-    <div className="strategy-slot-head"><span>{slot.alliance} {slot.position}</span></div>
-    <select aria-label={`${slot.alliance} alliance position ${slot.position} team`} value={team?.id ?? ""} onChange={(event) => onChange(event.target.value)}>
-      <option value="">Open slot</option>
-      {teams.map((option) => <option key={option.id} value={option.id} disabled={option.id !== team?.id && unavailable.has(option.id)}>{option.number} · {option.name}</option>)}
-    </select>
-    {team ? <Link className="strategy-team-link" href={`/events/${eventKey}/teams/${team.number}`}><strong>{team.number}</strong><span>{team.name}</span><div className="strategy-metrics"><div><span>Peak</span><strong>{round(team.stats.peakFuel)}</strong></div><div><span>Average</span><strong>{round(team.stats.totalFuel)}</strong></div><div><span>Auto</span><strong>{round(team.stats.autoFuel)}</strong></div><div><span>Teleop</span><strong>{round(team.stats.teleopFuel)}</strong></div></div><div className="strategy-tendencies"><span>{team.stats.entries} reports</span>{team.stats.defense > 0 && <span>Defense {round(team.stats.defense)}</span>}{team.stats.brokenPercent > 0 && <span>{round(team.stats.brokenPercent)}% broken</span>}</div></Link> : <p className="muted strategy-open-slot">Choose an event team.</p>}
-  </article>;
+function AllianceOverview({ alliance, teams, eventKey }: { alliance: "red" | "blue"; teams: (Team | undefined)[]; eventKey: string }) {
+  const filledTeams = teams.filter((team): team is Team => Boolean(team));
+  const totalFuel = filledTeams.reduce((total, team) => total + team.stats.totalFuel, 0);
+  const peakFuel = filledTeams.reduce((total, team) => total + team.stats.peakFuel, 0);
+  return <section className={`strategy-alliance-overview ${alliance}`}>
+    <div className="strategy-alliance-overview-head"><span>{alliance} alliance</span><strong>{filledTeams.length}/3 teams</strong></div>
+    <div className="strategy-alliance-teams">{teams.map((team, index) => team
+      ? <Link key={team.id} href={`/events/${eventKey}/teams/${team.number}`}><strong>{team.number}</strong><span>{team.name}</span><small>Avg {round(team.stats.totalFuel)} · Peak {round(team.stats.peakFuel)}</small></Link>
+      : <div key={`${alliance}-${index}`}><strong>—</strong><span>Open slot</span><small>Use the lineup above</small></div>)}</div>
+    <div className="strategy-alliance-totals"><span>Combined avg fuel <strong>{round(totalFuel)}</strong></span><span>Combined peak <strong>{round(peakFuel)}</strong></span></div>
+  </section>;
 }
 
-function StrategyDrawing({ strokes, onChange, onSave, saving, saveState, canSave }: { strokes: Stroke[]; onChange: (strokes: Stroke[]) => void; onSave: () => void; saving: boolean; saveState: string; canSave: boolean }) {
+function StrategyDrawing({ strokes, onChange, color }: { strokes: Stroke[]; onChange: (strokes: Stroke[]) => void; color: string }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const drawingRef = useRef(false);
-  const [color, setColor] = useState(drawingColors[0]);
 
   const repaint = useCallback(() => {
     const canvas = canvasRef.current;
@@ -115,7 +116,7 @@ function StrategyDrawing({ strokes, onChange, onSave, saving, saveState, canSave
   };
   const stop = () => { drawingRef.current = false; };
 
-  return <><canvas ref={canvasRef} className="strategy-drawing-canvas" aria-label="Draw a strategy path on the field" onPointerDown={start} onPointerMove={move} onPointerUp={stop} onPointerCancel={stop}/><div className="strategy-drawing-tools"><div className="strategy-color-picker" aria-label="Drawing color">{drawingColors.map((value) => <button key={value} type="button" className={color === value ? "selected" : ""} style={{ backgroundColor: value }} aria-label={`Use ${value} drawing color`} onClick={() => setColor(value)}/>)}</div><button type="button" className="button secondary strategy-tool-button" disabled={!strokes.length} onClick={() => onChange(strokes.slice(0, -1))}>Undo</button><button type="button" className="button secondary strategy-tool-button" disabled={!strokes.length} onClick={() => onChange([])}>Clear</button><button type="button" className="button strategy-tool-button" disabled={!canSave || saving} onClick={onSave}>{saving ? "Saving…" : "Save drawing"}</button>{saveState && <span className="strategy-save-state" role="status">{saveState}</span>}</div></>;
+  return <canvas ref={canvasRef} className="strategy-drawing-canvas" aria-label="Draw a strategy path on the field" onPointerDown={start} onPointerMove={move} onPointerUp={stop} onPointerCancel={stop}/>;
 }
 
 export function MatchStrategyPanel({ matches, teams, eventId, eventKey, organizationId, userId, initialStrokes }: { matches: Match[]; teams: Team[]; eventId: string; eventKey: string; organizationId: string; userId: string | null; initialStrokes: Stroke[] }) {
@@ -129,9 +130,11 @@ export function MatchStrategyPanel({ matches, teams, eventId, eventKey, organiza
   const [strokes, setStrokes] = useState<Stroke[]>(initialStrokes);
   const [saving, setSaving] = useState(false);
   const [saveState, setSaveState] = useState("");
+  const [color, setColor] = useState(drawingColors[0]);
   const selectedMatch = matches.find((match) => match.id === matchId);
   const teamIdFor = (slot: Slot) => overrides[slot.id] ?? (slot.alliance === "red" ? selectedMatch?.red[slot.position - 1] : selectedMatch?.blue[slot.position - 1]) ?? "";
-  const occupied = new Set(slots.map(teamIdFor).filter(Boolean));
+  const redAlliance = slots.filter((slot) => slot.alliance === "red").map((slot) => teamById.get(teamIdFor(slot)));
+  const blueAlliance = slots.filter((slot) => slot.alliance === "blue").map((slot) => teamById.get(teamIdFor(slot)));
 
   function chooseMatch(nextMatchId: string) {
     const next = matches.find((match) => match.id === nextMatchId);
@@ -166,11 +169,11 @@ export function MatchStrategyPanel({ matches, teams, eventId, eventKey, organiza
 
   return <section className="strategy-panel">
     <div className="strategy-controls"><label><span>Choose match</span><SearchableMatchSelect matches={matches} teams={teams} value={matchId} onValueChange={chooseMatch}/></label><form className="strategy-manual-lineup" onSubmit={applyManualLineup}><span className="strategy-manual-label">Manual event lineup</span><div className="strategy-manual-alliance red"><span>Red</span>{slots.filter((slot) => slot.alliance === "red").map((slot) => <input key={slot.id} aria-label={`Red alliance team ${slot.position}`} value={manualNumbers[slot.id] ?? ""} inputMode="numeric" pattern="[0-9]*" maxLength={5} placeholder={`R${slot.position}`} onChange={(event) => { setManualNumbers((current) => ({ ...current, [slot.id]: event.target.value.replace(/\D/g, "") })); setManualError(""); }}/>)}</div><span className="strategy-manual-versus">vs</span><div className="strategy-manual-alliance blue"><span>Blue</span>{slots.filter((slot) => slot.alliance === "blue").map((slot) => <input key={slot.id} aria-label={`Blue alliance team ${slot.position}`} value={manualNumbers[slot.id] ?? ""} inputMode="numeric" pattern="[0-9]*" maxLength={5} placeholder={`B${slot.position}`} onChange={(event) => { setManualNumbers((current) => ({ ...current, [slot.id]: event.target.value.replace(/\D/g, "") })); setManualError(""); }}/>)}</div><button type="submit" className="button secondary">Use lineup</button>{Object.keys(overrides).length > 0 && <button type="button" className="strategy-clear-lineup" onClick={() => { setOverrides({}); setManualNumbers(lineupNumbersFor(selectedMatch, teamById)); setManualError(""); }}>Use scheduled</button>}{manualError && <span className="strategy-lineup-error" role="alert">{manualError}</span>}</form></div>
+    <div className="strategy-alliance-overviews" aria-label="Alliance scouting comparison"><AllianceOverview alliance="red" teams={redAlliance} eventKey={eventKey}/><span aria-hidden="true">vs</span><AllianceOverview alliance="blue" teams={blueAlliance} eventKey={eventKey}/></div>
+    <div className="strategy-drawing-toolbar"><div className="strategy-color-picker" aria-label="Drawing color">{drawingColors.map((value) => <button key={value} type="button" className={color === value ? "selected" : ""} style={{ backgroundColor: value }} aria-label={`Use ${value} drawing color`} onClick={() => setColor(value)}/>)}</div><button type="button" className="button secondary strategy-tool-button" disabled={!strokes.length} onClick={() => { setStrokes((current) => current.slice(0, -1)); setSaveState(""); }}>Undo</button><button type="button" className="button secondary strategy-tool-button" disabled={!strokes.length} onClick={() => { setStrokes([]); setSaveState(""); }}>Clear</button><button type="button" className="button strategy-tool-button" disabled={!userId || saving} onClick={saveDrawing}>{saving ? "Saving…" : "Save drawing"}</button>{saveState && <span className="strategy-save-state" role="status">{saveState}</span>}<button type="button" className="button secondary strategy-flip-button" aria-pressed={flipped} onClick={() => setFlipped((current) => !current)}>Flip alliance view</button></div>
     <div className={`strategy-field${flipped ? " flip-alliance-view" : ""}`} aria-label={`${selectedMatch ? matchLabel(selectedMatch) : "Selected"} strategy field`}>
       <div className="strategy-field-art" aria-hidden="true"/>
-      <StrategyDrawing strokes={strokes} onChange={(next) => { setStrokes(next); setSaveState(""); }} onSave={saveDrawing} saving={saving} saveState={saveState} canSave={Boolean(userId)}/>
-      <button type="button" className="button secondary strategy-flip-button" aria-pressed={flipped} onClick={() => setFlipped((current) => !current)}>Flip alliance view</button>
-      {slots.map((slot) => { const teamId = teamIdFor(slot); const unavailable = new Set(occupied); unavailable.delete(teamId); return <SlotCard key={slot.id} slot={slot} team={teamById.get(teamId)} teams={teams} unavailable={unavailable} eventKey={eventKey} onChange={(nextTeamId) => setOverrides((current) => ({ ...current, [slot.id]: nextTeamId }))}/>; })}
+      <StrategyDrawing strokes={strokes} onChange={(next) => { setStrokes(next); setSaveState(""); }} color={color}/>
     </div>
   </section>;
 }

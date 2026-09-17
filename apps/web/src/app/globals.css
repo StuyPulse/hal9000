@@ -93,6 +93,9 @@
   .submission-row-main > :first-child { @apply min-w-0; }
   .submission-row-action { @apply flex shrink-0 items-center gap-3 text-sm font-bold text-stuypulse-textMuted; }
   .submission-filter-row { @apply mb-5 max-w-sm; }
+  .submission-top-controls { @apply flex flex-wrap items-end justify-end gap-3; }
+  .submission-event-filter { @apply grid min-w-[220px] gap-1 text-[10px] font-bold uppercase tracking-[0.08em] text-stuypulse-textMuted; font-family:'DM Mono',monospace; }
+  .submission-event-filter .app-select { @apply min-w-0; }
   .submission-scout-filter .searchable-team-input { @apply items-center; }
   .submission-scout-search { @apply ml-3 shrink-0 text-stuypulse-textMuted; }
   .submission-scout-filter .searchable-team-input input { @apply pl-2; }
@@ -632,6 +635,22 @@
   .strategy-manual-versus { @apply self-end pb-3 text-xs font-extrabold uppercase text-stuypulse-textMuted; font-family:'DM Mono',monospace; }
   .strategy-clear-lineup { @apply min-h-10 whitespace-nowrap text-xs font-bold text-stuypulse-textMuted transition hover:text-stuypulse-text; }
   .strategy-lineup-error { @apply col-span-full text-xs font-semibold text-red-400; }
+  .strategy-alliance-overviews { @apply mb-4 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-stretch gap-3; }
+  .strategy-alliance-overviews > span { @apply self-center text-sm font-extrabold uppercase text-stuypulse-textMuted; font-family:'DM Mono',monospace; }
+  .strategy-alliance-overview { @apply rounded-lg border bg-stuypulse-bg/50 p-3; }
+  .strategy-alliance-overview.red { @apply border-stuypulse-red/50; }
+  .strategy-alliance-overview.blue { @apply border-sky-500/50; }
+  .strategy-alliance-overview-head { @apply mb-2 flex items-center justify-between gap-2 text-[10px] font-bold uppercase tracking-[0.08em] text-stuypulse-textMuted; font-family:'DM Mono',monospace; }
+  .strategy-alliance-overview.red .strategy-alliance-overview-head strong { @apply text-stuypulse-redHover; }
+  .strategy-alliance-overview.blue .strategy-alliance-overview-head strong { @apply text-sky-400; }
+  .strategy-alliance-teams { @apply grid grid-cols-3 gap-1.5; }
+  .strategy-alliance-teams > * { @apply min-w-0 rounded-md border border-stuypulse-border bg-stuypulse-surface px-2 py-1.5; }
+  .strategy-alliance-teams a { @apply outline-none transition hover:bg-stuypulse-elevated focus-visible:ring-2 focus-visible:ring-stuypulse-redHover; }
+  .strategy-alliance-teams strong { @apply block text-sm font-extrabold; font-family:'DM Mono',monospace; }
+  .strategy-alliance-teams span, .strategy-alliance-teams small { @apply block truncate text-[9px] text-stuypulse-textMuted; }
+  .strategy-alliance-teams small { @apply mt-1 font-medium; font-family:'DM Mono',monospace; }
+  .strategy-alliance-totals { @apply mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[10px] text-stuypulse-textMuted; font-family:'DM Mono',monospace; }
+  .strategy-alliance-totals strong { @apply text-stuypulse-text; }
   .strategy-field { @apply relative isolate min-h-[620px] overflow-hidden rounded-panel border border-stuypulse-border bg-white; aspect-ratio:2.04 / 1; }
   .strategy-field-art, .strategy-drawing-canvas { @apply absolute inset-0 h-full w-full; }
   .strategy-field-art { @apply z-0 bg-cover bg-center; background-image:url('/2026-field-map.png'); }
@@ -657,13 +676,13 @@
   .strategy-metrics strong { @apply block text-xs font-extrabold; font-family:'DM Mono',monospace; }
   .strategy-tendencies { @apply mt-2 flex flex-wrap gap-x-2 gap-y-1 text-[9px] font-medium text-stuypulse-textMuted; font-family:'DM Mono',monospace; }
   .strategy-open-slot { @apply mb-0 mt-3 text-xs; }
-  .strategy-drawing-tools { @apply absolute bottom-3 left-3 z-20 flex max-w-[calc(100%-1.5rem)] flex-wrap items-center gap-1.5 rounded-lg border border-stuypulse-border bg-stuypulse-surface/95 p-1.5 shadow-elevated; backdrop-filter:blur(8px); }
+  .strategy-drawing-toolbar { @apply mb-3 flex flex-wrap items-center gap-1.5 rounded-lg border border-stuypulse-border bg-stuypulse-bg/50 p-1.5; }
   .strategy-color-picker { @apply flex items-center gap-1 border-r border-stuypulse-border pr-1.5; }
   .strategy-color-picker button { @apply h-6 w-6 rounded-full border-2 border-transparent transition hover:scale-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white; }
   .strategy-color-picker button.selected { @apply border-white ring-1 ring-stuypulse-text; }
   .strategy-tool-button { @apply min-h-8 px-2 text-[11px]; }
   .strategy-save-state { @apply px-1 text-[10px] font-semibold text-stuypulse-textMuted; }
-  .strategy-flip-button { @apply absolute right-3 top-3 z-20 min-h-9 bg-stuypulse-surface/95 px-2.5 text-[11px] shadow-elevated; backdrop-filter:blur(8px); }
+  .strategy-flip-button { @apply ml-auto min-h-8 px-2 text-[11px]; }
   .strategy-field.flip-alliance-view .strategy-field-art, .strategy-field.flip-alliance-view .strategy-drawing-canvas { transform:rotate(180deg); }
   .strategy-field.flip-alliance-view .strategy-slot.red.strategy-slot-1 { left:auto; right:8%; top:62%; }
   .strategy-field.flip-alliance-view .strategy-slot.red.strategy-slot-2 { left:auto; right:8%; top:36%; }
@@ -750,6 +769,8 @@
   .topbar-actions { @apply w-full; }
   .topbar-actions > .event-chip, .topbar-actions > .button { @apply w-full justify-center; }
   .card-head > .link { @apply inline-flex min-h-11 items-center; }
+  .submission-top-controls { @apply w-full items-stretch; }
+  .submission-event-filter { @apply w-full; }
   .topbar { @apply mb-6; }
   .card { @apply p-4; }
   .card > table { @apply block max-w-full overflow-x-auto; -webkit-overflow-scrolling: touch; }
@@ -837,12 +858,12 @@
   .strategy-metrics span { @apply text-[7px]; }
   .strategy-metrics strong { @apply text-[10px]; }
   .strategy-tendencies { @apply text-[7px]; }
-  .strategy-drawing-tools { @apply bottom-2 left-2 gap-1 p-1; }
+  .strategy-drawing-toolbar { @apply gap-1 p-1; }
   .strategy-color-picker { @apply pr-1; }
   .strategy-color-picker button { @apply h-5 w-5; }
   .strategy-tool-button { @apply min-h-8 px-1.5 text-[10px]; }
   .strategy-save-state { @apply hidden; }
-  .strategy-flip-button { @apply right-2 top-2 px-2 text-[10px]; }
+  .strategy-flip-button { @apply text-[10px]; }
   .strategy-field.flip-alliance-view .strategy-slot.red.strategy-slot-1 { right:3%; }
   .strategy-field.flip-alliance-view .strategy-slot.red.strategy-slot-2 { right:3%; }
   .strategy-field.flip-alliance-view .strategy-slot.red.strategy-slot-3 { right:3%; }
