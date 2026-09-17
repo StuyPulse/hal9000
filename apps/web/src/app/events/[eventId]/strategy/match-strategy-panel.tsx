@@ -1,20 +1,30 @@
 "use client";
 
-import { useId, useMemo, useState, type FormEvent } from "react";
+import Link from "next/link";
+import { useCallback, useEffect, useId, useMemo, useRef, useState, type FormEvent, type PointerEvent as ReactPointerEvent } from "react";
 import type { ScoutStats } from "@/lib/scouting-stats";
 import { matchLabel as formatMatchLabel } from "@/lib/match-label";
+import { createClient } from "@/lib/supabase/client";
 
 type Team = { id: string; number: number; name: string; stats: ScoutStats };
 type Match = { id: string; key: string; number: number; type: string; scheduledAt: string | null; status: string; red: string[]; blue: string[] };
 type Slot = { id: string; alliance: "red" | "blue"; position: number };
+type Point = { x: number; y: number };
+type Stroke = { color: string; points: Point[] };
+
 const slots: Slot[] = [
   { id: "red-1", alliance: "red", position: 1 }, { id: "red-2", alliance: "red", position: 2 }, { id: "red-3", alliance: "red", position: 3 },
   { id: "blue-1", alliance: "blue", position: 1 }, { id: "blue-2", alliance: "blue", position: 2 }, { id: "blue-3", alliance: "blue", position: 3 },
 ];
+const drawingColors = ["#ef4444", "#38bdf8", "#facc15", "#34d399", "#a78bfa", "#fb923c"];
 const round = (value: number) => value.toFixed(2);
 const matchLabel = (match: Match) => formatMatchLabel({ match_number: match.number, match_type: match.type, tba_match_key: match.key });
 const matchLineupLabel = (match: Match, teamById: Map<string, Team>) => `${match.red.map((teamId) => teamById.get(teamId)?.number ?? "—").join(" ")} vs ${match.blue.map((teamId) => teamById.get(teamId)?.number ?? "—").join(" ")}`;
 const matchSearchLabel = (match: Match, teamById: Map<string, Team>) => `${matchLabel(match)} · ${matchLineupLabel(match, teamById)}${match.scheduledAt ? ` · ${new Date(match.scheduledAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}` : ""}`;
+const lineupNumbersFor = (match: Match | undefined, teams: Map<string, Team>) => Object.fromEntries(slots.map((slot) => {
+  const id = slot.alliance === "red" ? match?.red[slot.position - 1] : match?.blue[slot.position - 1];
+  return [slot.id, id ? String(teams.get(id)?.number ?? "") : ""];
+}));
 
 function SearchableMatchSelect({ matches, teams, value, onValueChange }: { matches: Match[]; teams: Team[]; value: string; onValueChange: (value: string) => void }) {
   const [query, setQuery] = useState("");
@@ -35,36 +45,101 @@ function SearchableMatchSelect({ matches, teams, value, onValueChange }: { match
   </div>;
 }
 
-function AllianceOverview({ alliance, teams }: { alliance: "red" | "blue"; teams: (Team | undefined)[] }) {
-  const filledTeams = teams.filter((team): team is Team => Boolean(team));
-  const totalFuel = filledTeams.reduce((total, team) => total + team.stats.totalFuel, 0);
-  const peakFuel = filledTeams.reduce((total, team) => total + team.stats.peakFuel, 0);
-  return <section className={`strategy-alliance-overview ${alliance}`}><div className="strategy-alliance-overview-head"><span>{alliance} alliance</span><strong>{filledTeams.length}/3 teams</strong></div><div className="strategy-alliance-teams">{teams.map((team, index) => <div key={team?.id ?? `${alliance}-${index}`}><strong>{team?.number ?? "—"}</strong><span>{team ? team.name : "Open slot"}</span><small>{team ? `Avg ${round(team.stats.totalFuel)} · Peak ${round(team.stats.peakFuel)}` : "No scouting data"}</small></div>)}</div><div className="strategy-alliance-totals"><span>Combined avg fuel <strong>{round(totalFuel)}</strong></span><span>Combined peak <strong>{round(peakFuel)}</strong></span></div></section>;
-}
-
-function SlotCard({ slot, team, teams, unavailable, onChange }: { slot: Slot; team?: Team; teams: Team[]; unavailable: Set<string>; onChange: (teamId: string) => void }) {
+function SlotCard({ slot, team, teams, unavailable, eventKey, onChange }: { slot: Slot; team?: Team; teams: Team[]; unavailable: Set<string>; eventKey: string; onChange: (teamId: string) => void }) {
   return <article className={`strategy-slot ${slot.alliance} strategy-slot-${slot.position}`}>
-    <div className="strategy-slot-head"><span>{slot.alliance} {slot.position}</span><strong>{team ? team.number : "Open"}</strong></div>
+    <div className="strategy-slot-head"><span>{slot.alliance} {slot.position}</span></div>
     <select aria-label={`${slot.alliance} alliance position ${slot.position} team`} value={team?.id ?? ""} onChange={(event) => onChange(event.target.value)}>
       <option value="">Open slot</option>
       {teams.map((option) => <option key={option.id} value={option.id} disabled={option.id !== team?.id && unavailable.has(option.id)}>{option.number} · {option.name}</option>)}
     </select>
-    {team ? <><div className="strategy-team-name">{team.name}</div><div className="strategy-metrics"><div><span>Peak fuel</span><strong>{round(team.stats.peakFuel)}</strong></div><div><span>Avg fuel</span><strong>{round(team.stats.totalFuel)}</strong></div><div><span>Auto</span><strong>{round(team.stats.autoFuel)}</strong></div><div><span>Teleop</span><strong>{round(team.stats.teleopFuel)}</strong></div></div><div className="strategy-tendencies"><span>{team.stats.entries} reports</span>{team.stats.defense > 0 && <span>Defense {round(team.stats.defense)}</span>}{team.stats.brokenPercent > 0 && <span>{round(team.stats.brokenPercent)}% broken</span>}</div></> : <p className="muted">Choose an event team.</p>}
+    {team ? <Link className="strategy-team-link" href={`/events/${eventKey}/teams/${team.number}`}><strong>{team.number}</strong><span>{team.name}</span><div className="strategy-metrics"><div><span>Peak</span><strong>{round(team.stats.peakFuel)}</strong></div><div><span>Average</span><strong>{round(team.stats.totalFuel)}</strong></div><div><span>Auto</span><strong>{round(team.stats.autoFuel)}</strong></div><div><span>Teleop</span><strong>{round(team.stats.teleopFuel)}</strong></div></div><div className="strategy-tendencies"><span>{team.stats.entries} reports</span>{team.stats.defense > 0 && <span>Defense {round(team.stats.defense)}</span>}{team.stats.brokenPercent > 0 && <span>{round(team.stats.brokenPercent)}% broken</span>}</div></Link> : <p className="muted strategy-open-slot">Choose an event team.</p>}
   </article>;
 }
 
-export function MatchStrategyPanel({ matches, teams }: { matches: Match[]; teams: Team[] }) {
-  const [matchId, setMatchId] = useState(matches[0]?.id ?? "");
-  const [overrides, setOverrides] = useState<Record<string, string>>({});
-  const [manualNumbers, setManualNumbers] = useState<Record<string, string>>({});
-  const [manualError, setManualError] = useState("");
-  const selectedMatch = matches.find((match) => match.id === matchId);
+function StrategyDrawing({ strokes, onChange, onSave, saving, saveState, canSave }: { strokes: Stroke[]; onChange: (strokes: Stroke[]) => void; onSave: () => void; saving: boolean; saveState: string; canSave: boolean }) {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const drawingRef = useRef(false);
+  const [color, setColor] = useState(drawingColors[0]);
+
+  const repaint = useCallback(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const rect = canvas.getBoundingClientRect();
+    if (!rect.width || !rect.height) return;
+    const scale = window.devicePixelRatio || 1;
+    canvas.width = Math.round(rect.width * scale);
+    canvas.height = Math.round(rect.height * scale);
+    const context = canvas.getContext("2d");
+    if (!context) return;
+    context.setTransform(scale, 0, 0, scale, 0, 0);
+    context.clearRect(0, 0, rect.width, rect.height);
+    context.lineCap = "round";
+    context.lineJoin = "round";
+    for (const stroke of strokes) {
+      if (!stroke.points.length) continue;
+      context.beginPath();
+      context.strokeStyle = stroke.color;
+      context.lineWidth = 4;
+      const first = stroke.points[0];
+      context.moveTo(first.x * rect.width, first.y * rect.height);
+      for (const point of stroke.points.slice(1)) context.lineTo(point.x * rect.width, point.y * rect.height);
+      if (stroke.points.length === 1) context.lineTo(first.x * rect.width + 0.1, first.y * rect.height + 0.1);
+      context.stroke();
+    }
+  }, [strokes]);
+
+  useEffect(() => {
+    repaint();
+    const canvas = canvasRef.current;
+    if (!canvas || !window.ResizeObserver) return;
+    const observer = new ResizeObserver(repaint);
+    observer.observe(canvas);
+    return () => observer.disconnect();
+  }, [repaint]);
+
+  const pointFromEvent = (event: ReactPointerEvent<HTMLCanvasElement>): Point => {
+    const rect = event.currentTarget.getBoundingClientRect();
+    return { x: Math.min(1, Math.max(0, (event.clientX - rect.left) / rect.width)), y: Math.min(1, Math.max(0, (event.clientY - rect.top) / rect.height)) };
+  };
+  const start = (event: ReactPointerEvent<HTMLCanvasElement>) => {
+    if (event.button !== 0) return;
+    event.preventDefault();
+    drawingRef.current = true;
+    event.currentTarget.setPointerCapture(event.pointerId);
+    onChange([...strokes, { color, points: [pointFromEvent(event)] }]);
+  };
+  const move = (event: ReactPointerEvent<HTMLCanvasElement>) => {
+    if (!drawingRef.current) return;
+    const point = pointFromEvent(event);
+    onChange(strokes.map((stroke, index) => index === strokes.length - 1 ? { ...stroke, points: [...stroke.points, point] } : stroke));
+  };
+  const stop = () => { drawingRef.current = false; };
+
+  return <><canvas ref={canvasRef} className="strategy-drawing-canvas" aria-label="Draw a strategy path on the field" onPointerDown={start} onPointerMove={move} onPointerUp={stop} onPointerCancel={stop}/><div className="strategy-drawing-tools"><div className="strategy-color-picker" aria-label="Drawing color">{drawingColors.map((value) => <button key={value} type="button" className={color === value ? "selected" : ""} style={{ backgroundColor: value }} aria-label={`Use ${value} drawing color`} onClick={() => setColor(value)}/>)}</div><button type="button" className="button secondary strategy-tool-button" disabled={!strokes.length} onClick={() => onChange(strokes.slice(0, -1))}>Undo</button><button type="button" className="button secondary strategy-tool-button" disabled={!strokes.length} onClick={() => onChange([])}>Clear</button><button type="button" className="button strategy-tool-button" disabled={!canSave || saving} onClick={onSave}>{saving ? "Saving…" : "Save drawing"}</button>{saveState && <span className="strategy-save-state" role="status">{saveState}</span>}</div></>;
+}
+
+export function MatchStrategyPanel({ matches, teams, eventId, eventKey, organizationId, userId, initialStrokes }: { matches: Match[]; teams: Team[]; eventId: string; eventKey: string; organizationId: string; userId: string | null; initialStrokes: Stroke[] }) {
   const teamById = useMemo(() => new Map(teams.map((team) => [team.id, team])), [teams]);
   const teamByNumber = useMemo(() => new Map(teams.map((team) => [team.number, team])), [teams]);
+  const [matchId, setMatchId] = useState(matches[0]?.id ?? "");
+  const [overrides, setOverrides] = useState<Record<string, string>>({});
+  const [manualNumbers, setManualNumbers] = useState<Record<string, string>>(() => lineupNumbersFor(matches[0], teamById));
+  const [manualError, setManualError] = useState("");
+  const [flipped, setFlipped] = useState(false);
+  const [strokes, setStrokes] = useState<Stroke[]>(initialStrokes);
+  const [saving, setSaving] = useState(false);
+  const [saveState, setSaveState] = useState("");
+  const selectedMatch = matches.find((match) => match.id === matchId);
   const teamIdFor = (slot: Slot) => overrides[slot.id] ?? (slot.alliance === "red" ? selectedMatch?.red[slot.position - 1] : selectedMatch?.blue[slot.position - 1]) ?? "";
   const occupied = new Set(slots.map(teamIdFor).filter(Boolean));
-  const redAlliance = slots.filter((slot) => slot.alliance === "red").map((slot) => teamById.get(teamIdFor(slot)));
-  const blueAlliance = slots.filter((slot) => slot.alliance === "blue").map((slot) => teamById.get(teamIdFor(slot)));
+
+  function chooseMatch(nextMatchId: string) {
+    const next = matches.find((match) => match.id === nextMatchId);
+    setMatchId(nextMatchId);
+    setOverrides({});
+    setManualNumbers(lineupNumbersFor(next, teamById));
+    setManualError("");
+  }
 
   function applyManualLineup(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -79,12 +154,23 @@ export function MatchStrategyPanel({ matches, teams }: { matches: Match[]; teams
     setManualError("");
   }
 
+  async function saveDrawing() {
+    if (!userId) { setSaveState("Sign in to save your drawing."); return; }
+    setSaving(true);
+    setSaveState("");
+    const supabase = createClient();
+    const { error } = await (supabase as any).from("strategy_drawings").upsert({ organization_id: organizationId, event_id: eventId, user_id: userId, strokes }, { onConflict: "event_id,user_id" });
+    setSaving(false);
+    setSaveState(error ? "Could not save the drawing." : "Drawing saved.");
+  }
+
   return <section className="strategy-panel">
-    <div className="strategy-controls"><label><span>Choose match</span><SearchableMatchSelect matches={matches} teams={teams} value={matchId} onValueChange={(nextMatchId) => { setMatchId(nextMatchId); setOverrides({}); setManualNumbers({}); setManualError(""); }}/></label><form className="strategy-manual-lineup" onSubmit={applyManualLineup}><span className="strategy-manual-label">Manual event lineup</span><div className="strategy-manual-alliance red"><span>Red</span>{slots.filter((slot) => slot.alliance === "red").map((slot) => <input key={slot.id} aria-label={`Red alliance team ${slot.position}`} value={manualNumbers[slot.id] ?? ""} inputMode="numeric" pattern="[0-9]*" maxLength={5} placeholder={`R${slot.position}`} onChange={(event) => { setManualNumbers((current) => ({ ...current, [slot.id]: event.target.value.replace(/\D/g, "") })); setManualError(""); }}/>)}</div><span className="strategy-manual-versus">vs</span><div className="strategy-manual-alliance blue"><span>Blue</span>{slots.filter((slot) => slot.alliance === "blue").map((slot) => <input key={slot.id} aria-label={`Blue alliance team ${slot.position}`} value={manualNumbers[slot.id] ?? ""} inputMode="numeric" pattern="[0-9]*" maxLength={5} placeholder={`B${slot.position}`} onChange={(event) => { setManualNumbers((current) => ({ ...current, [slot.id]: event.target.value.replace(/\D/g, "") })); setManualError(""); }}/>)}</div><button type="submit" className="button secondary">Use lineup</button>{Object.keys(overrides).length > 0 && <button type="button" className="strategy-clear-lineup" onClick={() => { setOverrides({}); setManualNumbers({}); setManualError(""); }}>Use scheduled</button>}{manualError && <span className="strategy-lineup-error" role="alert">{manualError}</span>}</form></div>
-    <div className="strategy-alliance-overviews" aria-label="Alliance scouting comparison"><AllianceOverview alliance="red" teams={redAlliance}/><span aria-hidden="true">vs</span><AllianceOverview alliance="blue" teams={blueAlliance}/></div>
-    <div className="strategy-field" aria-label={`${selectedMatch ? matchLabel(selectedMatch) : "Selected"} strategy field`}>
+    <div className="strategy-controls"><label><span>Choose match</span><SearchableMatchSelect matches={matches} teams={teams} value={matchId} onValueChange={chooseMatch}/></label><form className="strategy-manual-lineup" onSubmit={applyManualLineup}><span className="strategy-manual-label">Manual event lineup</span><div className="strategy-manual-alliance red"><span>Red</span>{slots.filter((slot) => slot.alliance === "red").map((slot) => <input key={slot.id} aria-label={`Red alliance team ${slot.position}`} value={manualNumbers[slot.id] ?? ""} inputMode="numeric" pattern="[0-9]*" maxLength={5} placeholder={`R${slot.position}`} onChange={(event) => { setManualNumbers((current) => ({ ...current, [slot.id]: event.target.value.replace(/\D/g, "") })); setManualError(""); }}/>)}</div><span className="strategy-manual-versus">vs</span><div className="strategy-manual-alliance blue"><span>Blue</span>{slots.filter((slot) => slot.alliance === "blue").map((slot) => <input key={slot.id} aria-label={`Blue alliance team ${slot.position}`} value={manualNumbers[slot.id] ?? ""} inputMode="numeric" pattern="[0-9]*" maxLength={5} placeholder={`B${slot.position}`} onChange={(event) => { setManualNumbers((current) => ({ ...current, [slot.id]: event.target.value.replace(/\D/g, "") })); setManualError(""); }}/>)}</div><button type="submit" className="button secondary">Use lineup</button>{Object.keys(overrides).length > 0 && <button type="button" className="strategy-clear-lineup" onClick={() => { setOverrides({}); setManualNumbers(lineupNumbersFor(selectedMatch, teamById)); setManualError(""); }}>Use scheduled</button>}{manualError && <span className="strategy-lineup-error" role="alert">{manualError}</span>}</form></div>
+    <div className={`strategy-field${flipped ? " flip-alliance-view" : ""}`} aria-label={`${selectedMatch ? matchLabel(selectedMatch) : "Selected"} strategy field`}>
       <div className="strategy-field-art" aria-hidden="true"/>
-      {slots.map((slot) => { const teamId = teamIdFor(slot); const unavailable = new Set(occupied); unavailable.delete(teamId); return <SlotCard key={slot.id} slot={slot} team={teamById.get(teamId)} teams={teams} unavailable={unavailable} onChange={(nextTeamId) => setOverrides((current) => ({ ...current, [slot.id]: nextTeamId }))}/>; })}
+      <StrategyDrawing strokes={strokes} onChange={(next) => { setStrokes(next); setSaveState(""); }} onSave={saveDrawing} saving={saving} saveState={saveState} canSave={Boolean(userId)}/>
+      <button type="button" className="button secondary strategy-flip-button" aria-pressed={flipped} onClick={() => setFlipped((current) => !current)}>Flip alliance view</button>
+      {slots.map((slot) => { const teamId = teamIdFor(slot); const unavailable = new Set(occupied); unavailable.delete(teamId); return <SlotCard key={slot.id} slot={slot} team={teamById.get(teamId)} teams={teams} unavailable={unavailable} eventKey={eventKey} onChange={(nextTeamId) => setOverrides((current) => ({ ...current, [slot.id]: nextTeamId }))}/>; })}
     </div>
   </section>;
 }
