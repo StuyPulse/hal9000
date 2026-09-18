@@ -19,11 +19,11 @@ export function OfflineSupport() {
   }, [refreshPending, syncing]);
 
   useEffect(() => {
-    void refreshPending();
+    const initialRefresh = window.setTimeout(() => void refreshPending(), 0);
     const unregister = onOfflineQueueChanged(() => void refreshPending());
     const handleOnline = () => void sync();
     window.addEventListener("online", handleOnline);
-    return () => { unregister(); window.removeEventListener("online", handleOnline); };
+    return () => { window.clearTimeout(initialRefresh); unregister(); window.removeEventListener("online", handleOnline); };
   }, [refreshPending, sync]);
 
   useEffect(() => {

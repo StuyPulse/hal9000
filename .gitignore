@@ -1,5 +1,7 @@
 node_modules/
 .next/
+.DS_Store
+supabase/.temp/
 .env.local
 .env*.local
 supabase/functions/.env

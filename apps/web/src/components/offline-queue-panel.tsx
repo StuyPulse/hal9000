@@ -11,7 +11,11 @@ export function OfflineQueuePanel() {
   const [lastSync, setLastSync] = useState<string | null>(null);
   const [syncing, setSyncing] = useState(false);
   const refresh = useCallback(async () => { setEntries(await listQueuedScoutingEntries()); setLastSync(getLastSuccessfulSync()); }, []);
-  useEffect(() => { void refresh(); return onOfflineQueueChanged(() => void refresh()); }, [refresh]);
+  useEffect(() => {
+    const initialRefresh = window.setTimeout(() => void refresh(), 0);
+    const unsubscribe = onOfflineQueueChanged(() => void refresh());
+    return () => { window.clearTimeout(initialRefresh); unsubscribe(); };
+  }, [refresh]);
   async function sync() { setSyncing(true); try { await syncQueuedScoutingEntries(); } finally { await refresh(); setSyncing(false); } }
   function downloadBackup() {
     const file = new Blob([JSON.stringify(entries, null, 2)], { type: "application/json" });
