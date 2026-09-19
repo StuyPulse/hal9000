@@ -6,6 +6,7 @@ import Link from "next/link";
 import { getViewerContext } from "@/lib/viewer-context";
 import { DeleteSubmissionForm } from "@/components/delete-submission-form";
 import { SubmissionScoutFilter } from "@/components/submission-scout-filter";
+import { SubmissionTeamFilter } from "@/components/submission-team-filter";
 import { SubmissionEventFilter } from "@/components/submission-event-filter";
 import { scoutingEntryLabel, scoutingEntryTypeLabel } from "@/lib/scouting-entry-label";
 import { viewerCanManage } from "@/lib/viewer-context";
@@ -27,11 +28,12 @@ function reportEditHref(entry: { id: string; entry_type: string; match_id: strin
   return null;
 }
 
-export default async function SubmissionsPage({ searchParams }: { searchParams: Promise<{ scope?: string; match?: string; scout?: string; type?: string; event?: string }> }) {
+export default async function SubmissionsPage({ searchParams }: { searchParams: Promise<{ scope?: string; match?: string; scout?: string; team?: string; type?: string; event?: string }> }) {
   const queryParams = await searchParams;
   const scope = queryParams.scope === "mine" ? "mine" : "all";
   const matchId = queryParams.match ?? "";
   const requestedScoutId = queryParams.scout ?? "";
+  const requestedTeamId = queryParams.team ?? "";
   const requestedEventId = queryParams.event ?? "";
   const type: ReportType = queryParams.type === "pit" ? "pit" : queryParams.type === "pre_scout" ? "pre_scout" : "match";
   const [supabase, viewer] = await Promise.all([createClient(), getViewerContext()]);
@@ -43,27 +45,35 @@ export default async function SubmissionsPage({ searchParams }: { searchParams: 
   const activeEventId = viewer?.activeEvent?.id ?? "";
   const selectedEvent = organizationEvents.find((event) => event.id === requestedEventId) ?? organizationEvents.find((event) => event.id === activeEventId) ?? null;
   const submissionEventId = selectedEvent?.id;
-  const { data: members } = viewer?.organizationId ? await supabase.from("organization_members").select("user_id,profiles(display_name)").eq("organization_id", viewer.organizationId).order("created_at") : { data: [] };
+  const [{ data: members }, { data: eventTeams }] = await Promise.all([
+    viewer?.organizationId ? supabase.from("organization_members").select("user_id,profiles(display_name)").eq("organization_id", viewer.organizationId).order("created_at") : Promise.resolve({ data: [] }),
+    submissionEventId ? supabase.from("event_teams").select("team_id,teams(id,team_number,name)").eq("event_id", submissionEventId) : Promise.resolve({ data: [] }),
+  ]);
   const scouts = (members ?? []).map((member: any) => ({ id: member.user_id, name: member.profiles?.display_name ?? "Unnamed scout" })).sort((left, right) => left.name.localeCompare(right.name));
+  const teams = (eventTeams ?? []).map((row: any) => row.teams).filter(Boolean).map((team: any) => ({ id: team.id, number: team.team_number, name: team.name })).sort((left: any, right: any) => left.number - right.number);
   const scoutId = scouts.some((scout) => scout.id === requestedScoutId) ? requestedScoutId : "";
+  const teamId = teams.some((team: any) => team.id === requestedTeamId) ? requestedTeamId : "";
   let query = (supabase as any).from("scouting_entries").select("id,match_id,scout_user_id,entry_type,status,payload,submitted_at,created_at,matches(match_number,match_type,tba_match_key),teams(team_number,name),profiles(display_name)").eq("entry_type", type).order("created_at", { ascending: false });
   if (submissionEventId) query = query.eq("event_id", submissionEventId);
   else query = query.limit(0);
   if (scope === "mine" && viewer) query = query.eq("scout_user_id", viewer.userId);
   if (scoutId) query = query.eq("scout_user_id", scoutId);
+  if (teamId) query = query.eq("team_id", teamId);
   if (matchId) query = query.eq("match_id", matchId);
   const { data } = await query;
-  function href(next: Partial<{ scope: "all" | "mine"; type: ReportType; matchId: string; scoutId: string; eventId: string }> = {}) {
+  function href(next: Partial<{ scope: "all" | "mine"; type: ReportType; matchId: string; scoutId: string; teamId: string; eventId: string }> = {}) {
     const params = new URLSearchParams();
     const nextType = next.type ?? type;
     const nextScope = next.scope ?? scope;
     const nextMatchId = next.matchId ?? matchId;
     const nextScoutId = next.scoutId ?? scoutId;
+    const nextTeamId = next.teamId ?? teamId;
     const nextEventId = next.eventId ?? selectedEvent?.id ?? "";
     if (nextType !== "match" || !nextMatchId) params.set("type", nextType);
     if (nextScope !== "all") params.set("scope", nextScope);
     if (nextMatchId) params.set("match", nextMatchId);
     if (nextScoutId) params.set("scout", nextScoutId);
+    if (nextTeamId) params.set("team", nextTeamId);
     if (nextEventId && nextEventId !== activeEventId) params.set("event", nextEventId);
     const queryString = params.toString();
     return `/submissions${queryString ? `?${queryString}` : ""}`;
@@ -88,7 +98,7 @@ export default async function SubmissionsPage({ searchParams }: { searchParams: 
       <div className="filter-tabs submission-type-tabs" aria-label="Submission type">
         {reportTabs.map((tab) => <Link key={tab.value} className={type === tab.value ? "active" : ""} href={href({ type: tab.value, matchId: tab.value === "match" ? matchId : "" })}>{tab.label}</Link>)}
       </div>
-      <div className="submission-filter-row"><div className="field"><label htmlFor="submission-scout-filter">Scout</label><SubmissionScoutFilter scouts={scouts} value={scoutId}/></div></div>
+      <div className="submission-filter-row"><div className="field"><label htmlFor="submission-team-filter">Team</label><SubmissionTeamFilter teams={teams} value={teamId}/></div><div className="field"><label htmlFor="submission-scout-filter">Scout</label><SubmissionScoutFilter scouts={scouts} value={scoutId}/></div></div>
       {data?.length ? data.map((entry: any) => {
         const canEdit = viewer && (entry.scout_user_id === viewer.userId || viewerCanManage(viewer));
         const returnPath = href();
