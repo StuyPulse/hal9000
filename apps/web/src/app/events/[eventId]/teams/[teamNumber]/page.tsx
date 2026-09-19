@@ -61,7 +61,7 @@ export default async function TeamDetail({ params }: { params: Promise<{ eventId
   const matchEntries = (entries ?? []).filter((entry: any) => entry.entry_type === "match");
   const submittedEntries = matchEntries.filter((entry: any) => entry.status === "submitted");
   const byType = (type: string) => (entries ?? []).filter((entry: any) => entry.entry_type === type);
-  const stats = calculateScoutStats(competitiveMatchEntries(matchEntries));
+  const stats = calculateScoutStats(competitiveMatchEntries(submittedEntries));
   const teamMatches = ((localMatches ?? []) as LocalMatch[]).filter((match) => [...(match.red_teams ?? []), ...(match.blue_teams ?? [])].includes(team.id));
   const localByTbaKey = new Map(teamMatches.map((match) => [match.tba_match_key, match]));
   const reportsByMatchId = new Map<string, any[]>();
@@ -112,7 +112,7 @@ export default async function TeamDetail({ params }: { params: Promise<{ eventId
   const pitCount = pitEntries.length;
   const teamNames = Object.fromEntries((eventTeams ?? []).map((row: any) => [row.team_id, `${row.teams?.team_number ?? "Unknown"} · ${row.teams?.name ?? "team"}`]));
   const overview = [
-    { label: "Scout reports", value: String(stats.entries), detail: stats.entries ? "match reports recorded" : "no match data yet" },
+    { label: "Scouted matches", value: String(stats.matches), detail: stats.entries ? `${stats.entries} report${stats.entries === 1 ? "" : "s"} recorded` : "no match data yet" },
     { label: "Auto scouting", value: `Scored ${formatStat(stats.autoAvgScored)}`, detail: `Ferried ${formatStat(stats.autoAvgFerried)}` },
     { label: "Teleop scouting", value: `Scored ${formatStat(stats.teleopAvgScored)}`, detail: `Ferried ${formatStat(stats.teleopAvgFerried)}` },
     { label: "TBA rank", value: tba?.rank ? `#${tba.rank}` : "—", detail: tba?.record ? `${tba.record.wins}-${tba.record.losses}-${tba.record.ties} record` : "not published" },

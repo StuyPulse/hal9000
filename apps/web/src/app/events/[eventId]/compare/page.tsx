@@ -31,7 +31,7 @@ export default async function ComparePage({ params, searchParams }: { params: Pr
   const pick = (id?: string) => teamRows.find((row: any) => String(row.teams?.team_number) === id) as any;
   const left = pick(a), right = pick(b); const selectedTeamIds = left && right ? [left.team_id, right.team_id] : [];
   const [{ data: entries }, { data: officialMatches }, { data: photos }] = await Promise.all([
-    event && selectedTeamIds.length ? (supabase as any).from("scouting_entries").select("team_id,payload,matches(match_type)").eq("event_id", event.id).eq("entry_type", "match").eq("status", "submitted").in("team_id", selectedTeamIds) : Promise.resolve({ data: [] }),
+    event && selectedTeamIds.length ? (supabase as any).from("scouting_entries").select("id,match_id,team_id,payload,matches(id,match_type)").eq("event_id", event.id).eq("entry_type", "match").eq("status", "submitted").in("team_id", selectedTeamIds) : Promise.resolve({ data: [] }),
     event && selectedTeamIds.length ? (supabase as any).from("matches").select("red_teams,blue_teams,tba_score_breakdown").eq("event_id", event.id).eq("status", "played") : Promise.resolve({ data: [] }),
     event && selectedTeamIds.length ? (supabase as any).from("pit_photos").select("team_id,storage_path,created_at").eq("event_id", event.id).in("team_id", selectedTeamIds).order("created_at", { ascending: false }) : Promise.resolve({ data: [] }),
   ]);
@@ -52,14 +52,10 @@ export default async function ComparePage({ params, searchParams }: { params: Pr
   const tbaByTeam = new Map(rankings.map((ranking) => [Number(String(ranking.team_key ?? "").replace("frc", "")), ranking]));
   const formatTeam = (row: any, color: string) => {
     const reports = competitiveMatchEntries((entries ?? []).filter((entry: any) => entry.team_id === row.team_id));
+    const stats = calculateScoutStats(reports);
     const tba = tbaByTeam.get(row.teams?.team_number);
-    const matchFuel = reports.map((entry: any) => {
-      const auto = asNumber(entry.payload?.auto?.shoot) + asNumber(entry.payload?.auto?.ferry) || asNumber(entry.payload?.auto_fuel);
-      const teleop = asNumber(entry.payload?.teleop?.shoot) + asNumber(entry.payload?.teleop?.ferry) || asNumber(entry.payload?.teleop_fuel);
-      return auto + teleop;
-    });
     const officialFuel = officialFuelAverages(officialMatches ?? [], row.team_id);
-    return { number: row.teams?.team_number, name: row.teams?.name, photoUrl: photoUrlByTeam.get(row.team_id) ?? null, color, rank: tba?.rank ?? null, record: tba?.record ? `${tba.record.wins}-${tba.record.losses}-${tba.record.ties}` : "—", opr: asNumber(oprs[`frc${row.teams?.team_number}`]), tbaTotalFuel: officialFuel?.totalFuel ?? tbaMetric(tba, sortInfo, /total.*fuel|avg.*match/i), tbaAutoFuel: officialFuel?.autoFuel ?? tbaMetric(tba, sortInfo, /auto.*fuel/i), tbaTransitionFuel: tbaMetric(tba, sortInfo, /transition.*fuel/i), tbaTeleopFuel: officialFuel?.teleopFuel ?? tbaMetric(tba, sortInfo, /teleop.*fuel/i), tbaEndgameFuel: tbaMetric(tba, sortInfo, /endgame.*fuel/i), maxFuel: Math.max(0, ...matchFuel), ...officialClimb(officialMatches ?? [], row.team_id), stats: calculateScoutStats(reports) };
+    return { number: row.teams?.team_number, name: row.teams?.name, photoUrl: photoUrlByTeam.get(row.team_id) ?? null, color, rank: tba?.rank ?? null, record: tba?.record ? `${tba.record.wins}-${tba.record.losses}-${tba.record.ties}` : "—", opr: asNumber(oprs[`frc${row.teams?.team_number}`]), tbaTotalFuel: officialFuel?.totalFuel ?? tbaMetric(tba, sortInfo, /total.*fuel|avg.*match/i), tbaAutoFuel: officialFuel?.autoFuel ?? tbaMetric(tba, sortInfo, /auto.*fuel/i), tbaTransitionFuel: tbaMetric(tba, sortInfo, /transition.*fuel/i), tbaTeleopFuel: officialFuel?.teleopFuel ?? tbaMetric(tba, sortInfo, /teleop.*fuel/i), tbaEndgameFuel: tbaMetric(tba, sortInfo, /endgame.*fuel/i), maxFuel: stats.peakFuel, ...officialClimb(officialMatches ?? [], row.team_id), stats };
   };
   return <AppShell active="Summary"><LiveRefresh tables={["scouting_entries", "pit_photos", "matches"]} eventId={event?.id}/><PageHeader eyebrow={event?.name ?? "Comparison"} title="Compare teams."/><CompareTeamPicker action={`/events/${eventKey}/compare`} teams={teamRows.map((row: any) => ({ id: String(row.teams?.team_number), number: row.teams?.team_number, name: row.teams?.name ?? "Unknown team" }))} initialA={a} initialB={b}/>{left && right && <CompareMetrics left={formatTeam(left, "#ef4444")} right={formatTeam(right, "#3b82f6")}/>}</AppShell>;
 }
