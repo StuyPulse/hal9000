@@ -109,7 +109,8 @@ export default async function TeamDetail({ params }: { params: Promise<{ eventId
   const teamNames = Object.fromEntries((eventTeams ?? []).map((row: any) => [row.team_id, `${row.teams?.team_number ?? "Unknown"} · ${row.teams?.name ?? "team"}`]));
   const overview = [
     { label: "Scout reports", value: String(stats.entries), detail: stats.entries ? "match reports recorded" : "no match data yet" },
-    { label: "Avg fuel / match", value: formatStat(stats.totalFuel), detail: `${formatStat(stats.autoFuel)} auto · ${formatStat(stats.teleopFuel)} teleop` },
+    { label: "Auto scouting", value: `Scored ${formatStat(stats.autoAvgScored)}`, detail: `Ferried ${formatStat(stats.autoAvgFerried)}` },
+    { label: "Teleop scouting", value: `Scored ${formatStat(stats.teleopAvgScored)}`, detail: `Ferried ${formatStat(stats.teleopAvgFerried)}` },
     { label: "TBA rank", value: tba?.rank ? `#${tba.rank}` : "—", detail: tba?.record ? `${tba.record.wins}-${tba.record.losses}-${tba.record.ties} record` : "not published" },
     { label: "OPR", value: opr ? formatStat(opr) : "—", detail: "official TBA metric" },
   ];
