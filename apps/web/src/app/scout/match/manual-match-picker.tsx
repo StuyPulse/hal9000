@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
+import { AppSelect } from "@/components/app-select";
 
 type Team = { id: string; number: number; name: string };
 
@@ -36,9 +37,7 @@ export function ManualMatchPicker({ teams }: { teams: Team[] }) {
     <div className="form-grid">
       <div className="field">
         <label htmlFor="manual-stage">Competition stage</label>
-        <select id="manual-stage" value={stage} onChange={(event) => setStage(event.target.value as (typeof stages)[number][0])}>
-          {stages.map(([value, text]) => <option key={value} value={value}>{text}</option>)}
-        </select>
+        <AppSelect id="manual-stage" ariaLabel="Competition stage" value={stage} onValueChange={(value) => setStage(value as (typeof stages)[number][0])} options={stages.map(([value, label]) => ({value,label}))}/>
       </div>
       <div className="field">
         <label htmlFor="manual-match-label">Match / set (optional)</label>

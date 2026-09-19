@@ -74,7 +74,7 @@ function PitFields({ payload, setPayload }: { payload: Payload; setPayload: (nex
 }
 
 function RangeInput({ id, label, value, onChange }: { id: string; label: string; value: number; onChange: (value: number) => void }) {
-  return <label htmlFor={id}><span>{label} <strong>{value} in</strong></span><input id={id} className="scouting-slider" style={{ "--range-progress": `${(value / 55) * 100}%` } as CSSProperties} type="range" min="0" max="55" step="0.5" value={value} onChange={(event) => onChange(Number(event.target.value))}/></label>;
+  return <label htmlFor={id}><span>{label} <strong>{value} in</strong></span><div className="scouting-range-with-input"><input id={id} className="scouting-slider" style={{ "--range-progress": `${(value / 55) * 100}%` } as CSSProperties} type="range" min="0" max="55" step="0.5" value={value} onChange={(event) => onChange(Number(event.target.value))}/><input aria-label={`${label} drivetrain dimension`} type="number" min="0" max="55" step="0.5" value={value} inputMode="decimal" onChange={(event) => onChange(Number(event.currentTarget.value))} onBlur={(event) => onChange(Math.round(clamp(Number(event.currentTarget.value), 0, 55) * 2) / 2)}/><span>in</span></div></label>;
 }
 
 function initialPayloadValue(value: Record<string, unknown> | undefined): Payload {

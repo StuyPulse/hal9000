@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
+import { AppSelect } from "@/components/app-select";
 import { matchLabel } from "@/lib/match-label";
 
 type Match = { id: string; key: string; number: number; type: string; red: string[]; blue: string[] };
@@ -26,10 +27,7 @@ export function MatchScoutPicker({ matches, teams, initialMatchId = "" }: { matc
     <div className="scheduled-scout-fields">
       <div className="field">
         <label htmlFor="scheduled-match">Match</label>
-        <select id="scheduled-match" value={matchId} onChange={(event) => { setMatchId(event.target.value); setTeamId(""); }}>
-          <option value="">Choose a scheduled match…</option>
-          {matches.map((item) => <option key={item.id} value={item.id}>{label(item)}</option>)}
-        </select>
+        <AppSelect id="scheduled-match" ariaLabel="Scheduled match" value={matchId} onValueChange={(value) => { setMatchId(value); setTeamId(""); }} options={[{value:"",label:"Choose a scheduled match…"}, ...matches.map((item) => ({value:item.id,label:label(item)}))]}/>
       </div>
       <div className="field"><label>Robot</label>{match ? <div className="robot-picker" aria-label="Choose a robot"><div className="robot-alliance red"><span className="robot-alliance-label">Red alliance</span>{redTeams.map((team) => robotButton(team, "red"))}</div><div className="robot-alliance blue"><span className="robot-alliance-label">Blue alliance</span>{blueTeams.map((team) => robotButton(team, "blue"))}</div></div> : <p className="muted">Choose a scheduled match first.</p>}</div>
     </div>

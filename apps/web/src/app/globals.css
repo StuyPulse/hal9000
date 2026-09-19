@@ -428,16 +428,23 @@
   .team-stat-grid { @apply grid grid-cols-[repeat(auto-fill,minmax(150px,1fr))] gap-3; }
   .team-stat-grid .card { @apply min-h-[104px] p-4; }
   .team-stat-value { @apply mt-3 text-xl font-extrabold tracking-[-0.05em]; font-family:'DM Mono',monospace; }
-  .team-hero { @apply grid grid-cols-[minmax(250px,.85fr)_minmax(0,1.15fr)] overflow-hidden p-0; }
-  .team-hero-photo { @apply min-h-64 border-r border-stuypulse-border bg-stuypulse-bg/60; }
-  .team-photo-carousel, .team-photo-empty { @apply relative grid h-full min-h-64; }
-  .team-photo-carousel img { @apply h-full min-h-64 w-full bg-stuypulse-bg object-contain; }
+  .team-hero { @apply grid grid-cols-[minmax(250px,.85fr)_minmax(0,1.15fr)] overflow-hidden p-0; height: clamp(18rem, 38dvh, 28rem); }
+  .team-hero-photo { @apply h-full min-h-0 border-r border-stuypulse-border bg-stuypulse-bg/60; }
+  .team-photo-carousel, .team-photo-empty { @apply relative grid h-full min-h-0 overflow-hidden; }
+  .team-photo-carousel > img { @apply h-full min-h-0 w-full bg-stuypulse-bg object-cover; }
   .team-photo-empty { @apply content-center justify-items-center gap-1 px-5 text-center text-stuypulse-textMuted; }
   .team-photo-empty strong { @apply text-sm font-extrabold text-stuypulse-text; }
   .team-photo-empty span { @apply text-xs leading-relaxed; }
-  .team-photo-controls { @apply absolute bottom-0 left-0 right-0 grid grid-cols-[auto_1fr_auto] items-center gap-2 border-t border-stuypulse-border bg-stuypulse-bg/95 p-2; }
+  .team-photo-controls { @apply absolute bottom-0 left-0 right-0 grid grid-cols-[auto_1fr_auto_auto] items-center gap-2 border-t border-stuypulse-border bg-stuypulse-bg/95 p-2; }
+  .team-photo-controls.single { @apply grid-cols-[1fr_auto]; }
   .team-photo-controls button { @apply min-h-10 rounded-md border border-stuypulse-border bg-stuypulse-surface px-3 text-xs font-bold text-stuypulse-text transition hover:border-stuypulse-textMuted hover:bg-stuypulse-elevated focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-stuypulse-redHover; }
   .team-photo-controls span { @apply text-center text-[11px] font-bold text-stuypulse-textMuted; font-family:'DM Mono',monospace; }
+  .team-photo-expand { @apply border-stuypulse-redHover bg-stuypulse-red/10 text-stuypulse-text; }
+  .team-photo-lightbox { @apply fixed inset-0 z-[120] grid grid-rows-[minmax(0,1fr)_auto] gap-3 bg-stuypulse-bg/95 p-4; padding-top:max(1rem, env(safe-area-inset-top)); padding-right:max(1rem, env(safe-area-inset-right)); padding-bottom:max(1rem, env(safe-area-inset-bottom)); padding-left:max(1rem, env(safe-area-inset-left)); }
+  .team-photo-lightbox > img { @apply min-h-0 max-h-full w-full max-w-full self-center justify-self-center object-contain; }
+  .team-photo-lightbox-controls { @apply mx-auto flex w-full max-w-2xl flex-wrap items-center justify-center gap-2; }
+  .team-photo-lightbox-controls button { @apply min-h-11 rounded-md border border-stuypulse-border bg-stuypulse-surface px-4 text-sm font-bold text-stuypulse-text transition hover:border-stuypulse-textMuted hover:bg-stuypulse-elevated focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-stuypulse-redHover; }
+  .team-photo-lightbox-controls span { @apply px-2 text-xs font-bold text-stuypulse-textMuted; font-family:'DM Mono',monospace; }
   .team-hero-summary { @apply grid content-center gap-5 p-5; }
   .team-hero-head, .team-research-head { @apply flex flex-wrap items-start justify-between gap-3; }
   .team-hero-head h2, .team-research-head h2 { @apply text-base font-extrabold tracking-[-0.02em] text-stuypulse-text; }
@@ -848,9 +855,9 @@
   .comparison-bar { @apply min-w-[3rem]; }
   .dashboard-stats { @apply grid-cols-1; }
   .team-stat-grid { @apply grid-cols-2; }
-  .team-hero { @apply grid-cols-1 p-0; }
-  .team-hero-photo { @apply min-h-60 border-b border-r-0 border-stuypulse-border; }
-  .team-photo-carousel, .team-photo-empty, .team-photo-carousel img { @apply min-h-60; }
+  .team-hero { @apply grid-cols-1 p-0; height:auto; }
+  .team-hero-photo { @apply h-60 min-h-0 border-b border-r-0 border-stuypulse-border; }
+  .team-photo-carousel, .team-photo-empty, .team-photo-carousel > img { @apply min-h-0; }
   .team-hero-summary { @apply gap-4 p-4; }
   .team-overview-metrics { @apply grid-cols-2 gap-y-4 divide-x-0; }
   .team-overview-metrics > div { @apply border-l-0 px-0 odd:border-r odd:border-stuypulse-border odd:pr-3 even:pl-3; }

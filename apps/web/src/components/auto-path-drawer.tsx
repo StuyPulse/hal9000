@@ -9,7 +9,7 @@ const colorNames: Record<string, string> = { "#ef4444": "Red", "#2563eb": "Blue"
 const width = 1380;
 const height = 674;
 const maxStrokes = 12;
-const maxPointsPerStroke = 100;
+const maxPointsPerStroke = 600;
 const minPointDistance = 5;
 
 function svgFor(strokes: Stroke[]) {
@@ -53,9 +53,9 @@ export function AutoPathDrawer({ value, onChange }: { value: string; onChange: (
   }, [strokes]);
 
   function point(event: PointerEvent<HTMLCanvasElement>): Point { const rect = event.currentTarget.getBoundingClientRect(); return { x: ((event.clientX - rect.left) / rect.width) * width, y: ((event.clientY - rect.top) / rect.height) * height }; }
-  function begin(event: PointerEvent<HTMLCanvasElement>) { if (strokesRef.current.length >= maxStrokes) return; drawing.current = true; event.currentTarget.setPointerCapture(event.pointerId); replaceStrokes([...strokesRef.current, { color, points: [point(event)] }]); }
-  function move(event: PointerEvent<HTMLCanvasElement>) { if (!drawing.current) return; const next = point(event); const current = strokesRef.current; const stroke = current.at(-1); const previous = stroke?.points.at(-1); if (!stroke || !previous || stroke.points.length >= maxPointsPerStroke || Math.hypot(next.x - previous.x, next.y - previous.y) < minPointDistance) return; replaceStrokes([...current.slice(0, -1), { ...stroke, points: [...stroke.points, next] }]); }
-  function end() { if (!drawing.current) return; drawing.current = false; onChange(svgFor(strokesRef.current)); }
+  function begin(event: PointerEvent<HTMLCanvasElement>) { if (strokesRef.current.length >= maxStrokes) return; event.preventDefault(); drawing.current = true; event.currentTarget.setPointerCapture(event.pointerId); replaceStrokes([...strokesRef.current, { color, points: [point(event)] }]); }
+  function move(event: PointerEvent<HTMLCanvasElement>) { if (!drawing.current) return; event.preventDefault(); const next = point(event); const current = strokesRef.current; const stroke = current.at(-1); const previous = stroke?.points.at(-1); if (!stroke || !previous || stroke.points.length >= maxPointsPerStroke || Math.hypot(next.x - previous.x, next.y - previous.y) < minPointDistance) return; replaceStrokes([...current.slice(0, -1), { ...stroke, points: [...stroke.points, next] }]); }
+  function end(event?: PointerEvent<HTMLCanvasElement>) { event?.preventDefault(); if (!drawing.current) return; drawing.current = false; onChange(svgFor(strokesRef.current)); }
   function undo() { drawing.current = false; replaceStrokes(strokesRef.current.slice(0, -1), true); }
   function clear() { drawing.current = false; replaceStrokes([], true); }
 
