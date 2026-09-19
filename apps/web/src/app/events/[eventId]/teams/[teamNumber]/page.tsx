@@ -19,8 +19,10 @@ function entryBreakdown(payload: Record<string, any> | null | undefined) {
   const autoFerried = Number(payload?.auto?.ferry ?? 0);
   const teleopScored = Number(payload?.teleop?.shoot ?? payload?.teleop_fuel ?? 0);
   const teleopFerried = Number(payload?.teleop?.ferry ?? 0);
-  const auto = autoScored + autoFerried || Number(payload?.auto_fuel ?? 0);
-  const teleop = teleopScored + teleopFerried || Number(payload?.teleop_fuel ?? 0);
+  // Timeline fuel is fuel scored into the hub. Ferrying remains a separate
+  // metric in match details and must not increase the scored-fuel chart.
+  const auto = autoScored;
+  const teleop = teleopScored;
   return { auto, teleop, total: auto + teleop, scored: autoScored + teleopScored, ferried: autoFerried + teleopFerried, fouls: Number(payload?.fouls ?? 0), defense: Number(payload?.defense_level ?? 0), broken: payload?.robot_broke ? 1 : 0 };
 }
 function averageEntryBreakdown(entries: { payload: Record<string, any> | null | undefined }[]) {
@@ -112,7 +114,7 @@ export default async function TeamDetail({ params }: { params: Promise<{ eventId
   const pitCount = pitEntries.length;
   const teamNames = Object.fromEntries((eventTeams ?? []).map((row: any) => [row.team_id, `${row.teams?.team_number ?? "Unknown"} · ${row.teams?.name ?? "team"}`]));
   const overview = [
-    { label: "Scouted matches", value: String(stats.matches), detail: stats.entries ? `${stats.entries} report${stats.entries === 1 ? "" : "s"} recorded` : "no match data yet" },
+    { label: "Scouted matches", value: String(stats.matches), detail: stats.entries ? "submitted match data" : "no match data yet" },
     { label: "Auto scouting", value: `Avg scored ${formatStat(stats.autoAvgScored)}`, detail: `Peak scored ${formatStat(stats.autoMaxScored)} · avg ferried ${formatStat(stats.autoAvgFerried)}` },
     { label: "Teleop scouting", value: `Avg scored ${formatStat(stats.teleopAvgScored)}`, detail: `Peak scored ${formatStat(stats.teleopMaxScored)} · avg ferried ${formatStat(stats.teleopAvgFerried)}` },
     { label: "TBA rank", value: tba?.rank ? `#${tba.rank}` : "—", detail: tba?.record ? `${tba.record.wins}-${tba.record.losses}-${tba.record.ties} record` : "not published" },

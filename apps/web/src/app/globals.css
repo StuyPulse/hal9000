@@ -491,8 +491,8 @@
   .team-stat-grid { @apply grid grid-cols-[repeat(auto-fill,minmax(150px,1fr))] gap-3; }
   .team-stat-grid .card { @apply min-h-[104px] p-4; }
   .team-stat-value { @apply mt-3 text-xl font-extrabold tracking-[-0.05em]; font-family: var(--font-dm-mono), monospace; }
-  .team-hero { @apply grid grid-cols-[minmax(250px,.85fr)_minmax(0,1.15fr)] overflow-hidden p-0; height: clamp(18rem, 38dvh, 28rem); }
-  .team-hero-photo { @apply h-full min-h-0 border-r border-stuypulse-border bg-stuypulse-bg/60; }
+  .team-hero { @apply grid grid-cols-[minmax(250px,.85fr)_minmax(0,1.15fr)] overflow-hidden p-0; min-height: clamp(26rem, 38dvh, 34rem); }
+  .team-hero-photo { @apply min-h-[26rem] border-r border-stuypulse-border bg-stuypulse-bg/60; }
   .team-photo-carousel, .team-photo-empty { @apply relative grid h-full min-h-0 overflow-hidden; }
   .team-photo-carousel > img { @apply h-full min-h-0 w-full bg-stuypulse-bg object-cover; }
   .team-photo-empty { @apply content-center justify-items-center gap-1 px-5 text-center text-stuypulse-textMuted; }
@@ -514,7 +514,7 @@
   .team-overview-metrics { @apply grid grid-cols-2 gap-x-5 gap-y-4; }
   .team-overview-metrics > div { @apply border-l border-stuypulse-border pl-3; }
   .team-overview-metrics span, .team-overview-metrics small { @apply block text-xs text-stuypulse-textMuted; }
-  .team-overview-metrics strong { @apply mt-1.5 block text-2xl font-extrabold tracking-[-0.05em]; font-family: var(--font-dm-mono), monospace; }
+  .team-overview-metrics strong { @apply mt-1.5 block whitespace-nowrap text-2xl font-extrabold tracking-[-0.05em]; font-family: var(--font-dm-mono), monospace; font-size: clamp(1.25rem, 2.1vw, 2rem); }
   .team-overview-metrics small { @apply mt-1 text-[10px]; }
   .coverage-list { @apply mt-4 grid gap-3; }
   .team-research-empty { @apply flex items-center justify-between gap-4 rounded-lg border border-stuypulse-border bg-stuypulse-bg/40 px-4 py-3 text-xs; }
@@ -952,7 +952,7 @@
   .comparison-bar { @apply min-w-[3rem]; }
   .dashboard-stats { @apply grid-cols-1; }
   .team-stat-grid { @apply grid-cols-2; }
-  .team-hero { @apply grid-cols-1 p-0; height:auto; }
+  .team-hero { @apply grid-cols-1 min-h-0 p-0; height:auto; }
   .team-hero-photo { @apply h-60 min-h-0 border-b border-r-0 border-stuypulse-border; }
   .team-photo-carousel, .team-photo-empty, .team-photo-carousel > img { @apply min-h-0; }
   .team-hero-summary { @apply gap-4 p-4; }
