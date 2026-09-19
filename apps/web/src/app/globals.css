@@ -299,7 +299,6 @@
   .pit-tabs button { @apply min-h-11 shrink-0 rounded-md px-3 text-xs font-extrabold text-stuypulse-textMuted transition hover:bg-stuypulse-elevated hover:text-stuypulse-text; }
   .pit-tabs button.active { @apply bg-stuypulse-surface text-stuypulse-text shadow-sm; }
   .pit-tabs button span { @apply ml-1.5 rounded-full bg-stuypulse-warning/15 px-1.5 py-0.5 text-[10px] text-stuypulse-warning; font-family:'DM Mono',monospace; }
-  .team-overview-link { @apply mb-4 flex justify-end; }
   .team-directory-row { @apply transition-colors hover:bg-stuypulse-elevated focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-stuypulse-redHover; }
   .photo-coverage { @apply grid grid-cols-2 gap-3; }
   .photo-coverage > div { @apply rounded-lg border border-stuypulse-border bg-stuypulse-bg p-3; }
@@ -429,18 +428,36 @@
   .team-stat-grid { @apply grid grid-cols-[repeat(auto-fill,minmax(150px,1fr))] gap-3; }
   .team-stat-grid .card { @apply min-h-[104px] p-4; }
   .team-stat-value { @apply mt-3 text-xl font-extrabold tracking-[-0.05em]; font-family:'DM Mono',monospace; }
-  .team-overview { @apply p-5; }
-  .team-overview-metrics { @apply grid grid-cols-4 divide-x divide-stuypulse-border; }
-  .team-overview-metrics > div { @apply px-4 first:pl-0 last:pr-0; }
+  .team-hero { @apply grid grid-cols-[minmax(250px,.85fr)_minmax(0,1.15fr)] overflow-hidden p-0; }
+  .team-hero-photo { @apply min-h-64 border-r border-stuypulse-border bg-stuypulse-bg/60; }
+  .team-photo-carousel, .team-photo-empty { @apply relative grid h-full min-h-64; }
+  .team-photo-carousel img { @apply h-full min-h-64 w-full bg-stuypulse-bg object-contain; }
+  .team-photo-empty { @apply content-center justify-items-center gap-1 px-5 text-center text-stuypulse-textMuted; }
+  .team-photo-empty strong { @apply text-sm font-extrabold text-stuypulse-text; }
+  .team-photo-empty span { @apply text-xs leading-relaxed; }
+  .team-photo-controls { @apply absolute bottom-0 left-0 right-0 grid grid-cols-[auto_1fr_auto] items-center gap-2 border-t border-stuypulse-border bg-stuypulse-bg/95 p-2; }
+  .team-photo-controls button { @apply min-h-10 rounded-md border border-stuypulse-border bg-stuypulse-surface px-3 text-xs font-bold text-stuypulse-text transition hover:border-stuypulse-textMuted hover:bg-stuypulse-elevated focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-stuypulse-redHover; }
+  .team-photo-controls span { @apply text-center text-[11px] font-bold text-stuypulse-textMuted; font-family:'DM Mono',monospace; }
+  .team-hero-summary { @apply grid content-center gap-5 p-5; }
+  .team-hero-head, .team-research-head { @apply flex flex-wrap items-start justify-between gap-3; }
+  .team-hero-head h2, .team-research-head h2 { @apply text-base font-extrabold tracking-[-0.02em] text-stuypulse-text; }
+  .team-overview-metrics { @apply grid grid-cols-2 gap-x-5 gap-y-4; }
+  .team-overview-metrics > div { @apply border-l border-stuypulse-border pl-3; }
   .team-overview-metrics span, .team-overview-metrics small { @apply block text-xs text-stuypulse-textMuted; }
   .team-overview-metrics strong { @apply mt-1.5 block text-2xl font-extrabold tracking-[-0.05em]; font-family:'DM Mono',monospace; }
   .team-overview-metrics small { @apply mt-1 text-[10px]; }
-  .coverage-list { @apply my-4 grid gap-2; }
-  .coverage-list > div { @apply flex items-center justify-between gap-4 rounded-lg border border-stuypulse-border bg-stuypulse-bg/40 px-3 py-2.5 text-xs; }
-  .coverage-list span { @apply text-right text-stuypulse-textMuted; }
+  .coverage-list { @apply mt-4 grid gap-3; }
+  .team-research-empty { @apply flex items-center justify-between gap-4 rounded-lg border border-stuypulse-border bg-stuypulse-bg/40 px-4 py-3 text-xs; }
+  .team-research-empty > span:last-child { @apply text-right text-stuypulse-textMuted; }
   .team-pit-details, .team-research-details { @apply overflow-hidden rounded-lg border border-stuypulse-border bg-stuypulse-bg/40; }
-  .team-pit-details summary, .team-research-details summary { @apply flex cursor-pointer list-none items-center justify-between gap-4 px-3 py-2.5 text-xs; }
+  .team-pit-details summary, .team-research-details summary { @apply flex min-h-16 cursor-pointer list-none items-center justify-between gap-4 px-4 py-3; }
   .team-pit-details summary::-webkit-details-marker, .team-research-details summary::-webkit-details-marker { display:none; }
+  .team-research-details summary:focus-visible { @apply outline-none ring-2 ring-inset ring-stuypulse-redHover; }
+  .team-research-category { @apply grid gap-1 text-left; }
+  .team-research-category strong { @apply text-sm font-extrabold text-stuypulse-text; }
+  .team-research-category small { @apply text-xs text-stuypulse-textMuted; }
+  .team-research-action { @apply inline-flex min-h-10 shrink-0 items-center rounded-md border border-stuypulse-border bg-stuypulse-surface px-3 text-xs font-bold text-stuypulse-textMuted transition; }
+  .team-research-details summary:hover .team-research-action, .team-research-details[open] .team-research-action { @apply border-stuypulse-red bg-stuypulse-red/15 text-stuypulse-text; }
   .team-pit-reports { @apply grid gap-3 border-t border-stuypulse-border p-3; }
   .team-pit-report { @apply grid gap-3; }
   .team-pit-report + .team-pit-report { @apply border-t border-stuypulse-border pt-3; }
@@ -831,8 +848,12 @@
   .comparison-bar { @apply min-w-[3rem]; }
   .dashboard-stats { @apply grid-cols-1; }
   .team-stat-grid { @apply grid-cols-2; }
+  .team-hero { @apply grid-cols-1 p-0; }
+  .team-hero-photo { @apply min-h-60 border-b border-r-0 border-stuypulse-border; }
+  .team-photo-carousel, .team-photo-empty, .team-photo-carousel img { @apply min-h-60; }
+  .team-hero-summary { @apply gap-4 p-4; }
   .team-overview-metrics { @apply grid-cols-2 gap-y-4 divide-x-0; }
-  .team-overview-metrics > div { @apply px-0 odd:border-r odd:border-stuypulse-border odd:pr-3 even:pl-3; }
+  .team-overview-metrics > div { @apply border-l-0 px-0 odd:border-r odd:border-stuypulse-border odd:pr-3 even:pl-3; }
   .team-overview-metrics > div:nth-child(3) { @apply border-t border-stuypulse-border pt-4; }
   .team-overview-metrics > div:nth-child(4) { @apply border-t border-stuypulse-border pt-4; }
   .team-timeline-chart { @apply h-[260px] p-2; }
