@@ -406,6 +406,9 @@
   .match-page-header { @apply sticky top-0 z-20 -mx-3 mb-5 bg-stuypulse-bg/95 px-3 pt-3; backdrop-filter:blur(10px); }
   .match-page-header .topbar { @apply mb-0 border-b border-stuypulse-border pb-4; }
   .row-actions { @apply flex shrink-0 flex-wrap items-center gap-2; }
+  .schedule-local-match-actions { @apply flex flex-wrap items-center gap-2; }
+  .schedule-local-match-actions form { @apply flex; }
+  .schedule-local-match-actions .error { @apply basis-full text-xs; }
   .history-details { @apply mt-4 border-t border-stuypulse-border pt-4; }
   details summary { @apply cursor-pointer text-sm font-bold text-stuypulse-text; }
   .note-group { @apply mt-4 border-t border-stuypulse-border pt-3 text-xs; }
