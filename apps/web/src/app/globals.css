@@ -271,13 +271,15 @@
 
   .assignment-toolbar { @apply flex items-end justify-between gap-[18px]; }
   .assignment-setup { @apply mb-[18px] overflow-hidden p-0; }
-  .assignment-setup-controls { @apply grid grid-cols-[minmax(0,.9fr)_minmax(320px,1.1fr)] bg-stuypulse-surface; }
-  .event-picker { @apply flex items-end gap-2; }
+  .assignment-setup-controls { @apply grid grid-cols-2 bg-stuypulse-surface; }
+  .event-picker { @apply grid items-end gap-3; grid-template-columns: auto minmax(0, 1fr) auto; }
   .assignment-setup .event-picker { @apply border-r border-stuypulse-border p-5; }
   .event-picker label { @apply block text-xs font-bold text-stuypulse-text; }
-  .event-picker select { @apply min-w-[250px] py-2; }
+  .assignment-setup .event-picker .app-select { @apply min-w-0 max-w-none; }
+  .event-picker select { @apply min-w-0 py-2; }
   .assignment-generation { @apply p-5; }
-  .assignment-generation { @apply grid items-end gap-3; grid-template-columns:minmax(10rem,20rem) auto; }
+  .assignment-generation { @apply grid items-end gap-3; grid-template-columns:minmax(0,1fr) auto; }
+  .assignment-generation > .button { @apply min-h-11 whitespace-nowrap; }
   .assignment-generation .muted { @apply mb-0 mt-2 leading-relaxed; }
   .assignment-generation .error, .assignment-generation .trend { @apply mb-0; }
   .assignment-generation .error, .assignment-generation .trend { @apply col-span-full; }
@@ -826,7 +828,8 @@
   .auth-aside { @apply hidden; }
   .manual-match-form { @apply grid-cols-2; }
   .assignment-setup-controls { @apply grid-cols-1; }
-  .assignment-setup .event-picker { @apply border-r-0 border-b; }
+  .assignment-setup .event-picker { @apply border-r-0 border-b; grid-template-columns: minmax(0, 1fr) auto; }
+  .assignment-setup .event-picker label { grid-column: 1 / -1; }
   .assignment-generation, .assignment-roster-create, .assignment-roster-add { @apply grid-cols-1; }
   .manual-match-form > label, .manual-match-form > .button { grid-column: auto; }
   .scoring-head { @apply hidden; }
@@ -854,7 +857,9 @@
   .mobile-more .nav-item.active { box-shadow: inset 3px 0 0 theme('colors.stuypulse.red'); }
   .mobile-more .nav-item[style] { @apply mt-2 border-t border-stuypulse-border pt-3; }
   .main { @apply ml-0 w-full px-3.5 pt-4; padding-bottom: max(108px, calc(92px + env(safe-area-inset-bottom))); }
-  .topbar, .assignment-toolbar, .event-picker, .card-head { @apply flex-col items-stretch gap-3; }
+  .topbar, .assignment-toolbar, .card-head { @apply flex-col items-stretch gap-3; }
+  .assignment-setup .event-picker { grid-template-columns: minmax(0, 1fr); }
+  .assignment-setup .event-picker label { grid-column: auto; }
   .topbar-title, .topbar-actions { @apply flex-wrap; }
   .topbar-actions { @apply w-full; }
   .topbar-actions > .event-chip, .topbar-actions > .button { @apply w-full justify-center; }

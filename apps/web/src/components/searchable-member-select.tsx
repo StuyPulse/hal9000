@@ -13,9 +13,10 @@ type Props = {
   emptyLabel?: string;
   disabled?: boolean;
   ariaLabel: string;
+  choiceLabel?: string;
 };
 
-export function SearchableMemberSelect({ name, value, onValueChange, members, placeholder = "Search a scout…", emptyLabel = "Clear all assignments", disabled = false, ariaLabel }: Props) {
+export function SearchableMemberSelect({ name, value, onValueChange, members, placeholder = "Search a scout…", emptyLabel = "Clear all assignments", disabled = false, ariaLabel, choiceLabel = "scout choices" }: Props) {
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
   const listId = useId();
@@ -29,7 +30,7 @@ export function SearchableMemberSelect({ name, value, onValueChange, members, pl
     <input type="hidden" name={name} value={value}/>
     <div className="searchable-member-input">
       <input value={open ? query : selected?.name ?? ""} disabled={disabled} role="combobox" aria-label={ariaLabel} aria-autocomplete="list" aria-expanded={open} aria-controls={listId} autoComplete="off" placeholder={placeholder} onFocus={() => { setQuery(""); setOpen(true); }} onChange={(event) => { setQuery(event.target.value); setOpen(true); if (value) onValueChange(""); }} onKeyDown={(event) => { if (event.key === "Escape") close(); if (event.key === "ArrowDown") setOpen(true); if (event.key === "Enter" && results[0]) { event.preventDefault(); choose(results[0].id); } }}/>
-      <button type="button" disabled={disabled} aria-label={open ? "Close scout choices" : "Show scout choices"} aria-expanded={open} onMouseDown={(event) => event.preventDefault()} onClick={() => open ? close() : setOpen(true)}>⌄</button>
+      <button type="button" disabled={disabled} aria-label={open ? `Close ${choiceLabel}` : `Show ${choiceLabel}`} aria-expanded={open} onMouseDown={(event) => event.preventDefault()} onClick={() => open ? close() : setOpen(true)}>⌄</button>
     </div>
     {open && <div id={listId} className="searchable-member-results" role="listbox" aria-label={ariaLabel}>
       <button type="button" role="option" aria-selected={!value} onMouseDown={(event) => event.preventDefault()} onClick={() => choose("")}>{emptyLabel}</button>
