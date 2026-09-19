@@ -45,14 +45,16 @@ export default async function SubmissionsPage({ searchParams }: { searchParams: 
   const activeEventId = viewer?.activeEvent?.id ?? "";
   const selectedEvent = organizationEvents.find((event) => event.id === requestedEventId) ?? organizationEvents.find((event) => event.id === activeEventId) ?? null;
   const submissionEventId = selectedEvent?.id;
-  const [{ data: members }, { data: eventTeams }] = await Promise.all([
+  const [{ data: members }, { data: eventTeams }, { data: submittedTeams }] = await Promise.all([
     viewer?.organizationId ? supabase.from("organization_members").select("user_id,profiles(display_name)").eq("organization_id", viewer.organizationId).order("created_at") : Promise.resolve({ data: [] }),
     submissionEventId ? supabase.from("event_teams").select("team_id,teams(id,team_number,name)").eq("event_id", submissionEventId) : Promise.resolve({ data: [] }),
+    submissionEventId && type !== "match" ? (supabase as any).from("scouting_entries").select("team_id").eq("event_id", submissionEventId).eq("entry_type", type).eq("status", "submitted") : Promise.resolve({ data: [] }),
   ]);
   const scouts = (members ?? []).map((member: any) => ({ id: member.user_id, name: member.profiles?.display_name ?? "Unnamed scout" })).sort((left, right) => left.name.localeCompare(right.name));
   const teams = (eventTeams ?? []).map((row: any) => row.teams).filter(Boolean).map((team: any) => ({ id: team.id, number: team.team_number, name: team.name })).sort((left: any, right: any) => left.number - right.number);
   const scoutId = scouts.some((scout) => scout.id === requestedScoutId) ? requestedScoutId : "";
   const teamId = teams.some((team: any) => team.id === requestedTeamId) ? requestedTeamId : "";
+  const markedTeamIds = [...new Set(((submittedTeams ?? []) as { team_id: string | null }[]).flatMap((entry) => entry.team_id ? [entry.team_id] : []))];
   let query = (supabase as any).from("scouting_entries").select("id,match_id,scout_user_id,entry_type,status,payload,submitted_at,created_at,matches(match_number,match_type,tba_match_key),teams(team_number,name),author:profiles!scouting_entries_scout_user_id_fkey(display_name)").eq("entry_type", type).order("created_at", { ascending: false });
   if (submissionEventId) query = query.eq("event_id", submissionEventId);
   else query = query.limit(0);
@@ -98,7 +100,7 @@ export default async function SubmissionsPage({ searchParams }: { searchParams: 
       <div className="filter-tabs submission-type-tabs" aria-label="Submission type">
         {reportTabs.map((tab) => <Link key={tab.value} className={type === tab.value ? "active" : ""} href={href({ type: tab.value, matchId: tab.value === "match" ? matchId : "" })}>{tab.label}</Link>)}
       </div>
-      <div className="submission-filter-row"><div className="field"><label htmlFor="submission-team-filter">Team</label><SubmissionTeamFilter teams={teams} value={teamId}/></div><div className="field"><label htmlFor="submission-scout-filter">Scout</label><SubmissionScoutFilter scouts={scouts} value={scoutId}/></div></div>
+      <div className="submission-filter-row"><div className="field"><label htmlFor="submission-team-filter">Team</label><SubmissionTeamFilter teams={teams} value={teamId} markedTeamIds={markedTeamIds} markedTeamLabel={type === "pit" ? "Pit report submitted" : type === "pre_scout" ? "Pre-scout report submitted" : undefined}/></div><div className="field"><label htmlFor="submission-scout-filter">Scout</label><SubmissionScoutFilter scouts={scouts} value={scoutId}/></div></div>
       {data?.length ? data.map((entry: any) => {
         const canEdit = viewer && (entry.entry_type === "pit" || entry.scout_user_id === viewer.userId || viewerCanManage(viewer));
         const returnPath = href();

@@ -14,9 +14,10 @@ type Props = {
   emptyLabel?: string;
   disabled?: boolean;
   markedTeamIds?: string[];
+  markedTeamLabel?: string;
 };
 
-export function SearchableTeamSelect({ id, value, onValueChange, teams, placeholder = "Search team number or name…", emptyLabel = "Choose a team…", disabled = false, markedTeamIds = [] }: Props) {
+export function SearchableTeamSelect({ id, value, onValueChange, teams, placeholder = "Search team number or name…", emptyLabel = "Choose a team…", disabled = false, markedTeamIds = [], markedTeamLabel = "Report submitted" }: Props) {
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
   const listId = useId();
@@ -69,7 +70,7 @@ export function SearchableTeamSelect({ id, value, onValueChange, teams, placehol
             }
           }}
         />
-        {selected && marked.has(selected.id) && <span className="searchable-team-mark" title="Pit report submitted"><CheckCircle2 size={17} aria-hidden="true"/><span className="sr-only">Pit report submitted</span></span>}
+        {selected && marked.has(selected.id) && <span className="searchable-team-mark" title={markedTeamLabel}><CheckCircle2 size={17} aria-hidden="true"/><span className="sr-only">{markedTeamLabel}</span></span>}
         <button
           type="button"
           disabled={disabled}
@@ -85,8 +86,8 @@ export function SearchableTeamSelect({ id, value, onValueChange, teams, placehol
         <div className="searchable-team-results" id={listId} role="listbox">
           {emptyLabel && <button type="button" role="option" aria-selected={!value} onMouseDown={(event) => event.preventDefault()} onClick={() => choose()}>{emptyLabel}</button>}
           {results.length ? results.map((team) => (
-            <button key={team.id} type="button" role="option" aria-selected={team.id === value} aria-label={`${team.number} ${team.name}${marked.has(team.id) ? ", pit report submitted" : ""}`} className={team.id === value ? "selected" : ""} onMouseDown={(event) => event.preventDefault()} onClick={() => choose(team)}>
-              <strong>{team.number}</strong><span>{team.name}</span>{marked.has(team.id) && <span className="searchable-team-mark" title="Pit report submitted"><CheckCircle2 size={17} aria-hidden="true"/><span className="sr-only">Pit report submitted</span></span>}
+            <button key={team.id} type="button" role="option" aria-selected={team.id === value} aria-label={`${team.number} ${team.name}${marked.has(team.id) ? `, ${markedTeamLabel.toLowerCase()}` : ""}`} className={team.id === value ? "selected" : ""} onMouseDown={(event) => event.preventDefault()} onClick={() => choose(team)}>
+              <strong>{team.number}</strong><span>{team.name}</span>{marked.has(team.id) && <span className="searchable-team-mark" title={markedTeamLabel}><CheckCircle2 size={17} aria-hidden="true"/><span className="sr-only">{markedTeamLabel}</span></span>}
             </button>
           )) : <p className="muted">No teams match that search.</p>}
         </div>

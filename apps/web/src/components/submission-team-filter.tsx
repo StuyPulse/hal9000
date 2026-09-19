@@ -3,7 +3,7 @@
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { SearchableTeamSelect, type TeamOption } from "@/components/searchable-team-select";
 
-export function SubmissionTeamFilter({ teams, value }: { teams: TeamOption[]; value: string }) {
+export function SubmissionTeamFilter({ teams, value, markedTeamIds = [], markedTeamLabel }: { teams: TeamOption[]; value: string; markedTeamIds?: string[]; markedTeamLabel?: string }) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -16,5 +16,5 @@ export function SubmissionTeamFilter({ teams, value }: { teams: TeamOption[]; va
     router.replace(nextSearch ? `${pathname}?${nextSearch}` : pathname);
   }
 
-  return <SearchableTeamSelect id="submission-team-filter" value={value} onValueChange={choose} teams={teams} placeholder="Find a team…" emptyLabel="All teams"/>;
+  return <SearchableTeamSelect id="submission-team-filter" value={value} onValueChange={choose} teams={teams} placeholder="Find a team…" emptyLabel="All teams" markedTeamIds={markedTeamIds} markedTeamLabel={markedTeamLabel}/>;
 }
