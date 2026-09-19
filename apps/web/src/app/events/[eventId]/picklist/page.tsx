@@ -25,6 +25,8 @@ export default async function PicklistPage({ params }: { params: Promise<{ event
   const { eventId: eventKey } = await params;
   const [viewer, supabase] = await Promise.all([getViewerContext(), createClient()]);
   if (!viewer?.organizationId) redirect("/dashboard");
+  const { data: canViewPicklist } = await (supabase as any).rpc("can_view_picklist", { target_organization: viewer.organizationId });
+  if (!canViewPicklist) return <AppShell active="Picklist"><PageHeader eyebrow="Strategy access" title="Picklist unavailable."/><section className="card"><h2>Picklist access is restricted.</h2><p className="muted">Ask an administrator if you need access to the team picklist.</p></section></AppShell>;
   const canEdit = viewer.role === "global_scout" || viewer.role === "strategist" || viewer.role === "master" || viewerCanManage(viewer);
   const { data: event } = await supabase.from("events").select("id,name,event_key,is_manual").eq("event_key", eventKey).eq("organization_id", viewer.organizationId).maybeSingle();
   if (!event) notFound();

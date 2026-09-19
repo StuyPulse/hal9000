@@ -279,7 +279,7 @@
 
   .assignment-toolbar { @apply flex items-end justify-between gap-[18px]; }
   .assignment-setup { @apply mb-[18px] overflow-hidden p-0; }
-  .assignment-setup-controls { @apply grid grid-cols-2 bg-stuypulse-surface; }
+  .assignment-setup-controls { @apply grid grid-cols-3 bg-stuypulse-surface; }
   .event-picker { @apply grid items-end gap-3; grid-template-columns: auto minmax(0, 1fr) auto; }
   .assignment-setup .event-picker { @apply border-r border-stuypulse-border p-5; }
   .event-picker label { @apply block text-xs font-bold text-stuypulse-text; }
@@ -291,6 +291,14 @@
   .assignment-generation .muted { @apply mb-0 mt-2 leading-relaxed; }
   .assignment-generation .error, .assignment-generation .trend { @apply mb-0; }
   .assignment-generation .error, .assignment-generation .trend { @apply col-span-full; }
+  .assignment-clear { @apply relative flex items-center border-l border-stuypulse-border p-5; }
+  .assignment-clear-confirm { @apply absolute right-5 top-[calc(100%-0.5rem)] z-20 grid w-[min(26rem,calc(100vw-3rem))] gap-3 rounded-lg border border-stuypulse-error/70 bg-stuypulse-surface p-4 shadow-panel; }
+  .assignment-clear-confirm strong { @apply text-sm text-stuypulse-text; }
+  .assignment-clear-confirm p { @apply m-0 text-xs leading-relaxed text-stuypulse-textMuted; }
+  .assignment-clear-confirm > div { @apply flex flex-wrap justify-end gap-2; }
+  .assignment-clear-confirm form { @apply m-0; }
+  .assignment-clear-undo { @apply ml-2; }
+  .assignment-clear > .error, .assignment-clear > .trend { @apply absolute left-5 top-[calc(100%-1rem)] z-10 max-w-[20rem]; }
   .assignment-setup-hint { @apply m-0 border-t border-stuypulse-border bg-stuypulse-bg/40 px-5 py-3 text-xs leading-relaxed text-stuypulse-textMuted; }
   .assignment-rosters { @apply mb-[18px]; }
   .assignment-roster-create { @apply mb-4 grid items-end gap-3; grid-template-columns:minmax(0,22rem) auto; }
@@ -848,6 +856,7 @@
   .assignment-setup .event-picker { @apply border-r-0 border-b; grid-template-columns: minmax(0, 1fr) auto; }
   .assignment-setup .event-picker label { grid-column: 1 / -1; }
   .assignment-generation, .assignment-roster-create, .assignment-roster-add { @apply grid-cols-1; }
+  .assignment-clear { @apply border-l-0 border-t border-stuypulse-border; }
   .manual-match-form > label, .manual-match-form > .button { grid-column: auto; }
   .scoring-head { @apply hidden; }
   .scoring-row { @apply grid-cols-1 gap-3 px-3 py-3; }
