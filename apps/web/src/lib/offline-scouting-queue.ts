@@ -100,7 +100,12 @@ export function getLastSuccessfulSync() {
 }
 
 function getErrorMessage(error: unknown) {
-  return error instanceof Error ? error.message : String(error ?? "Could not upload this report.");
+  if (error instanceof Error) return error.message || "Could not upload this report.";
+  if (error && typeof error === "object") {
+    const message = (error as { message?: unknown }).message;
+    if (typeof message === "string" && message.trim()) return message;
+  }
+  return typeof error === "string" && error.trim() ? error : "Could not upload this report.";
 }
 
 function isTransientUploadError(message: string) {
@@ -170,7 +175,7 @@ export async function tryUpsertScoutingEntry(entry: Omit<QueuedScoutingEntry, "q
   const supabase: any = createClient();
   const attempt = await upsertScoutingEntry(supabase, entry);
   if (attempt.transient) return { error: null as string | null, shouldQueue: true };
-  return { error: attempt.error || "Could not save your report.", shouldQueue: false };
+  return { error: attempt.error, shouldQueue: false };
 }
 
 export function onOfflineQueueChanged(listener: () => void) {
