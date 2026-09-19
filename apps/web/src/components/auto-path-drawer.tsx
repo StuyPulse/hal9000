@@ -11,10 +11,24 @@ const height = 674;
 const maxStrokes = 12;
 const maxPointsPerStroke = 600;
 const minPointDistance = 5;
+const startOpacity = 0.22;
+
+function transparentColor(hex: string, opacity: number) {
+  const value = hex.slice(1);
+  const red = Number.parseInt(value.slice(0, 2), 16);
+  const green = Number.parseInt(value.slice(2, 4), 16);
+  const blue = Number.parseInt(value.slice(4, 6), 16);
+  return `rgb(${red} ${green} ${blue} / ${opacity})`;
+}
 
 function svgFor(strokes: Stroke[]) {
-  const paths = strokes.filter((stroke) => stroke.points.length > 1).map((stroke) => `<path d="M ${stroke.points.map((point) => `${point.x.toFixed(1)} ${point.y.toFixed(1)}`).join(" L ")}" fill="none" stroke="${stroke.color}" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>`).join("");
-  return paths ? `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}">${paths}</svg>` : "";
+  const drawableStrokes = strokes.filter((stroke) => stroke.points.length > 1);
+  const gradients = drawableStrokes.map((stroke, index) => {
+    const start = stroke.points[0], end = stroke.points.at(-1)!;
+    return `<linearGradient id="route-${index}" gradientUnits="userSpaceOnUse" x1="${start.x.toFixed(1)}" y1="${start.y.toFixed(1)}" x2="${end.x.toFixed(1)}" y2="${end.y.toFixed(1)}"><stop offset="0" stop-color="${stroke.color}" stop-opacity="${startOpacity}"/><stop offset="1" stop-color="${stroke.color}" stop-opacity="1"/></linearGradient>`;
+  }).join("");
+  const paths = drawableStrokes.map((stroke, index) => `<path d="M ${stroke.points.map((point) => `${point.x.toFixed(1)} ${point.y.toFixed(1)}`).join(" L ")}" fill="none" stroke="url(#route-${index})" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>`).join("");
+  return paths ? `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}"><defs>${gradients}</defs>${paths}</svg>` : "";
 }
 
 export function AutoPathDrawer({ value, onChange }: { value: string; onChange: (svg: string) => void }) {
@@ -49,7 +63,17 @@ export function AutoPathDrawer({ value, onChange }: { value: string; onChange: (
     if (!canvas || !context) return;
     context.clearRect(0, 0, width, height);
     context.lineCap = "round"; context.lineJoin = "round"; context.lineWidth = 7;
-    strokes.forEach((stroke) => { if (stroke.points.length < 2) return; context.strokeStyle = stroke.color; context.beginPath(); stroke.points.forEach((point, index) => index ? context.lineTo(point.x, point.y) : context.moveTo(point.x, point.y)); context.stroke(); });
+    strokes.forEach((stroke) => {
+      if (stroke.points.length < 2) return;
+      const start = stroke.points[0], end = stroke.points.at(-1)!;
+      const gradient = context.createLinearGradient(start.x, start.y, end.x, end.y);
+      gradient.addColorStop(0, transparentColor(stroke.color, startOpacity));
+      gradient.addColorStop(1, transparentColor(stroke.color, 1));
+      context.strokeStyle = gradient;
+      context.beginPath();
+      stroke.points.forEach((point, index) => index ? context.lineTo(point.x, point.y) : context.moveTo(point.x, point.y));
+      context.stroke();
+    });
   }, [strokes]);
 
   function point(event: PointerEvent<HTMLCanvasElement>): Point { const rect = event.currentTarget.getBoundingClientRect(); return { x: ((event.clientX - rect.left) / rect.width) * width, y: ((event.clientY - rect.top) / rect.height) * height }; }

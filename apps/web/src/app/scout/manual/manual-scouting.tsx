@@ -62,7 +62,7 @@ function PitFields({ payload, setPayload }: { payload: Payload; setPayload: (nex
     <div className="field"><label htmlFor="operator-experience">Operator experience</label><AppSelect id="operator-experience" ariaLabel="Operator experience" value={payload.operator_experience ?? ""} onValueChange={(value) => set("operator_experience", value)} options={[{ value: "", label: "Choose experience…" }, { value: "none", label: "No operator" }, ...experienceOptions]}/></div>
     <Field id="contact-info" label="Team contact info" value={payload.contact_info ?? ""} onChange={(value) => set("contact_info", value)} placeholder="e.g. Avery Chen — student drive coach — achen@example.com" helper="Include the person’s role: student, mentor, coach, or another contact."/>
     <div className="field scouting-range-field"><label>Drivetrain dimensions without bumpers</label><p className={perimeter > 110 ? "field-hint range-warning" : "field-hint"}>Perimeter: <strong>{perimeter} in / 110 in max</strong>.</p><div className="scouting-range-pair"><RangeInput id="drivetrain-length" label="Length" value={length} onChange={(value) => setDimensions(value, width)}/><RangeInput id="drivetrain-width" label="Width" value={width} onChange={(value) => setDimensions(length, value)}/></div></div>
-    <div className="field scouting-range-field"><label htmlFor="hopper-capacity">Maximum hopper capacity</label><div className="scouting-range-with-input"><input id="hopper-capacity" className="scouting-slider" style={{ "--range-progress": `${(hopper / 500) * 100}%` } as CSSProperties} type="range" min="0" max="500" step="10" value={hopper} onChange={(event) => set("hopper_capacity", event.target.value)}/><input aria-label="Maximum hopper capacity" type="number" min="0" max="500" value={payload.hopper_capacity ?? "0"} onChange={(event) => set("hopper_capacity", event.target.value.replace(/\D/g, "").slice(0, 3))} onBlur={() => set("hopper_capacity", String(clamp(Math.round(Number(payload.hopper_capacity ?? 0) / 10) * 10, 0, 500)))} inputMode="numeric"/><span>fuel</span></div></div>
+    <div className="field scouting-range-field"><label htmlFor="hopper-capacity">Maximum hopper capacity</label><div className="scouting-range-with-input"><input id="hopper-capacity" className="scouting-slider" style={{ "--range-progress": `${(hopper / 500) * 100}%` } as CSSProperties} type="range" min="0" max="500" step="10" value={hopper} onChange={(event) => set("hopper_capacity", event.target.value)}/><input aria-label="Maximum hopper capacity" type="number" min="0" max="500" value={payload.hopper_capacity === "0" ? "" : payload.hopper_capacity ?? ""} onChange={(event) => set("hopper_capacity", event.target.value.replace(/\D/g, "").slice(0, 3))} onBlur={() => set("hopper_capacity", String(clamp(Math.round(Number(payload.hopper_capacity ?? 0) / 10) * 10, 0, 500)))} inputMode="numeric"/><span>fuel</span></div></div>
     <Field id="teleop-active-hub" label="Teleop strategy — active HUB" value={payload.teleop_active_hub ?? ""} onChange={(value) => set("teleop_active_hub", value)} placeholder="e.g. Cycles DEPOT → active HUB"/>
     <Field id="teleop-inactive-hub" label="Teleop strategy — inactive HUB" value={payload.teleop_inactive_hub ?? ""} onChange={(value) => set("teleop_inactive_hub", value)} placeholder="e.g. Collects and stages fuel while inactive"/>
     <Field id="offseason" label="Offseason drive-team plans" value={payload.offseason ?? ""} onChange={(value) => set("offseason", value)} placeholder="e.g. Two events planned before build season"/>
@@ -74,7 +74,7 @@ function PitFields({ payload, setPayload }: { payload: Payload; setPayload: (nex
 }
 
 function RangeInput({ id, label, value, onChange }: { id: string; label: string; value: number; onChange: (value: number) => void }) {
-  return <label htmlFor={id}><span>{label} <strong>{value} in</strong></span><div className="scouting-range-with-input"><input id={id} className="scouting-slider" style={{ "--range-progress": `${(value / 55) * 100}%` } as CSSProperties} type="range" min="0" max="55" step="0.5" value={value} onChange={(event) => onChange(Number(event.target.value))}/><input aria-label={`${label} drivetrain dimension`} type="number" min="0" max="55" step="0.5" value={value} inputMode="decimal" onChange={(event) => onChange(Number(event.currentTarget.value))} onBlur={(event) => onChange(Math.round(clamp(Number(event.currentTarget.value), 0, 55) * 2) / 2)}/><span>in</span></div></label>;
+  return <label htmlFor={id}><span>{label} <strong>{value} in</strong></span><div className="scouting-range-with-input"><input id={id} className="scouting-slider" style={{ "--range-progress": `${(value / 55) * 100}%` } as CSSProperties} type="range" min="0" max="55" step="0.5" value={value} onChange={(event) => onChange(Number(event.target.value))}/><input aria-label={`${label} drivetrain dimension`} type="number" min="0" max="55" step="0.5" value={value === 0 ? "" : value} inputMode="decimal" onChange={(event) => onChange(Number(event.currentTarget.value))} onBlur={(event) => onChange(Math.round(clamp(Number(event.currentTarget.value), 0, 55) * 2) / 2)}/><span>in</span></div></label>;
 }
 
 function initialPayloadValue(value: Record<string, unknown> | undefined): Payload {
@@ -86,9 +86,15 @@ export function ManualScouting({ eventId, organizationId, scoutUserId, teams, ty
   const [teamId, setTeamId] = useState(initialTeamId);
   const [payload, setPayload] = useState<Payload>(() => initialPayloadValue(initialPayload));
   const [message, setMessage] = useState("");
-  const [entryId] = useState(() => editingEntryId || (typeof window === "undefined" ? "" : crypto.randomUUID()));
+  const [entryId, setEntryId] = useState(() => editingEntryId || (typeof window === "undefined" ? "" : crypto.randomUUID()));
   const sorted = [...teams].sort((a, b) => a.number - b.number);
   const set = (id: string, value: string) => setPayload((current) => ({ ...current, [id]: value }));
+  const resetForNewPitReport = (nextMessage: string) => {
+    setTeamId("");
+    setPayload({});
+    setEntryId(crypto.randomUUID());
+    setMessage(nextMessage);
+  };
 
   async function submit() {
     if (!teamId) return setMessage("Choose a team.");
@@ -97,10 +103,12 @@ export function ManualScouting({ eventId, organizationId, scoutUserId, teams, ty
     const { error, shouldQueue } = await tryUpsertScoutingEntry(entry);
     if (shouldQueue) {
       await queueScoutingEntry(entry);
+      if (type === "pit" && !editingEntryId) return resetForNewPitReport("Pit scouting saved on this device. Start a new report while it uploads automatically.");
       return setMessage(`${title[type]} saved on this device and will upload automatically when you reconnect.`);
     }
     if (error) return setMessage(error);
     await removeQueuedScoutingEntry(entryId);
+    if (type === "pit" && !editingEntryId) return resetForNewPitReport("Pit scouting saved. Start a new report when you are ready.");
     setMessage(editingEntryId ? "Changes saved." : `${title[type]} saved to this team’s record.`);
     if (returnTo) router.replace(returnTo);
   }
