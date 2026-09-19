@@ -47,14 +47,16 @@ function SearchableMatchSelect({ matches, teams, value, onValueChange }: { match
 
 function AllianceOverview({ alliance, teams, eventKey }: { alliance: "red" | "blue"; teams: (Team | undefined)[]; eventKey: string }) {
   const filledTeams = teams.filter((team): team is Team => Boolean(team));
-  const totalFuel = filledTeams.reduce((total, team) => total + team.stats.totalFuel, 0);
-  const peakFuel = filledTeams.reduce((total, team) => total + team.stats.peakFuel, 0);
+  const autoAverage = filledTeams.reduce((total, team) => total + team.stats.autoFuel, 0);
+  const autoPeak = filledTeams.reduce((total, team) => total + team.stats.autoPeakFuel, 0);
+  const teleopAverage = filledTeams.reduce((total, team) => total + team.stats.teleopFuel, 0);
+  const teleopPeak = filledTeams.reduce((total, team) => total + team.stats.teleopPeakFuel, 0);
   return <section className={`strategy-alliance-overview ${alliance}`}>
     <div className="strategy-alliance-overview-head"><span>{alliance} alliance</span><strong>{filledTeams.length}/3 teams</strong></div>
     <div className="strategy-alliance-teams">{teams.map((team, index) => team
-      ? <Link key={team.id} href={`/events/${eventKey}/teams/${team.number}`}><strong>{team.number}</strong><span>{team.name}</span><small>Avg {round(team.stats.totalFuel)} · Peak {round(team.stats.peakFuel)}</small></Link>
+      ? <Link key={team.id} href={`/events/${eventKey}/teams/${team.number}`}><strong>{team.number}</strong><span>{team.name}</span><small>Auto avg {round(team.stats.autoFuel)} · peak {round(team.stats.autoPeakFuel)}</small><small>Teleop avg {round(team.stats.teleopFuel)} · peak {round(team.stats.teleopPeakFuel)}</small></Link>
       : <div key={`${alliance}-${index}`}><strong>—</strong><span>Open slot</span><small>Use the lineup above</small></div>)}</div>
-    <div className="strategy-alliance-totals"><span>Combined avg fuel <strong>{round(totalFuel)}</strong></span><span>Combined peak <strong>{round(peakFuel)}</strong></span></div>
+    <div className="strategy-alliance-totals"><span>Auto <strong>avg {round(autoAverage)} · peak {round(autoPeak)}</strong></span><span>Teleop <strong>avg {round(teleopAverage)} · peak {round(teleopPeak)}</strong></span></div>
   </section>;
 }
 
