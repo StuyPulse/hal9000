@@ -472,12 +472,14 @@
   .selection-value { @apply flex min-h-11 items-center rounded-lg border border-stuypulse-border bg-stuypulse-elevated px-3 text-sm font-semibold text-stuypulse-text; }
   .searchable-team-input { @apply flex min-h-11 overflow-hidden rounded-lg border border-stuypulse-border bg-stuypulse-bg; }
   .searchable-team-input input { @apply min-w-0 flex-1 bg-transparent px-3 text-sm text-stuypulse-text outline-none placeholder:text-stuypulse-textMuted; }
+  .searchable-team-mark { @apply flex shrink-0 items-center text-emerald-400; }
+  .searchable-team-input > .searchable-team-mark { @apply px-2; }
   .searchable-team-input:focus-within { @apply border-stuypulse-red ring-2 ring-stuypulse-red/20; }
   .searchable-team-input button { @apply w-10 border-l border-stuypulse-border text-lg text-stuypulse-textMuted hover:bg-stuypulse-elevated disabled:opacity-50; }
   .searchable-team-results { @apply absolute z-30 mt-1 max-h-64 w-full overflow-y-auto rounded-lg border border-stuypulse-border bg-stuypulse-surface p-1 shadow-elevated; }
   .searchable-team-results button { @apply flex min-h-11 w-full items-center gap-2 rounded-md px-3 text-left text-sm text-stuypulse-text hover:bg-stuypulse-elevated; }
   .searchable-team-results button strong { @apply font-extrabold; }
-  .searchable-team-results button span { @apply min-w-0 flex-1 truncate text-xs text-stuypulse-textMuted; }
+  .searchable-team-results button > span:not(.searchable-team-mark) { @apply min-w-0 flex-1 truncate text-xs text-stuypulse-textMuted; }
   .searchable-team-results button.selected { @apply bg-stuypulse-red/15 text-stuypulse-text; }
   .searchable-team-results .muted { @apply m-0 px-3 py-2 text-xs; }
   .filter-tabs, .event-selector-links { @apply flex flex-wrap gap-2; }

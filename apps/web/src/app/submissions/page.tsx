@@ -53,7 +53,7 @@ export default async function SubmissionsPage({ searchParams }: { searchParams: 
   const teams = (eventTeams ?? []).map((row: any) => row.teams).filter(Boolean).map((team: any) => ({ id: team.id, number: team.team_number, name: team.name })).sort((left: any, right: any) => left.number - right.number);
   const scoutId = scouts.some((scout) => scout.id === requestedScoutId) ? requestedScoutId : "";
   const teamId = teams.some((team: any) => team.id === requestedTeamId) ? requestedTeamId : "";
-  let query = (supabase as any).from("scouting_entries").select("id,match_id,scout_user_id,entry_type,status,payload,submitted_at,created_at,matches(match_number,match_type,tba_match_key),teams(team_number,name),profiles(display_name)").eq("entry_type", type).order("created_at", { ascending: false });
+  let query = (supabase as any).from("scouting_entries").select("id,match_id,scout_user_id,entry_type,status,payload,submitted_at,created_at,matches(match_number,match_type,tba_match_key),teams(team_number,name),author:profiles!scouting_entries_scout_user_id_fkey(display_name)").eq("entry_type", type).order("created_at", { ascending: false });
   if (submissionEventId) query = query.eq("event_id", submissionEventId);
   else query = query.limit(0);
   if (scope === "mine" && viewer) query = query.eq("scout_user_id", viewer.userId);
@@ -100,12 +100,12 @@ export default async function SubmissionsPage({ searchParams }: { searchParams: 
       </div>
       <div className="submission-filter-row"><div className="field"><label htmlFor="submission-team-filter">Team</label><SubmissionTeamFilter teams={teams} value={teamId}/></div><div className="field"><label htmlFor="submission-scout-filter">Scout</label><SubmissionScoutFilter scouts={scouts} value={scoutId}/></div></div>
       {data?.length ? data.map((entry: any) => {
-        const canEdit = viewer && (entry.scout_user_id === viewer.userId || viewerCanManage(viewer));
+        const canEdit = viewer && (entry.entry_type === "pit" || entry.scout_user_id === viewer.userId || viewerCanManage(viewer));
         const returnPath = href();
         const editHref = canEdit ? reportEditHref(entry, returnPath) : null;
         return <div className="list-row submission-row" key={entry.id}>
           <Link className="submission-row-main" href={`/submissions/${entry.id}?returnTo=${encodeURIComponent(returnPath)}`}>
-            <div><strong>{scoutingEntryLabel(entry)} · {entry.teams?.team_number} {entry.teams?.name}</strong><div className="muted">{scoutingEntryTypeLabel(entry.entry_type)} · {entry.profiles?.display_name ?? "Scout"} · {(entry.submitted_at ?? entry.created_at) ? <LocalDateTime value={entry.submitted_at ?? entry.created_at}/> : "Pending"}</div></div><span aria-hidden="true">→</span>
+            <div><strong>{scoutingEntryLabel(entry)} · {entry.teams?.team_number} {entry.teams?.name}</strong><div className="muted">{scoutingEntryTypeLabel(entry.entry_type)} · {entry.author?.display_name ?? "Scout"} · {(entry.submitted_at ?? entry.created_at) ? <LocalDateTime value={entry.submitted_at ?? entry.created_at}/> : "Pending"}</div></div><span aria-hidden="true">→</span>
           </Link>
           <div className="submission-row-action">{editHref && <Link className="link" href={editHref}>Edit</Link>}<span className={`tag ${entry.status === "submitted" ? "complete" : "pending"}`}>{entry.status}</span>{canEdit && <DeleteSubmissionForm entryId={entry.id} compact/>}</div>
         </div>;
