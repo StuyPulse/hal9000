@@ -516,6 +516,8 @@
   .team-pit-report-head { @apply flex items-center justify-between gap-3 text-xs text-stuypulse-textMuted; }
   .team-research-photos { @apply m-3; }
   .team-timeline-card { @apply max-w-6xl; }
+  .team-timeline-head-actions { @apply flex items-center justify-end gap-3; }
+  .team-timeline-head-actions .app-select { @apply min-w-52 max-w-none; }
   .team-timeline-metrics { @apply mb-3 flex flex-wrap gap-2; }
   .team-timeline-metrics button { @apply min-h-9 rounded-md border border-stuypulse-border bg-stuypulse-bg px-2.5 text-[11px] font-bold text-stuypulse-textMuted transition hover:bg-stuypulse-elevated hover:text-stuypulse-text; }
   .team-timeline-metrics button.active { @apply border-stuypulse-red bg-stuypulse-red/15 text-stuypulse-text; }
@@ -924,6 +926,8 @@
   .team-overview-metrics > div:nth-child(4) { @apply border-t border-stuypulse-border pt-4; }
   .team-timeline-chart { @apply h-[260px] p-2; }
   .team-timeline-row { @apply grid-cols-2 gap-x-3 gap-y-2 px-3 py-3; }
+  .team-timeline-head-actions { @apply w-full justify-between; }
+  .team-timeline-head-actions .app-select { @apply min-w-0; }
   .team-timeline-actions { @apply col-span-2 justify-start border-t border-stuypulse-border pt-2; }
   .graph-row { @apply grid-cols-1 gap-2; }
   .graph-row > strong { @apply pt-0; }
