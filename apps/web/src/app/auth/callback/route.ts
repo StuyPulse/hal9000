@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import type { NextRequest } from "next/server";
+import { isAuthorizedEmail } from "@/lib/auth/allowed-email";
 export async function GET(request: NextRequest) {
   const code = request.nextUrl.searchParams.get("code"); const url = request.nextUrl.clone();
   const next = request.nextUrl.searchParams.get("next");
@@ -20,11 +21,11 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(loginUrl);
   }
   const { data: { user } } = await supabase.auth.getUser();
-  if (!user?.email?.toLowerCase().endsWith("@stuypulse.com")) {
+  if (!user?.email || !isAuthorizedEmail(user.email)) {
     await supabase.auth.signOut();
     const loginUrl = request.nextUrl.clone();
     loginUrl.pathname = "/auth/login";
-    loginUrl.searchParams.set("error", "Use your @stuypulse.com Google account to access HAL9000.");
+    loginUrl.searchParams.set("error", "Use an authorized Google account to access HAL9000.");
     return NextResponse.redirect(loginUrl);
   }
   return response;

@@ -3,8 +3,9 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { isAuthorizedEmail } from "@/lib/auth/allowed-email";
 
-const credentialsSchema = z.object({ email: z.string().email().toLowerCase().refine((email) => email.endsWith("@stuypulse.com"), "Use your @stuypulse.com email."), password: z.string().min(8).max(128) });
+const credentialsSchema = z.object({ email: z.string().email().toLowerCase().refine(isAuthorizedEmail, "Use an authorized email."), password: z.string().min(8).max(128) });
 const signupSchema = credentialsSchema.extend({ firstName: z.string().trim().min(1).max(40), lastName: z.string().trim().min(1).max(60) });
 export type AuthState = { error?: string; message?: string };
 
@@ -21,7 +22,7 @@ async function existingAccountMessage(email: string) {
 
 export async function signIn(_: AuthState, formData: FormData): Promise<AuthState> {
   const parsed = credentialsSchema.safeParse({ email: formData.get("email"), password: formData.get("password") });
-  if (!parsed.success) return { error: "Use your @stuypulse.com email and an 8+ character password." };
+  if (!parsed.success) return { error: "Use an authorized email and an 8+ character password." };
   const supabase = await createClient();
   const { error } = await supabase.auth.signInWithPassword(parsed.data);
   if (error) return { error: "We couldn't sign you in with those details." };
@@ -30,18 +31,18 @@ export async function signIn(_: AuthState, formData: FormData): Promise<AuthStat
 
 export async function signUp(_: AuthState, formData: FormData): Promise<AuthState> {
   const parsed = signupSchema.safeParse({ email: formData.get("email"), password: formData.get("password"), firstName: formData.get("firstName"), lastName: formData.get("lastName") });
-  if (!parsed.success) return { error: "Enter your first and last name, @stuypulse.com email, and an 8+ character password." };
+  if (!parsed.success) return { error: "Enter your first and last name, an authorized email, and an 8+ character password." };
   const supabase = await createClient();
   const origin = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
   const { data, error } = await supabase.auth.signUp({ email: parsed.data.email, password: parsed.data.password, options: { emailRedirectTo: `${origin}/auth/callback`, data: { first_name: parsed.data.firstName, last_name: parsed.data.lastName, display_name: `${parsed.data.firstName} ${parsed.data.lastName}` } } });
   if (error) return { error: "We couldn't create that account. Try a different email." };
   if (data.user?.identities?.length === 0) return { message: await existingAccountMessage(parsed.data.email) };
-  return { message: "Check your @stuypulse.com inbox to confirm your account, then sign in." };
+  return { message: "Check your inbox to confirm your account, then sign in." };
 }
 
 export async function requestPasswordReset(_: AuthState, formData: FormData): Promise<AuthState> {
-  const email = z.string().email().toLowerCase().refine((value) => value.endsWith("@stuypulse.com")).safeParse(formData.get("email"));
-  if (!email.success) return { error: "Enter your @stuypulse.com email first." };
+  const email = z.string().email().toLowerCase().refine(isAuthorizedEmail).safeParse(formData.get("email"));
+  if (!email.success) return { error: "Enter an authorized email first." };
   const origin = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
   const supabase = await createClient();
   const { error } = await supabase.auth.resetPasswordForEmail(email.data, { redirectTo: `${origin}/auth/callback?next=/auth/reset-password` });

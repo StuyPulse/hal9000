@@ -20,14 +20,14 @@ export function LoginForm() {
 
   async function signInWithGoogle() {
     setGoogleError(undefined);
-    const { error } = await createClient().auth.signInWithOAuth({ provider: "google", options: { redirectTo: `${window.location.origin}/auth/callback`, queryParams: { hd: "stuypulse.com" } } });
+    const { error } = await createClient().auth.signInWithOAuth({ provider: "google", options: { redirectTo: `${window.location.origin}/auth/callback` } });
     if (error) setGoogleError(error.message === "provider is not enabled" ? "Google sign-in is not configured for this project yet." : "Google sign-in could not start. Please try again.");
   }
 
   return <form className="auth-form">
     <div className="brand"><BrandLogo/><span>HAL9000<small>STUYPULSE · 694</small></span></div>
     <h1>{isSignUp ? "Create your account." : "Welcome back."}</h1>
-    <p>{isSignUp ? "Use your StuyPulse account to join the competition workspace." : <>Only <strong>@stuypulse.com</strong> accounts can access this competition workspace.</>}</p>
+    <p>{isSignUp ? "Use an authorized account to join the competition workspace." : <>Only <strong>authorized accounts</strong> can access this competition workspace.</>}</p>
     <button type="button" className="button secondary auth-google" onClick={signInWithGoogle} disabled={pending}><GoogleMark/>Continue with Google</button>
     {googleError && <p className="error">{googleError}</p>}
     <div className="auth-divider"><span>or continue with email</span></div>
