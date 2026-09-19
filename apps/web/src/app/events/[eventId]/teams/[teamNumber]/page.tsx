@@ -113,8 +113,8 @@ export default async function TeamDetail({ params }: { params: Promise<{ eventId
   const teamNames = Object.fromEntries((eventTeams ?? []).map((row: any) => [row.team_id, `${row.teams?.team_number ?? "Unknown"} · ${row.teams?.name ?? "team"}`]));
   const overview = [
     { label: "Scouted matches", value: String(stats.matches), detail: stats.entries ? `${stats.entries} report${stats.entries === 1 ? "" : "s"} recorded` : "no match data yet" },
-    { label: "Auto scouting", value: `Scored ${formatStat(stats.autoAvgScored)}`, detail: `Ferried ${formatStat(stats.autoAvgFerried)}` },
-    { label: "Teleop scouting", value: `Scored ${formatStat(stats.teleopAvgScored)}`, detail: `Ferried ${formatStat(stats.teleopAvgFerried)}` },
+    { label: "Auto scouting", value: `Avg scored ${formatStat(stats.autoAvgScored)}`, detail: `Peak scored ${formatStat(stats.autoMaxScored)} · avg ferried ${formatStat(stats.autoAvgFerried)}` },
+    { label: "Teleop scouting", value: `Avg scored ${formatStat(stats.teleopAvgScored)}`, detail: `Peak scored ${formatStat(stats.teleopMaxScored)} · avg ferried ${formatStat(stats.teleopAvgFerried)}` },
     { label: "TBA rank", value: tba?.rank ? `#${tba.rank}` : "—", detail: tba?.record ? `${tba.record.wins}-${tba.record.losses}-${tba.record.ties} record` : "not published" },
     { label: "OPR", value: opr ? formatStat(opr) : "—", detail: "official TBA metric" },
   ];
