@@ -841,6 +841,12 @@
   .scoring-row .counter::before { @apply absolute left-0 top-0 text-[10px] font-medium uppercase tracking-[0.1em] text-stuypulse-textMuted; font-family: 'DM Mono', monospace; content: attr(data-label); }
 }
 
+@media (max-width: 1280px) {
+  .match-row { @apply flex-wrap items-start; }
+  .match-row .alliances { @apply order-3 basis-full; }
+  .match-row .row-actions { @apply order-4 w-full; }
+}
+
 @media (max-width: 560px) {
   .sidebar { @apply inset-x-0 bottom-0 top-auto h-[78px] w-full border-r-0 border-t px-1 py-1; padding-bottom: max(0.25rem, env(safe-area-inset-bottom)); }
   .sidebar .sidebar-top, .desktop-nav, .desktop-signout { @apply hidden; }

@@ -5,6 +5,7 @@ import { useState, type CSSProperties } from "react";
 import { useRouter } from "next/navigation";
 import { AppSelect } from "@/components/app-select";
 import { queueScoutingEntry, removeQueuedScoutingEntry, tryUpsertScoutingEntry } from "@/lib/offline-scouting-queue";
+import { updateMatchScoutingEntry } from "./actions";
 
 type Props = {
   eventId: string;
@@ -33,11 +34,24 @@ const spots = [
   { id: "outpost-trench", label: "Outpost Trench", allianceLayout: { x: "28%", y: "92.7%" }, mirrorLayout: { x: "72.6%", y: "92.6%" } },
 ];
 const tags = ["Intake broke", "Shooter broke", "Drive issue", "Electrical", "Other"];
+const manualStageOptions = [
+  { value: "qualification", label: "Qualification" },
+  { value: "practice", label: "Practice" },
+  { value: "quarterfinal", label: "Quarterfinal" },
+  { value: "semifinal", label: "Semifinal" },
+  { value: "final", label: "Final" },
+  { value: "other", label: "Other / exception" },
+];
 const empty = (): Score => ({ shoot: 0, ferry: 0 });
 const emptyBreakageIssue = (): BreakageIssue => ({ id: crypto.randomUUID(), timestamp: "", tag: "", otherIssue: "" });
 
 const asNumber = (value: unknown, fallback = 0) => typeof value === "number" && Number.isFinite(value) ? Math.max(0, value) : fallback;
 const asRecord = (value: unknown): Record<string, unknown> => value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
+const manualStageValue = (stage: string | undefined) => {
+  const value = stage?.trim().toLowerCase() ?? "";
+  return manualStageOptions.some((option) => option.value === value) ? value : "other";
+};
+const manualStageLabel = (stage: string) => manualStageOptions.find((option) => option.value === stage)?.label ?? "Other / exception";
 
 function initialIssues(payload: Record<string, unknown>) {
   const saved = Array.isArray(payload.breakage_issues) ? payload.breakage_issues : [];
@@ -76,6 +90,8 @@ export function RebuiltMatchForm({ eventId, organizationId, scoutUserId, matchId
   const [broke, setBroke] = useState(() => Boolean(initialPayload.robot_broke));
   const [breakageIssues, setBreakageIssues] = useState<BreakageIssue[]>(() => initialIssues(initialPayload));
   const [comments, setComments] = useState(() => typeof initialPayload.comments === "string" ? initialPayload.comments : "");
+  const [manualStage, setManualStage] = useState<string>(() => manualStageValue(manualMatch?.stage));
+  const [manualMatchNumber, setManualMatchNumber] = useState<string>(() => manualMatch?.label ?? "");
   const [message, setMessage] = useState("");
   const [saving, setSaving] = useState(false);
   const [submitted, setSubmitted] = useState(false);
@@ -107,6 +123,11 @@ export function RebuiltMatchForm({ eventId, organizationId, scoutUserId, matchId
       setSaving(false);
       return;
     }
+    if (manualMatch && manualStage !== "other" && !manualMatchNumber.trim()) {
+      setMessage("Enter a match # for this manual report.");
+      setSaving(false);
+      return;
+    }
     const savedBreakageIssues = broke ? breakageIssues.map(({ timestamp, tag, otherIssue }) => ({ timestamp: normalizeMatchTimestamp(timestamp), issue: tag === "Other" ? otherIssue.trim() || "Other" : tag || null })).filter((issue) => issue.timestamp || issue.issue) : [];
     const payload = {
       no_show: noShow, starting_spot: noShow ? null : spot, starting_spot_confirmed: Boolean(!noShow && spot),
@@ -116,7 +137,7 @@ export function RebuiltMatchForm({ eventId, organizationId, scoutUserId, matchId
       defended_teams: defense ? defended : [], robot_broke: noShow ? false : broke, breakage_issues: noShow ? [] : savedBreakageIssues,
       break_timestamp: noShow ? null : savedBreakageIssues[0]?.timestamp ?? null, break_tag: noShow ? null : savedBreakageIssues[0]?.issue ?? null, comments,
       report_source: manualMatch ? "manual" : "scheduled",
-      manual_match: manualMatch ? { stage: manualMatch.stage, label: manualMatch.label || null, alliance: manualMatch.alliance ?? alliance } : null,
+      manual_match: manualMatch ? { stage: manualStageLabel(manualStage), label: manualMatchNumber.trim() || null, alliance: manualMatch.alliance ?? alliance } : null,
     };
     const submittedAt = finalize ? new Date().toISOString() : null;
     const entry = {
@@ -124,7 +145,10 @@ export function RebuiltMatchForm({ eventId, organizationId, scoutUserId, matchId
       assignment_id: assignmentId ?? null, scout_user_id: scoutUserId, entry_type: "match" as const, form_version: 4, payload,
       status: finalize ? "submitted" as const : "draft" as const, submitted_at: submittedAt,
     };
-    const { error, shouldQueue } = await tryUpsertScoutingEntry(entry);
+    const result = editingEntryId
+      ? { error: (await updateMatchScoutingEntry({ entryId: editingEntryId, payload })).error ?? null, shouldQueue: false }
+      : await tryUpsertScoutingEntry(entry);
+    const { error, shouldQueue } = result;
     if (shouldQueue) {
       await queueScoutingEntry(entry);
       setMessage(finalize ? "Report saved on this device. It will submit automatically when you reconnect." : "Draft saved on this device. It will sync automatically when you reconnect.");
@@ -145,6 +169,7 @@ export function RebuiltMatchForm({ eventId, organizationId, scoutUserId, matchId
   }
 
   return <section className="scouting-card match-form">
+      {manualMatch && <div className="form-section manual-match-details"><div className="section-title">Manual match details</div><div className="form-grid"><div className="field"><label>Match type</label><AppSelect ariaLabel="Manual match type" value={manualStage} onValueChange={setManualStage} disabled={saving || submitted} options={manualStageOptions}/></div><div className="field"><label htmlFor="manual-match-number">Match # {manualStage === "other" ? "(optional)" : ""}</label><input id="manual-match-number" disabled={saving || submitted} value={manualMatchNumber} onChange={(event) => setManualMatchNumber(event.target.value)} placeholder={manualStage === "other" ? "Optional label" : "e.g. 18"}/></div></div></div>}
       <div className="form-section"><div className="section-title">Auton starting position</div><div className="form-field-actions"><button type="button" className="button secondary mobile-full" disabled={saving || submitted} aria-pressed={noShow} onClick={() => setNoShow(!noShow)}>{noShow ? "Undo no show" : "Mark no show"}</button><button type="button" className="button secondary mobile-full" disabled={saving || submitted} aria-pressed={mirrored} onClick={() => setMirrored((current) => !current)}><FlipHorizontal2 size={16} aria-hidden="true"/>{mirrored ? "Use alliance view" : "Mirror field"}</button></div><fieldset disabled={disabled}><legend className="sr-only">Autonomous starting position</legend><div className={`field-map ${mapRotated ? "rotated" : ""} ${mapMirrored ? "mirrored" : ""}`}><div className="field-map-art" aria-hidden="true"/>{spots.map((item) => <button type="button" key={item.id} aria-label={`Start at ${item.label}`} aria-pressed={spot === item.id} style={{"--spot-x":positionFor(item).x,"--spot-y":positionFor(item).y} as CSSProperties} className={spot === item.id ? `spot ${alliance}` : "spot"} onClick={() => setSpot((current) => current === item.id ? undefined : item.id)}><span>{item.label}</span></button>)}</div></fieldset>{spot && <div className="spot-choice" aria-live="polite">Starting position: {spots.find((item)=>item.id===spot)?.label}</div>}</div>
     <fieldset disabled={disabled}><legend className="sr-only">Match scouting details</legend>
       <div className="form-section"><div className="section-title">Scoring</div><div className="scoring-table"><div className="scoring-head"><span>Period</span><span>Scored</span><span>Ferried</span></div><ScoreRow label="Autonomous" value={auto} update={(key, value) => setAuto((score) => ({ ...score, [key]: Math.max(0, value) }))} autoRow /><ScoreRow label="Teleop" value={teleop} update={(key, value) => setTeleop((score) => ({ ...score, [key]: Math.max(0, value) }))} /></div></div>

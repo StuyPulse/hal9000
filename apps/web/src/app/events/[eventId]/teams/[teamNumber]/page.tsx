@@ -9,7 +9,7 @@ import { PayloadGrid } from "@/components/scouting-payload";
 import { TeamMatchTimeline, type TimelineMatch } from "./team-match-timeline";
 import { TeamPhotoCarousel } from "./team-photo-carousel";
 import { TeamRobotProfile } from "./team-robot-profile";
-import { matchLabel, matchRoundOrder } from "@/lib/match-label";
+import { manualMatchLabel, matchLabel, matchRoundOrder } from "@/lib/match-label";
 
 type TbaMatch = { key: string; match_number: number; comp_level?: string; actual_time?: number; alliances?: { red?: { team_keys?: string[]; score?: number }; blue?: { team_keys?: string[]; score?: number } } };
 type LocalMatch = { id: string; tba_match_key: string; match_number: number; match_type: string; scheduled_at: string | null; red_teams: string[]; blue_teams: string[]; red_score: number | null; blue_score: number | null };
@@ -37,7 +37,7 @@ export default async function TeamDetail({ params }: { params: Promise<{ eventId
   if (!team) notFound();
 
   const [{ data: entries }, { data: photos }, { data: localMatches }] = await Promise.all([
-    (supabase as any).from("scouting_entries").select("id,entry_type,payload,status,submitted_at,created_at,matches(id,match_number,match_type,tba_match_key),profiles(display_name)").eq("event_id", event.id).eq("team_id", team.id).order("created_at", { ascending: false }),
+    (supabase as any).from("scouting_entries").select("id,match_id,entry_type,payload,status,submitted_at,created_at,matches(id,match_number,match_type,tba_match_key),profiles(display_name)").eq("event_id", event.id).eq("team_id", team.id).order("created_at", { ascending: false }),
     (supabase as any).from("pit_photos").select("storage_path").eq("event_id", event.id).eq("team_id", team.id).order("created_at", { ascending: false }),
     (supabase as any).from("matches").select("id,tba_match_key,match_number,match_type,scheduled_at,red_teams,blue_teams,red_score,blue_score").eq("event_id", event.id).order("scheduled_at"),
   ]);
@@ -85,7 +85,15 @@ export default async function TeamDetail({ params }: { params: Promise<{ eventId
     return { id: official?.key ?? match.id, label: official ? matchLabel({ match_number: official.match_number, match_type: matchType, tba_match_key: official.key }) : localMatchLabel(match), matchType, roundOrder: matchRoundOrder({ match_type: matchType, tba_match_key: tbaMatchKey }), alliance: red ? "red" : "blue", outcome, score: typeof ours === "number" && typeof theirs === "number" ? `${ours} – ${theirs}` : "Not played", tbaUrl: official ? `https://www.thebluealliance.com/match/${official.key}` : undefined, report: report ? { id: report.id, payload: report.payload ?? {}, scout: report.profiles?.display_name ?? "Scout" } : undefined, hasScout: Boolean(report), totalFuel: values?.total ?? null, autoFuel: values?.auto ?? null, teleopFuel: values?.teleop ?? null, fouls: values?.fouls ?? null, defense: values?.defense ?? null, broken: values?.broken ?? null };
   };
   const officialTimeline = tbaMatches.map((match) => { const local = localByTbaKey.get(match.key); return local ? { local, timeline: toTimeline(local, match) } : null; }).filter(Boolean) as { local: LocalMatch; timeline: TimelineMatch }[];
-  const timeline = [...officialTimeline.map(({ timeline }) => timeline), ...teamMatches.filter((match) => !officialTimeline.some(({ local }) => local.id === match.id)).map((match) => toTimeline(match))].sort((first, second) => first.roundOrder - second.roundOrder || first.label.localeCompare(second.label, undefined, { numeric: true }));
+  const manualTimeline = submittedEntries.filter((entry: any) => !entry.match_id).map((entry: any): TimelineMatch | null => {
+    const details = entry.payload?.manual_match;
+    if (!details || typeof details !== "object" || Array.isArray(details)) return null;
+    const stage = typeof details.stage === "string" ? details.stage.trim().toLowerCase() : "other";
+    const matchType: TimelineMatch["matchType"] = stage === "qualification" ? "qualification" : stage === "practice" ? "practice" : ["quarterfinal", "semifinal", "final", "playoff"].includes(stage) ? "playoff" : "other";
+    const values = entryBreakdown(entry.payload);
+    return { id: entry.id, label: manualMatchLabel(details), matchType, roundOrder: matchType === "other" ? 6 : matchRoundOrder({ match_type: matchType, tba_match_key: null }), alliance: details.alliance === "blue" ? "blue" : "red", outcome: "pending", score: "Manual report", report: { id: entry.id, payload: entry.payload ?? {}, scout: entry.profiles?.display_name ?? "Scout" }, hasScout: true, totalFuel: values.total, autoFuel: values.auto, teleopFuel: values.teleop, fouls: values.fouls, defense: values.defense, broken: values.broken };
+  }).filter(Boolean) as TimelineMatch[];
+  const timeline = [...officialTimeline.map(({ timeline }) => timeline), ...teamMatches.filter((match) => !officialTimeline.some(({ local }) => local.id === match.id)).map((match) => toTimeline(match)), ...manualTimeline].sort((first, second) => first.roundOrder - second.roundOrder || first.label.localeCompare(second.label, undefined, { numeric: true }));
   const preScoutEntries = byType("pre_scout");
   const preScoutCount = preScoutEntries.length;
   const pitEntries = byType("pit");

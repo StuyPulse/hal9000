@@ -40,10 +40,15 @@ function messageFor(notification: BreakageNotification) {
   const title = `⚠️ ${payload.team_number ?? "Unknown team"} - ${primaryIssue}`.slice(0, 150);
   const matchType = payload.match_type === "practice" ? "Practice" : payload.match_type === "playoff" ? "Playoff Match" : "Qualification";
   const match = typeof payload.match_number === "number" ? `${matchType} ${payload.match_number}` : manualMatchLabel(payload.manual_match);
+  const timedIssues = issues.filter((issue) => issue.timestamp?.trim());
+  const time = timedIssues.length
+    ? timedIssues.map(({ timestamp, issue }) => issues.length > 1 ? `${timestamp} (${issue?.trim() || "Breakage reported"})` : timestamp!.trim()).join(" · ")
+    : null;
   const details = [
     `*Match:* ${match}`,
     `*Scout:* ${payload.scout_name ?? "Unknown"}`,
-    ...(additionalIssues.length ? [`*Additional issues:*\n${additionalIssues.map(({ timestamp, issue }) => `• ${timestamp ? `${timestamp} — ` : ""}${issue}`).join("\n")}`] : []),
+    ...(time ? [`*Time:* ${time}`] : []),
+    ...(additionalIssues.length ? [`*Additional issues:*\n${additionalIssues.map(({ issue }) => `• ${issue}`).join("\n")}`] : []),
   ];
 
   return {
