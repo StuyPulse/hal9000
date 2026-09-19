@@ -23,38 +23,45 @@ const typeFor = (level: string) => level === "qm" ? "qualification" : level === 
 const scoreFor = (score: number) => score >= 0 ? score : null;
 const tbaSimpleTeamSchema = z.object({ team_number: z.number().int().positive(), nickname: z.string().nullable().optional() });
 
-async function ensureLiveEventRoster(database: any, event: { id: string; event_key: string }, organizationId: string, key: string, teamNumbers: number[]) {
+async function ensureLiveEventRoster(database: any, event: { id: string }, organizationId: string, officialTeams: z.infer<typeof tbaSimpleTeamSchema>[], reconcile: boolean) {
+  if (!officialTeams.length) throw new Error("TBA returned an empty event roster, so the current roster was left unchanged.");
+  const teamNumbers = [...new Set(officialTeams.map((team) => team.team_number))];
   const { data: storedTeams, error: storedTeamsError } = await database.from("teams").select("id,team_number").eq("organization_id", organizationId);
   if (storedTeamsError) throw new Error("Could not load the event team directory.");
-  let teamIdByNumber = new Map((storedTeams ?? []).map((team: { id: string; team_number: number }) => [team.team_number, team.id]));
+  let teamIdByNumber = new Map<number, string>((storedTeams ?? []).map((team: { id: string; team_number: number }) => [team.team_number, team.id]));
   const missingNumbers = teamNumbers.filter((number) => !teamIdByNumber.has(number));
 
   if (missingNumbers.length) {
-    let namesByNumber = new Map<number, string>();
-    try {
-      const response = await fetch(`https://www.thebluealliance.com/api/v3/event/${event.event_key}/teams/simple`, { headers: { "X-TBA-Auth-Key": key }, cache: "no-store" });
-      const parsed = response.ok ? z.array(tbaSimpleTeamSchema).safeParse(await response.json()) : null;
-      if (parsed?.success) namesByNumber = new Map(parsed.data.map((team) => [team.team_number, team.nickname || `FRC Team ${team.team_number}`]));
-    } catch {
-      // Match data remains useful even if the optional display-name lookup is unavailable.
-    }
+    const namesByNumber = new Map(officialTeams.map((team) => [team.team_number, team.nickname || `FRC Team ${team.team_number}`]));
     const { error: saveTeamsError } = await database.from("teams").upsert(missingNumbers.map((team_number) => ({ organization_id: organizationId, team_number, name: namesByNumber.get(team_number) ?? `FRC Team ${team_number}` })), { onConflict: "organization_id,team_number" });
     if (saveTeamsError) throw new Error("Could not save the live event team directory.");
     const { data: refreshedTeams, error: refreshedTeamsError } = await database.from("teams").select("id,team_number").eq("organization_id", organizationId);
     if (refreshedTeamsError) throw new Error("Could not reload the live event team directory.");
-    teamIdByNumber = new Map((refreshedTeams ?? []).map((team: { id: string; team_number: number }) => [team.team_number, team.id]));
+    teamIdByNumber = new Map<number, string>((refreshedTeams ?? []).map((team: { id: string; team_number: number }) => [team.team_number, team.id]));
   }
 
   const unresolvedTeam = teamNumbers.find((number) => !teamIdByNumber.has(number));
   if (unresolvedTeam) throw new Error(`Could not prepare team ${unresolvedTeam} for the live event.`);
-  const { error: linkError } = await database.from("event_teams").upsert(teamNumbers.map((team_number) => ({ event_id: event.id, team_id: teamIdByNumber.get(team_number)! })), { onConflict: "event_id,team_id" });
-  if (linkError) throw new Error("Could not link the official team roster to the live event.");
-  return { teamIdByNumber, addedTeamCount: missingNumbers.length };
+  const rosterTeamIds = teamNumbers.map((team_number) => teamIdByNumber.get(team_number)!);
+  const { data: existingLinks, error: existingLinksError } = await database.from("event_teams").select("team_id").eq("event_id", event.id);
+  if (existingLinksError) throw new Error("Could not load the current event roster.");
+  const existingTeamIds = new Set<string>((existingLinks ?? []).map((link: { team_id: string }) => link.team_id));
+  const newTeamIds = rosterTeamIds.filter((teamId) => !existingTeamIds.has(teamId));
+  if (newTeamIds.length) {
+    const { error: linkError } = await database.from("event_teams").upsert(newTeamIds.map((team_id) => ({ event_id: event.id, team_id })), { onConflict: "event_id,team_id" });
+    if (linkError) throw new Error("Could not link the official team roster to the live event.");
+  }
+  const staleTeamIds = reconcile ? [...existingTeamIds].filter((teamId) => !rosterTeamIds.includes(teamId)) : [];
+  if (staleTeamIds.length) {
+    const { error: unlinkError } = await database.from("event_teams").delete().eq("event_id", event.id).in("team_id", staleTeamIds);
+    if (unlinkError) throw new Error("Could not remove withdrawn teams from the event roster.");
+  }
+  return { teamIdByNumber, addedTeamCount: missingNumbers.length, linkedTeamCount: newTeamIds.length, removedTeamCount: staleTeamIds.length };
 }
 
 export async function syncLiveEvent(eventId: string, organizationId: string): Promise<LiveSyncResult> {
   const database: any = createAdminClient();
-  const { data: event, error: eventError } = await database.from("events").select("id,event_key,is_manual,tba_live_matches_etag").eq("id", eventId).eq("organization_id", organizationId).eq("status", "active").maybeSingle();
+  const { data: event, error: eventError } = await database.from("events").select("id,event_key,is_manual,tba_live_matches_etag,tba_teams_etag").eq("id", eventId).eq("organization_id", organizationId).eq("status", "active").maybeSingle();
   if (eventError || !event) return { updated: false, skipped: true, message: "No active event is available." };
   if (event.is_manual) return { updated: false, skipped: true, message: "Manual events do not sync with TBA." };
 
@@ -66,21 +73,46 @@ export async function syncLiveEvent(eventId: string, organizationId: string): Pr
 
   const key = process.env.TBA_AUTH_KEY;
   if (!key) throw new Error("TBA_AUTH_KEY is not configured.");
-  const response = await fetch(`https://www.thebluealliance.com/api/v3/event/${event.event_key}/matches`, {
-    headers: { "X-TBA-Auth-Key": key, ...(event.tba_live_matches_etag ? { "If-None-Match": event.tba_live_matches_etag } : {}) },
-    cache: "no-store",
-  });
-  if (response.status === 304) {
-    await database.from("events").update({ tba_last_live_synced_at: now.toISOString() }).eq("id", event.id);
-    return { updated: false, message: "Official match data is unchanged." };
+  const [response, rosterResponse] = await Promise.all([
+    fetch(`https://www.thebluealliance.com/api/v3/event/${event.event_key}/matches`, { headers: { "X-TBA-Auth-Key": key, ...(event.tba_live_matches_etag ? { "If-None-Match": event.tba_live_matches_etag } : {}) }, cache: "no-store" }),
+    fetch(`https://www.thebluealliance.com/api/v3/event/${event.event_key}/teams/simple`, { headers: { "X-TBA-Auth-Key": key, ...(event.tba_teams_etag ? { "If-None-Match": event.tba_teams_etag } : {}) }, cache: "no-store" }),
+  ]);
+  if (!response.ok && response.status !== 304) throw new Error(`TBA live match sync returned HTTP ${response.status}.`);
+  if (!rosterResponse.ok && rosterResponse.status !== 304) throw new Error(`TBA live roster sync returned HTTP ${rosterResponse.status}.`);
+
+  let teamIdByNumber = new Map<number, string>();
+  let addedTeamCount = 0;
+  let linkedTeamCount = 0;
+  let removedTeamCount = 0;
+  if (rosterResponse.status !== 304) {
+    const parsedRoster = z.array(tbaSimpleTeamSchema).safeParse(await rosterResponse.json());
+    if (!parsedRoster.success) throw new Error("TBA returned an unexpected live event roster.");
+    const roster = await ensureLiveEventRoster(database, event, organizationId, parsedRoster.data, true);
+    teamIdByNumber = roster.teamIdByNumber;
+    addedTeamCount = roster.addedTeamCount;
+    linkedTeamCount = roster.linkedTeamCount;
+    removedTeamCount = roster.removedTeamCount;
   }
-  if (!response.ok) throw new Error(`TBA live match sync returned HTTP ${response.status}.`);
+  if (response.status === 304) {
+    const update: Record<string, string> = { tba_last_live_synced_at: now.toISOString() };
+    const rosterEtag = rosterResponse.headers.get("etag");
+    if (rosterEtag) update.tba_teams_etag = rosterEtag;
+    await database.from("events").update(update).eq("id", event.id);
+    const rosterChange = addedTeamCount || linkedTeamCount || removedTeamCount;
+    return { updated: Boolean(rosterChange), message: rosterChange ? `Official roster updated${removedTeamCount ? `; removed ${removedTeamCount} withdrawn team${removedTeamCount === 1 ? "" : "s"}` : ""}.` : "Official match and roster data are unchanged." };
+  }
   const parsed = z.array(matchSchema).safeParse(await response.json());
   if (!parsed.success) throw new Error("TBA returned an unexpected live match payload.");
 
   const numberFromKey = (teamKey: string) => Number(teamKey.slice(3));
   const teamNumbers = [...new Set(parsed.data.flatMap((match) => [...match.alliances.red.team_keys, ...match.alliances.blue.team_keys]).map(numberFromKey))];
-  const { teamIdByNumber, addedTeamCount } = await ensureLiveEventRoster(database, event, organizationId, key, teamNumbers);
+  if (teamNumbers.some((number) => !teamIdByNumber.has(number))) {
+    const matchTeams = teamNumbers.map((team_number) => ({ team_number, nickname: null }));
+    const roster = await ensureLiveEventRoster(database, event, organizationId, matchTeams, false);
+    teamIdByNumber = roster.teamIdByNumber;
+    addedTeamCount += roster.addedTeamCount;
+    linkedTeamCount += roster.linkedTeamCount;
+  }
 
   const rows = parsed.data.map((match) => ({
     event_id: event.id,
@@ -100,8 +132,13 @@ export async function syncLiveEvent(eventId: string, organizationId: string): Pr
     const { error } = await database.from("matches").upsert(rows, { onConflict: "event_id,tba_match_key" });
     if (error) throw new Error("Could not save live match results.");
   }
-  await database.from("events").update({ tba_live_matches_etag: response.headers.get("etag"), tba_last_live_synced_at: now.toISOString() }).eq("id", event.id);
-  return { updated: true, message: `Updated ${rows.length} official matches${addedTeamCount ? ` and added ${addedTeamCount} teams` : ""}.` };
+  const update: Record<string, string> = { tba_last_live_synced_at: now.toISOString() };
+  const matchesEtag = response.headers.get("etag");
+  const rosterEtag = rosterResponse.headers.get("etag");
+  if (matchesEtag) update.tba_live_matches_etag = matchesEtag;
+  if (rosterEtag) update.tba_teams_etag = rosterEtag;
+  await database.from("events").update(update).eq("id", event.id);
+  return { updated: true, message: `Updated ${rows.length} official matches${addedTeamCount ? ` and added ${addedTeamCount} teams` : ""}${linkedTeamCount && !addedTeamCount ? ` and linked ${linkedTeamCount} teams` : ""}${removedTeamCount ? `; removed ${removedTeamCount} withdrawn team${removedTeamCount === 1 ? "" : "s"}` : ""}.` };
 }
 
 /** Sync each organization’s active event for the protected production scheduler. */

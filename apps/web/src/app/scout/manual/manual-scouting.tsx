@@ -43,8 +43,8 @@ function PitFields({ payload, setPayload }: { payload: Payload; setPayload: (nex
   }
 
   function setDimensions(nextLength: number, nextWidth: number) {
-    const safeLength = clamp(Math.round(nextLength), 0, 55);
-    const safeWidth = clamp(Math.round(nextWidth), 0, 55);
+    const safeLength = clamp(Math.round(nextLength * 2) / 2, 0, 55);
+    const safeWidth = clamp(Math.round(nextWidth * 2) / 2, 0, 55);
     setPayload((current) => ({ ...current, drivetrain_length: String(safeLength), drivetrain_width: String(safeWidth), dimensions: `${safeLength} in × ${safeWidth} in (${2 * (safeLength + safeWidth)} in perimeter)` }));
   }
 
@@ -74,7 +74,7 @@ function PitFields({ payload, setPayload }: { payload: Payload; setPayload: (nex
 }
 
 function RangeInput({ id, label, value, onChange }: { id: string; label: string; value: number; onChange: (value: number) => void }) {
-  return <label htmlFor={id}><span>{label} <strong>{value} in</strong></span><input id={id} className="scouting-slider" style={{ "--range-progress": `${(value / 55) * 100}%` } as CSSProperties} type="range" min="0" max="55" step="1" value={value} onChange={(event) => onChange(Number(event.target.value))}/></label>;
+  return <label htmlFor={id}><span>{label} <strong>{value} in</strong></span><input id={id} className="scouting-slider" style={{ "--range-progress": `${(value / 55) * 100}%` } as CSSProperties} type="range" min="0" max="55" step="0.5" value={value} onChange={(event) => onChange(Number(event.target.value))}/></label>;
 }
 
 function initialPayloadValue(value: Record<string, unknown> | undefined): Payload {

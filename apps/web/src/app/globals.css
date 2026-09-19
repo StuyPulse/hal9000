@@ -187,7 +187,8 @@
   .auto-path-colors button > span { @apply h-4 w-4 rounded-full border-2 border-white/40; background: var(--pen); }
   .auto-path-colors button.active { @apply border-stuypulse-text bg-stuypulse-elevated text-stuypulse-text ring-1 ring-stuypulse-text; }
   .auto-path-tools .button { @apply min-h-9 px-3 py-1.5 text-xs; }
-  .auto-path-canvas { @apply h-auto w-full touch-none rounded-md border border-stuypulse-border bg-white; aspect-ratio: 1380 / 674; background-image: url('/2026-field-map.png'); background-position: center; background-repeat: no-repeat; background-size: cover; }
+  .auto-path-expand { display: none; }
+  .auto-path-canvas { @apply h-auto w-full touch-none rounded-md border border-stuypulse-border bg-white; aspect-ratio: 1380 / 674; background-image: url('/2026-field-map.png'); background-position: center; background-repeat: no-repeat; background-size: cover; -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
   .auto-notes-label { @apply mb-2 mt-4 block text-xs font-bold text-stuypulse-text; }
   .field label { @apply mb-2 block text-xs font-bold text-stuypulse-text; }
   .field input, .field select, .field textarea, .event-picker select, .assignment-editor select { @apply min-h-11 w-full rounded-lg border border-stuypulse-border bg-stuypulse-bg px-3 py-2.5 text-stuypulse-text outline-none transition-colors placeholder:text-stuypulse-textMuted focus:border-stuypulse-redHover focus:ring-1 focus:ring-stuypulse-redHover; }
@@ -960,6 +961,10 @@
   .submission-meta { @apply gap-x-3 gap-y-1.5 text-[9px]; }
   .auto-path-drawer { @apply -mx-1 p-2; }
   .auto-path-tools { @apply gap-3; }
+  .auto-path-expand { display: inline-flex; }
+  .auto-path-drawer.is-expanded { position: fixed; inset: 0; z-index: 100; margin: 0; display: flex; flex-direction: column; overflow-y: auto; border-radius: 0; padding: max(0.75rem, env(safe-area-inset-top)) max(0.75rem, env(safe-area-inset-right)) max(0.75rem, env(safe-area-inset-bottom)) max(0.75rem, env(safe-area-inset-left)); }
+  .auto-path-drawer.is-expanded .auto-path-tools { position: sticky; top: 0; z-index: 1; padding-bottom: 0.75rem; background: theme('colors.stuypulse.bg'); }
+  .auto-path-drawer.is-expanded .auto-path-canvas { margin: auto 0; max-height: 66dvh; }
   .auto-path-tools > button:not(.button) { @apply h-9 w-9; }
   .event-selector-links a, .filter-tabs a { @apply flex min-h-11 flex-1 items-center justify-center text-center; }
   .filter-tabs, .event-selector-links, .summary-tabs, .team-timeline-metrics { @apply flex-nowrap overflow-x-auto pb-1; -webkit-overflow-scrolling:touch; }

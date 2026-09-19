@@ -22,7 +22,20 @@ export function AutoPathDrawer({ value, onChange }: { value: string; onChange: (
   const [strokes, setStrokes] = useState<Stroke[]>([]);
   const strokesRef = useRef<Stroke[]>([]);
   const [color, setColor] = useState(colors[0]);
+  const [expanded, setExpanded] = useState(false);
   const drawing = useRef(false);
+
+  useEffect(() => {
+    if (!expanded) return;
+    const previousOverflow = document.body.style.overflow;
+    const closeOnEscape = (event: KeyboardEvent) => { if (event.key === "Escape") setExpanded(false); };
+    document.body.style.overflow = "hidden";
+    window.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [expanded]);
 
   function replaceStrokes(next: Stroke[], persist = false) {
     strokesRef.current = next;
@@ -46,5 +59,5 @@ export function AutoPathDrawer({ value, onChange }: { value: string; onChange: (
   function undo() { drawing.current = false; replaceStrokes(strokesRef.current.slice(0, -1), true); }
   function clear() { drawing.current = false; replaceStrokes([], true); }
 
-  return <div className="auto-path-drawer"><div className="auto-path-tools"><div className="auto-path-colors" aria-label="Drawing colors">{colors.map((item) => <button key={item} type="button" aria-label={`Use ${colorNames[item]} pen`} aria-pressed={color === item} className={color === item ? "active" : ""} style={{ "--pen": item } as CSSProperties} onClick={() => setColor(item)}><span aria-hidden="true"/><small>{colorNames[item]}</small></button>)}</div><div className="auto-path-actions"><button type="button" className="button secondary" onClick={undo} disabled={!strokes.length}>Undo stroke</button><button type="button" className="button secondary" onClick={clear} disabled={!strokes.length}>Clear all</button></div></div><canvas ref={canvasRef} width={width} height={height} className="auto-path-canvas" aria-label="Draw autonomous routes over the 2026 field" onPointerDown={begin} onPointerMove={move} onPointerUp={end} onPointerCancel={end} /><p className="muted">Draw up to {maxStrokes} color-coded routes. Undo affects only this open form; submitted reports keep the final drawing.</p></div>;
+  return <div className={`auto-path-drawer${expanded ? " is-expanded" : ""}`} role={expanded ? "dialog" : undefined} aria-modal={expanded || undefined} aria-label={expanded ? "Expanded autonomous path drawing" : undefined}><div className="auto-path-tools"><div className="auto-path-colors" aria-label="Drawing colors">{colors.map((item) => <button key={item} type="button" aria-label={`Use ${colorNames[item]} pen`} aria-pressed={color === item} className={color === item ? "active" : ""} style={{ "--pen": item } as CSSProperties} onClick={() => setColor(item)}><span aria-hidden="true"/><small>{colorNames[item]}</small></button>)}</div><div className="auto-path-actions"><button type="button" className="button secondary" onClick={undo} disabled={!strokes.length}>Undo stroke</button><button type="button" className="button secondary" onClick={clear} disabled={!strokes.length}>Clear all</button><button type="button" className="button secondary auto-path-expand" aria-expanded={expanded} onClick={() => setExpanded((current) => !current)}>{expanded ? "Done" : "Expand drawing"}</button></div></div><canvas ref={canvasRef} width={width} height={height} draggable={false} className="auto-path-canvas" aria-label="Draw autonomous routes over the 2026 field" onContextMenu={(event) => event.preventDefault()} onPointerDown={begin} onPointerMove={move} onPointerUp={end} onPointerCancel={end} /><p className="muted">Draw up to {maxStrokes} color-coded routes. Undo affects only this open form; submitted reports keep the final drawing.</p></div>;
 }
