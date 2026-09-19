@@ -31,6 +31,41 @@ export function manualMatchIsCompetitive({ stage }: ManualMatchDetails) {
   return ["qualification", "quarterfinal", "semifinal", "final", "playoff"].includes(typeof stage === "string" ? stage.trim().toLowerCase() : "");
 }
 
+/** A compact label for dense chart axes; the full label remains available in surrounding UI. */
+export function compactMatchLabel({ match_number, match_type, tba_match_key }: MatchLabelInput) {
+  const key = tba_match_key ?? "";
+  const qualification = key.match(/_qm(\d+)$/);
+  const practice = key.match(/_pm(\d+)$/);
+  const quarterfinal = key.match(/_qf(\d+)m(\d+)$/);
+  const semifinal = key.match(/_sf(\d+)m(\d+)$/);
+  const final = key.match(/_f(\d+)m(\d+)$/);
+  const tiebreaker = key.match(/_ef(\d+)m(\d+)$/);
+
+  if (qualification) return `Q${qualification[1]}`;
+  if (practice) return `P${practice[1]}`;
+  if (quarterfinal) return `QF${quarterfinal[1]}${quarterfinal[2]}`;
+  if (semifinal) return `SF${semifinal[1]}${semifinal[2]}`;
+  if (final) return `F${final[2]}`;
+  if (tiebreaker) return `EF${tiebreaker[2]}`;
+
+  const number = match_number ?? "—";
+  if (match_type === "qualification") return `Q${number}`;
+  if (match_type === "practice") return `P${number}`;
+  return `SF${number}`;
+}
+
+export function compactManualMatchLabel({ stage, label }: ManualMatchDetails) {
+  const number = typeof label === "string" ? label.trim() : "";
+  const normalizedStage = typeof stage === "string" ? stage.trim().toLowerCase() : "";
+  if (!number) return normalizedStage === "other" ? "Manual" : "Match";
+  if (normalizedStage === "qualification") return `Q${number}`;
+  if (normalizedStage === "practice") return `P${number}`;
+  if (normalizedStage === "quarterfinal") return `QF${number}`;
+  if (normalizedStage === "semifinal" || normalizedStage === "playoff") return `SF${number}`;
+  if (normalizedStage === "final") return `F${number}`;
+  return number;
+}
+
 export function matchLabel({ match_number, match_type, tba_match_key }: MatchLabelInput) {
   const key = tba_match_key ?? "";
   const qualification = key.match(/_qm(\d+)$/);
