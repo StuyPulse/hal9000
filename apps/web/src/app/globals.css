@@ -69,6 +69,7 @@
   .stats { @apply grid-cols-4; }
   .dashboard-stats { @apply grid-cols-2; max-width: 680px; }
   .card { @apply rounded-panel bg-stuypulse-surface p-5 shadow-panel; }
+  .admin-stack { @apply grid gap-4; }
   .stat-value { @apply mt-3.5 text-3xl font-extrabold leading-none tracking-[-0.07em]; }
   .stat-label { @apply text-xs font-semibold text-stuypulse-textMuted; }
   .trend { @apply mt-2 text-[11px] font-medium text-stuypulse-success; font-family: 'DM Mono', monospace; }
