@@ -10,18 +10,29 @@ export function OfflineQueuePanel() {
   const [entries, setEntries] = useState<QueuedScoutingEntry[]>([]);
   const [lastSync, setLastSync] = useState<string | null>(null);
   const [syncing, setSyncing] = useState(false);
+  const [syncMessage, setSyncMessage] = useState<string | null>(null);
   const refresh = useCallback(async () => { setEntries(await listQueuedScoutingEntries()); setLastSync(getLastSuccessfulSync()); }, []);
   useEffect(() => {
     const initialRefresh = window.setTimeout(() => void refresh(), 0);
     const unsubscribe = onOfflineQueueChanged(() => void refresh());
     return () => { window.clearTimeout(initialRefresh); unsubscribe(); };
   }, [refresh]);
-  async function sync() { setSyncing(true); try { await syncQueuedScoutingEntries(); } finally { await refresh(); setSyncing(false); } }
+  async function sync() {
+    if (syncing) return;
+    setSyncing(true);
+    try {
+      const result = await syncQueuedScoutingEntries();
+      setSyncMessage(result.failed ? result.failureMessage : result.synced ? `Uploaded ${result.synced} report${result.synced === 1 ? "" : "s"}.` : null);
+    } finally {
+      await refresh();
+      setSyncing(false);
+    }
+  }
   function downloadBackup() {
     const file = new Blob([JSON.stringify(entries, null, 2)], { type: "application/json" });
     const url = URL.createObjectURL(file);
     const link = document.createElement("a");
     link.href = url; link.download = `hal9000-offline-backup-${new Date().toISOString().slice(0, 10)}.json`; link.click(); URL.revokeObjectURL(url);
   }
-  return <section className="card offline-queue-panel"><div className="card-head"><div><h2>Saved on this device</h2><p className="muted">Reports are assigned a permanent ID and upload safely once a connection is available.</p></div><div className="offline-queue-actions"><button className="button secondary" type="button" onClick={() => void sync()} disabled={syncing}>{syncing ? "Syncing…" : <><RefreshCw size={15}/>Retry sync</>}</button><button className="button secondary" type="button" onClick={downloadBackup} disabled={!entries.length}><Download size={15}/>Download backup</button></div></div>{lastSync && <p className="trend">Last successful local sync: {new Date(lastSync).toLocaleString()}</p>}{entries.length ? <div className="offline-queue-list">{entries.map((entry) => <div key={entry.id}><strong>{labels[entry.entry_type]}</strong><span>{entry.status === "submitted" ? "Ready to submit" : "Draft"} · saved {new Date(entry.queued_at).toLocaleString()}</span></div>)}</div> : <p className="muted">Nothing is waiting to upload.</p>}</section>;
+  return <section className="card offline-queue-panel"><div className="card-head"><div><h2>Saved on this device</h2><p className="muted">Reports are assigned a permanent ID and upload safely once a connection is available.</p></div><div className="offline-queue-actions"><button className="button secondary" type="button" onClick={() => void sync()} disabled={syncing}>{syncing ? "Syncing…" : <><RefreshCw size={15}/>Retry sync</>}</button><button className="button secondary" type="button" onClick={downloadBackup} disabled={!entries.length}><Download size={15}/>Download backup</button></div></div>{syncMessage && <p className="trend" role="status">{syncMessage}</p>}{lastSync && <p className="trend">Last successful local sync: {new Date(lastSync).toLocaleString()}</p>}{entries.length ? <div className="offline-queue-list">{entries.map((entry) => <div key={entry.id}><strong>{labels[entry.entry_type]}</strong><span>{entry.status === "submitted" ? "Ready to submit" : "Draft"} · saved {new Date(entry.queued_at).toLocaleString()}</span></div>)}</div> : <p className="muted">Nothing is waiting to upload.</p>}</section>;
 }

@@ -22,6 +22,20 @@ const databaseName = "hal9000-offline";
 const storeName = "scouting-entry-queue";
 const queueChangedEvent = "hal9000:offline-queue-changed";
 const lastSyncKey = "hal9000:last-successful-sync";
+const uploadTimeoutMs = 8_000;
+
+type UploadAttempt = {
+  error: string | null;
+  timedOut: boolean;
+  transient: boolean;
+};
+
+export type QueuedSyncResult = {
+  synced: number;
+  failed: number;
+  pending: number;
+  failureMessage: string | null;
+};
 
 function openDatabase() {
   return new Promise<IDBDatabase>((resolve, reject) => {
@@ -85,23 +99,68 @@ export function getLastSuccessfulSync() {
   return window.localStorage.getItem(lastSyncKey);
 }
 
-export async function syncQueuedScoutingEntries() {
-  if (!navigator.onLine) return { synced: 0, failed: 0, pending: (await listQueuedScoutingEntries()).length };
+function getErrorMessage(error: unknown) {
+  return error instanceof Error ? error.message : String(error ?? "Could not upload this report.");
+}
+
+function isTransientUploadError(message: string) {
+  return /abort|fetch|network|failed to fetch|offline|timed out|timeout/i.test(message);
+}
+
+async function upsertScoutingEntry(
+  supabase: any,
+  entry: Omit<QueuedScoutingEntry, "queued_at">,
+): Promise<UploadAttempt> {
+  const controller = new AbortController();
+  let timedOut = false;
+  const timeout = window.setTimeout(() => {
+    timedOut = true;
+    controller.abort();
+  }, uploadTimeoutMs);
+
+  try {
+    const { error } = await supabase
+      .from("scouting_entries")
+      .upsert(entry, { onConflict: "id" })
+      .abortSignal(controller.signal);
+    const message = error ? getErrorMessage(error) : null;
+    return { error: message, timedOut, transient: timedOut || Boolean(message && isTransientUploadError(message)) };
+  } catch (error) {
+    const message = getErrorMessage(error);
+    return { error: message, timedOut, transient: timedOut || isTransientUploadError(message) };
+  } finally {
+    window.clearTimeout(timeout);
+  }
+}
+
+function syncFailureMessage(attempt: UploadAttempt) {
+  if (attempt.timedOut) return "Upload timed out. Check the connection and retry.";
+  if (attempt.transient) return "Could not reach the server. Check the connection and retry.";
+  return "The server could not accept this report yet. It remains saved on this device.";
+}
+
+export async function syncQueuedScoutingEntries(): Promise<QueuedSyncResult> {
   const entries = await listQueuedScoutingEntries();
+  if (!navigator.onLine) {
+    return { synced: 0, failed: 0, pending: entries.length, failureMessage: "You are offline. Reports remain saved on this device." };
+  }
+
   const supabase: any = createClient();
   let synced = 0;
   let failed = 0;
+  let failureMessage: string | null = null;
   for (const { queued_at: _queuedAt, ...entry } of entries) {
-    const { error } = await supabase.from("scouting_entries").upsert(entry, { onConflict: "id" });
-    if (error) {
+    const attempt = await upsertScoutingEntry(supabase, entry);
+    if (attempt.error) {
       failed += 1;
+      failureMessage ??= syncFailureMessage(attempt);
       continue;
     }
     await removeQueuedScoutingEntry(entry.id);
     synced += 1;
   }
   if (synced > 0) window.localStorage.setItem(lastSyncKey, new Date().toISOString());
-  return { synced, failed, pending: failed };
+  return { synced, failed, pending: failed, failureMessage };
 }
 
 /** A captive portal can leave fetch pending even though navigator.onLine says
@@ -109,19 +168,9 @@ export async function syncQueuedScoutingEntries() {
 export async function tryUpsertScoutingEntry(entry: Omit<QueuedScoutingEntry, "queued_at">) {
   if (!navigator.onLine) return { error: null as string | null, shouldQueue: true };
   const supabase: any = createClient();
-  let timeout: number | undefined;
-  try {
-    const outcome: any = await Promise.race([
-      supabase.from("scouting_entries").upsert(entry, { onConflict: "id" }).then((result: any) => ({ kind: "result", result })).catch(() => ({ kind: "network" })),
-      new Promise((resolve) => { timeout = window.setTimeout(() => resolve({ kind: "timeout" }), 6000); }),
-    ]);
-    if (outcome.kind === "timeout" || outcome.kind === "network") return { error: null as string | null, shouldQueue: true };
-    const error = outcome.result?.error;
-    const message = String(error?.message ?? "");
-    return { error: error ? message || "Could not save your report." : null, shouldQueue: Boolean(error && /fetch|network|failed to fetch|offline/i.test(message)) };
-  } finally {
-    if (timeout !== undefined) window.clearTimeout(timeout);
-  }
+  const attempt = await upsertScoutingEntry(supabase, entry);
+  if (attempt.transient) return { error: null as string | null, shouldQueue: true };
+  return { error: attempt.error || "Could not save your report.", shouldQueue: false };
 }
 
 export function onOfflineQueueChanged(listener: () => void) {
