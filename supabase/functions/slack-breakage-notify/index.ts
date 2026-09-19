@@ -15,8 +15,8 @@ type BreakageNotification = {
 function manualMatchLabel(manualMatch: BreakageNotification["payload"]["manual_match"]) {
   const stage = manualMatch?.stage?.trim() ?? "";
   const label = manualMatch?.label?.trim() ?? "";
-  const stageLabel = ({ qualification: "Qualification", practice: "Practice", quarterfinal: "Quarterfinal", semifinal: "Semifinal", final: "Final" } as Record<string, string>)[stage.toLowerCase()] ?? (stage && !["other", "other / exception", "manual match"].includes(stage.toLowerCase()) ? stage : "Manual report");
-  return label ? `${stageLabel} ${label}` : stageLabel;
+  const stageLabel = ({ qualification: "Qualification", practice: "Practice", quarterfinal: "Quarterfinal", semifinal: "Semifinal", final: "Final" } as Record<string, string>)[stage.toLowerCase()] ?? (stage && !["other", "other / exception", "manual match"].includes(stage.toLowerCase()) ? stage : "");
+  return label ? `${stageLabel || "Match"} ${label}` : stageLabel || "Match details unavailable";
 }
 
 const requiredSecret = (name: string) => {
@@ -34,32 +34,30 @@ const secretApiKey = () => {
 
 function messageFor(notification: BreakageNotification) {
   const { payload } = notification;
-  const issues = Array.isArray(payload.issues) && payload.issues.length
-    ? payload.issues
-      .map(({ timestamp, issue }) => `• ${timestamp ? `${timestamp} — ` : ""}${issue || "Breakage reported"}`)
-      .join("\n")
-    : "• Breakage reported (no issue details entered)";
-  const title = `:warning: Breakage reported — Team ${payload.team_number ?? "unknown"}`;
+  const issues = (Array.isArray(payload.issues) ? payload.issues : []).filter((issue) => issue.issue?.trim());
+  const [firstIssue, ...additionalIssues] = issues;
+  const primaryIssue = firstIssue?.issue?.trim() ?? "Breakage reported";
+  const title = `⚠️ ${payload.team_number ?? "Unknown team"} - ${primaryIssue}`.slice(0, 150);
   const matchType = payload.match_type === "practice" ? "Practice" : payload.match_type === "playoff" ? "Playoff Match" : "Qualification";
-  const match = payload.match_number ? `${matchType} ${payload.match_number}` : manualMatchLabel(payload.manual_match);
+  const match = typeof payload.match_number === "number" ? `${matchType} ${payload.match_number}` : manualMatchLabel(payload.manual_match);
+  const details = [
+    `*Match:* ${match}`,
+    `*Scout:* ${payload.scout_name ?? "Unknown"}`,
+    ...(additionalIssues.length ? [`*Additional issues:*\n${additionalIssues.map(({ timestamp, issue }) => `• ${timestamp ? `${timestamp} — ` : ""}${issue}`).join("\n")}`] : []),
+  ];
 
   return {
     text: title,
     blocks: [
       {
         type: "header",
-        text: { type: "plain_text", text: title.replace(":warning: ", "⚠️ ") },
+        text: { type: "plain_text", text: title },
       },
       {
         type: "section",
         text: {
           type: "mrkdwn",
-          text: [
-            `*Event:* ${payload.event_name ?? "Unknown event"}`,
-            `*Match:* ${match}`,
-            `*Scout:* ${payload.scout_name ?? "Unknown"}`,
-            `*Issues:*\n${issues}`,
-          ].join("\n"),
+          text: details.join("\n"),
         },
       },
     ],

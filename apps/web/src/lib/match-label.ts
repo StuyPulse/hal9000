@@ -23,8 +23,8 @@ export function manualMatchLabel({ stage, label }: ManualMatchDetails) {
   const rawLabel = typeof label === "string" ? label.trim() : "";
   const normalizedStage = rawStage.toLowerCase();
   const stageLabel = manualStageNames[normalizedStage]
-    ?? (normalizedStage === "other" || normalizedStage === "other / exception" || normalizedStage === "manual match" ? "Manual report" : rawStage || "Manual report");
-  return rawLabel ? `${stageLabel} ${rawLabel}` : stageLabel;
+    ?? (normalizedStage === "other" || normalizedStage === "other / exception" || normalizedStage === "manual match" ? "" : rawStage);
+  return rawLabel ? `${stageLabel || "Match"} ${rawLabel}` : stageLabel || "Match details unavailable";
 }
 
 export function manualMatchIsCompetitive({ stage }: ManualMatchDetails) {
