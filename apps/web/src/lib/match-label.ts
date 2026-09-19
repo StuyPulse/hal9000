@@ -54,8 +54,8 @@ export function matchLabel({ match_number, match_type, tba_match_key }: MatchLab
 }
 
 export function matchRoundOrder({ match_type, tba_match_key }: Pick<MatchLabelInput, "match_type" | "tba_match_key">) {
-  if (match_type === "qualification") return 0;
-  if (match_type === "practice") return 1;
+  if (match_type === "practice") return 0;
+  if (match_type === "qualification") return 1;
   const key = tba_match_key ?? "";
   if (/_qf\d+m\d+$/.test(key)) return 2;
   if (/_sf\d+m\d+$/.test(key)) return 3;

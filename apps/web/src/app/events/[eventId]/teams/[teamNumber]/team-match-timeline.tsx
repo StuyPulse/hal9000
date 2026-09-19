@@ -16,7 +16,7 @@ const value = (number: number | null) => number === null ? "—" : number.toFixe
 export function TeamMatchTimeline({ matches, teamNames }: { matches: TimelineMatch[]; teamNames: Record<string, string> }) {
   const [metrics, setMetrics] = useState<MetricKey[]>(["totalFuel", "autoFuel", "teleopFuel"]);
   const [openReport, setOpenReport] = useState<string | null>(null);
-  const [matchScope, setMatchScope] = useState<"all" | "competitive" | "practice">("all");
+  const [matchScope, setMatchScope] = useState<"all" | "competitive" | "practice">("competitive");
   const visibleMatches = matches.filter((match) => matchScope === "all" || (matchScope === "practice" ? match.matchType === "practice" : match.matchType === "qualification" || match.matchType === "playoff"));
   const hasData = visibleMatches.some((match) => match.hasScout);
   const chartData = visibleMatches.map((match) => ({ ...match, match: match.label, ...Object.fromEntries(metricOptions.map(({ key }) => [key, match[key] ?? undefined])) }));
