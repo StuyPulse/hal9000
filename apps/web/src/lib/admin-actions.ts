@@ -53,6 +53,12 @@ function revalidateLocalMatch(event: { id: string; event_key: string }) {
   revalidatePath("/admin/assignments");
 }
 
+function revalidateManualMatchCompletion(event: { id: string; event_key: string }) {
+  revalidateLocalMatch(event);
+  revalidatePath(`/events/${event.event_key}/strategy`);
+  revalidatePath(`/events/${event.event_key}/summary`);
+}
+
 export async function createLocalMatch(_: ActionState, formData: FormData): Promise<ActionState> {
   try {
     const context = await localMatchContext(formData);
@@ -115,6 +121,26 @@ export async function deleteLocalMatch(_: ActionState, formData: FormData): Prom
     revalidateLocalMatch(event);
     return { success: "Manual match deleted." };
   } catch { return { error: "Admin access is required to delete a manual match." }; }
+}
+
+export async function completeManualMatch(_: ActionState, formData: FormData): Promise<ActionState> {
+  try {
+    const input = z.object({ eventId: z.string().uuid(), matchId: z.string().uuid() }).safeParse({ eventId: formData.get("eventId"), matchId: formData.get("matchId") });
+    if (!input.success) return { error: "This manual match could not be identified." };
+
+    const { organizationId } = await adminContext();
+    const database: any = createAdminClient();
+    const { data: event } = await database.from("events").select("id,event_key,is_manual").eq("id", input.data.eventId).eq("organization_id", organizationId).maybeSingle();
+    if (!event) return { error: "This event is unavailable." };
+    const { data: match } = await database.from("matches").select("id,tba_match_key,status").eq("id", input.data.matchId).eq("event_id", event.id).maybeSingle();
+    if (!match || (!event.is_manual && !String(match.tba_match_key).startsWith("manual_"))) return { error: "Only manual matches can be marked complete." };
+    if (match.status === "played") return { success: "This manual match is already complete." };
+
+    const { error } = await database.from("matches").update({ status: "played" }).eq("id", match.id).eq("event_id", event.id);
+    if (error) return importDatabaseError("manual match completion", error);
+    revalidateManualMatchCompletion(event);
+    return { success: "Manual match marked complete." };
+  } catch { return { error: "Admin access is required to complete a manual match." }; }
 }
 
 const manualEventSchema = z.object({ name: z.string().trim().min(3).max(160), startsAt: z.string().date(), endsAt: z.string().date().optional() }).refine((input) => !input.endsAt || input.endsAt >= input.startsAt, { message: "The end date must not be before the event date." });

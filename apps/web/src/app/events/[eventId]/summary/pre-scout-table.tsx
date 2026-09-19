@@ -29,6 +29,7 @@ export function PreScoutTable({ rows }: { rows: PreScoutRow[] }) {
   return <div className="pre-scout-table-shell">
     <div className="pre-scout-table-sticky-header" aria-hidden="true">
       <table style={{ transform: `translateX(${-scrollLeft}px)` }}>{colgroup}<thead>{header}</thead></table>
+      <span className="pre-scout-team-header">Team</span>
     </div>
     <div ref={scrollRef} className="table-scroll pre-scout-table-scroll" onScroll={(event) => setScrollLeft(event.currentTarget.scrollLeft)}>
       <table className="pre-scout-table" aria-label="Pre-scout reports">

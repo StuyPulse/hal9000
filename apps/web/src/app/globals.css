@@ -433,8 +433,8 @@
   .practice-match-form { @apply mt-3 grid items-end gap-3; grid-template-columns: minmax(10rem, 12rem) minmax(6.5rem, 8rem) minmax(14rem, 1fr) minmax(14rem, 1fr) auto; }
   .practice-match-form .app-select { min-inline-size: 0; }
   .practice-match-form > .button { @apply min-h-11 whitespace-nowrap; min-inline-size: 9.5rem; }
-  .practice-delete { @apply mt-3 flex flex-wrap items-center gap-3; }
-  .practice-delete .error, .practice-delete .trend { @apply m-0; }
+  .practice-complete, .practice-delete { @apply mt-3 flex flex-wrap items-center gap-3; }
+  .practice-complete .error, .practice-complete .trend, .practice-delete .error, .practice-delete .trend { @apply m-0; }
   .practice-match-list { @apply mt-4 grid gap-1; }
   .practice-match-list button { @apply grid grid-cols-[auto_1fr] items-baseline gap-x-3 rounded-md border border-transparent px-3 py-2 text-left text-xs transition hover:border-stuypulse-border hover:bg-stuypulse-elevated; }
   .practice-match-list button.active { @apply border-stuypulse-red/60 bg-stuypulse-red/10; }
@@ -542,6 +542,10 @@
   .team-timeline-match span, .team-timeline-result span, .team-timeline-coverage span { @apply text-[10px] font-medium text-stuypulse-textMuted; font-family:'DM Mono',monospace; }
   .team-timeline-match span { @apply font-bold uppercase; }
   .team-timeline-actions { @apply flex justify-end gap-3 text-nowrap; }
+  .team-timeline-quick-stats { @apply col-span-full grid grid-cols-[auto_repeat(2,minmax(0,1fr))_auto_repeat(2,minmax(0,1fr))] items-center gap-x-3 border-t border-stuypulse-border pt-2 text-[10px] text-stuypulse-textMuted; font-family:'DM Mono',monospace; }
+  .team-timeline-quick-stats > span { @apply flex min-w-0 items-center gap-1 whitespace-nowrap; }
+  .team-timeline-quick-stats > span:nth-child(1), .team-timeline-quick-stats > span:nth-child(4) { @apply font-bold uppercase tracking-[0.08em] text-stuypulse-text; }
+  .team-timeline-quick-stats strong { @apply font-bold text-stuypulse-textMuted; }
   .timeline-action-button { @apply inline-flex min-h-9 items-center gap-1 rounded-md border border-stuypulse-border bg-stuypulse-bg px-2.5 text-xs font-bold text-stuypulse-textMuted transition hover:border-stuypulse-red hover:text-stuypulse-text; }
   .timeline-disclosure { @apply grid min-h-9 min-w-9 place-items-center rounded-md border border-stuypulse-border bg-stuypulse-bg text-stuypulse-textMuted transition hover:border-stuypulse-red hover:text-stuypulse-text; }
   .timeline-disclosure svg { @apply transition-transform duration-200; }
@@ -695,10 +699,11 @@
   .pre-scout-table-sticky-header { @apply sticky top-0 z-40 overflow-hidden; background:#252930; }
   .pre-scout-table-sticky-header table, .pre-scout-table { @apply min-w-[2060px]; border-collapse:separate; border-spacing:0; table-layout:fixed; }
   .pre-scout-table-sticky-header th { @apply whitespace-nowrap bg-stuypulse-elevated px-3 py-3 text-left text-xs font-extrabold uppercase tracking-[0.06em] text-stuypulse-textMuted; font-family:'DM Mono',monospace; }
+  .pre-scout-team-header { @apply absolute left-0 top-0 z-50 flex h-full w-[180px] items-center border-r border-stuypulse-border bg-stuypulse-elevated px-3 text-left text-xs font-extrabold uppercase tracking-[0.06em] text-stuypulse-textMuted; font-family:'DM Mono',monospace; box-shadow:4px 0 8px rgb(0 0 0 / 0.15); }
   .pre-scout-table-scroll { @apply overflow-x-auto; overflow-y:visible; scrollbar-gutter:stable both-edges; }
   .pre-scout-table td { @apply whitespace-pre-wrap break-words align-top px-3 py-3 text-xs leading-relaxed text-stuypulse-textMuted; }
   .pre-scout-table tbody tr + tr td { @apply border-t border-stuypulse-border; }
-  .pre-scout-table td.pre-scout-team { @apply text-stuypulse-text; }
+  .pre-scout-table td.pre-scout-team { @apply sticky left-0 z-20 border-r border-stuypulse-border bg-stuypulse-surface text-stuypulse-text; box-shadow:4px 0 8px rgb(0 0 0 / 0.15); }
   .pre-scout-team strong, .pre-scout-team span { @apply block; }
   .pre-scout-team strong { @apply text-base font-extrabold; }
   .pre-scout-team span { @apply mt-0.5 text-[11px] text-stuypulse-textMuted; }
@@ -943,6 +948,8 @@
   .team-overview-metrics > div:nth-child(4) { @apply border-t border-stuypulse-border pt-4; }
   .team-timeline-chart { @apply h-[260px] p-2; }
   .team-timeline-row { @apply grid-cols-2 gap-x-3 gap-y-2 px-3 py-3; }
+  .team-timeline-quick-stats { @apply grid-cols-2 gap-x-3 gap-y-1; }
+  .team-timeline-quick-stats > span:nth-child(1), .team-timeline-quick-stats > span:nth-child(4) { @apply col-span-2; }
   .team-timeline-head-actions { @apply w-full justify-between; }
   .team-timeline-head-actions .app-select { @apply min-w-0; }
   .team-timeline-actions { @apply col-span-2 justify-start border-t border-stuypulse-border pt-2; }
