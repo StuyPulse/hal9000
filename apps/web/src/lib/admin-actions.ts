@@ -18,27 +18,103 @@ async function adminContext() {
   return { supabase, organizationId: member.organization_id };
 }
 
+const practiceMatchSchema = z.object({ eventId: z.string().uuid(), matchId: z.union([z.literal(""), z.string().uuid()]), matchNumber: z.coerce.number().int().positive(), redTeams: z.string(), blueTeams: z.string() });
+const parseAlliance = (value: string) => [...new Set(value.split(/[\s,]+/).filter(Boolean).map(Number))];
+
+async function practiceMatchContext(formData: FormData) {
+  const parsed = practiceMatchSchema.safeParse({ eventId: formData.get("eventId"), matchId: formData.get("matchId") || "", matchNumber: formData.get("matchNumber"), redTeams: formData.get("redTeams"), blueTeams: formData.get("blueTeams") });
+  if (!parsed.success) return { error: "Enter a positive practice-match number and the red and blue team numbers." } as const;
+  const redNumbers = parseAlliance(parsed.data.redTeams), blueNumbers = parseAlliance(parsed.data.blueTeams);
+  if (!redNumbers.length || !blueNumbers.length || redNumbers.length > 3 || blueNumbers.length > 3 || [...redNumbers, ...blueNumbers].some((number) => !Number.isInteger(number) || number <= 0) || redNumbers.some((number) => blueNumbers.includes(number))) return { error: "Enter one to three distinct positive team numbers for each alliance." } as const;
+  const { organizationId } = await adminContext();
+  const database: any = createAdminClient();
+  const { data: event } = await database.from("events").select("id,event_key").eq("id", parsed.data.eventId).eq("organization_id", organizationId).maybeSingle();
+  if (!event) return { error: "This event is unavailable." } as const;
+  const numbers = [...redNumbers, ...blueNumbers];
+  const { data: existingTeams, error: teamsError } = await database.from("teams").select("id,team_number").eq("organization_id", organizationId).in("team_number", numbers);
+  if (teamsError) return { error: "Couldn’t load the team directory." } as const;
+  const teamIdByNumber = new Map((existingTeams ?? []).map((team: any) => [team.team_number, team.id]));
+  const missing = numbers.filter((number) => !teamIdByNumber.has(number));
+  if (missing.length) {
+    const { error } = await database.from("teams").insert(missing.map((team_number) => ({ organization_id: organizationId, team_number, name: `FRC Team ${team_number}` })));
+    if (error) return { error: importDatabaseError("practice-match teams", error).error! } as const;
+    const { data: added, error: addedError } = await database.from("teams").select("id,team_number").eq("organization_id", organizationId).in("team_number", missing);
+    if (addedError) return { error: "Couldn’t reload the new teams." } as const;
+    (added ?? []).forEach((team: any) => teamIdByNumber.set(team.team_number, team.id));
+  }
+  const { error: linkError } = await database.from("event_teams").upsert(numbers.map((number) => ({ event_id: event.id, team_id: teamIdByNumber.get(number)! })), { onConflict: "event_id,team_id" });
+  if (linkError) return { error: importDatabaseError("practice-match event teams", linkError).error! } as const;
+  return { database, event, parsed: parsed.data, redTeamIds: redNumbers.map((number) => teamIdByNumber.get(number)!), blueTeamIds: blueNumbers.map((number) => teamIdByNumber.get(number)!) } as const;
+}
+
+function revalidatePracticeMatch(event: { id: string; event_key: string }) {
+  revalidatePath("/scout/match");
+  revalidatePath(`/events/${event.event_key}/matches`);
+  revalidatePath("/admin/assignments");
+}
+
 export async function createPracticeMatch(_: ActionState, formData: FormData): Promise<ActionState> {
   try {
-    const parsed = z.object({ eventId: z.string().uuid(), matchNumber: z.coerce.number().int().positive(), redTeams: z.string(), blueTeams: z.string() }).safeParse({ eventId: formData.get("eventId"), matchNumber: formData.get("matchNumber"), redTeams: formData.get("redTeams"), blueTeams: formData.get("blueTeams") });
-    if (!parsed.success) return { error: "Enter a positive practice-match number and the red and blue team numbers." };
-    const parseAlliance = (value: string) => [...new Set(value.split(/[\\s,]+/).filter(Boolean).map(Number))];
-    const redNumbers = parseAlliance(parsed.data.redTeams), blueNumbers = parseAlliance(parsed.data.blueTeams);
-    if (!redNumbers.length || !blueNumbers.length || redNumbers.length > 3 || blueNumbers.length > 3 || [...redNumbers, ...blueNumbers].some((number) => !Number.isInteger(number) || number <= 0) || redNumbers.some((number) => blueNumbers.includes(number))) return { error: "Enter one to three distinct positive team numbers for each alliance." };
-    const { organizationId } = await adminContext(); const database: any = createAdminClient();
-    const { data: event } = await database.from("events").select("id").eq("id", parsed.data.eventId).eq("organization_id", organizationId).maybeSingle();
-    if (!event) return { error: "This event is unavailable." };
-    const numbers = [...redNumbers, ...blueNumbers];
-    const { data: existingTeams } = await database.from("teams").select("id,team_number").eq("organization_id", organizationId).in("team_number", numbers);
-    const existingByNumber = new Map((existingTeams ?? []).map((team: any) => [team.team_number, team.id]));
-    const missing = numbers.filter((number) => !existingByNumber.has(number));
-    if (missing.length) { const { error } = await database.from("teams").insert(missing.map((team_number) => ({ organization_id: organizationId, team_number, name: `FRC Team ${team_number}` }))); if (error) return importDatabaseError("practice-match teams", error); const { data: added } = await database.from("teams").select("id,team_number").eq("organization_id", organizationId).in("team_number", missing); (added ?? []).forEach((team: any) => existingByNumber.set(team.team_number, team.id)); }
-    const teamLinks = numbers.map((number) => ({ event_id: event.id, team_id: existingByNumber.get(number) }));
-    const { error: linkError } = await database.from("event_teams").upsert(teamLinks, { onConflict: "event_id,team_id" }); if (linkError) return importDatabaseError("practice-match event teams", linkError);
-    const { error } = await database.from("matches").insert({ event_id: event.id, tba_match_key: `manual_practice_${randomUUID()}`, match_number: parsed.data.matchNumber, match_type: "practice", red_teams: redNumbers.map((number) => existingByNumber.get(number)), blue_teams: blueNumbers.map((number) => existingByNumber.get(number)), status: "scheduled" });
+    const context = await practiceMatchContext(formData);
+    if ("error" in context) return { error: context.error };
+    const { error } = await context.database.from("matches").insert({ event_id: context.event.id, tba_match_key: `manual_practice_${randomUUID()}`, match_number: context.parsed.matchNumber, match_type: "practice", red_teams: context.redTeamIds, blue_teams: context.blueTeamIds, status: "scheduled" });
     if (error) return importDatabaseError("practice match", error);
-    revalidatePath("/scout/match"); revalidatePath(`/events/${parsed.data.eventId}/matches`); return { success: "Practice match added locally. It will never be sent to or overwritten by TBA." };
+    revalidatePracticeMatch(context.event);
+    return { success: "Practice match added locally. It will never be sent to or overwritten by TBA." };
   } catch { return { error: "Admin access is required to add a practice match." }; }
+}
+
+export async function updatePracticeMatch(_: ActionState, formData: FormData): Promise<ActionState> {
+  try {
+    const target = z.object({ eventId: z.string().uuid(), matchId: z.string().uuid() }).safeParse({ eventId: formData.get("eventId"), matchId: formData.get("matchId") });
+    if (!target.success) return { error: "This practice match could not be identified." };
+    const { organizationId } = await adminContext();
+    const preflightDatabase: any = createAdminClient();
+    const { data: protectedMatch } = await preflightDatabase.from("matches").select("id").eq("id", target.data.matchId).eq("event_id", target.data.eventId).eq("match_type", "practice").like("tba_match_key", "manual_practice_%").maybeSingle();
+    const { data: protectedEvent } = await preflightDatabase.from("events").select("id").eq("id", target.data.eventId).eq("organization_id", organizationId).maybeSingle();
+    if (!protectedEvent || !protectedMatch) return { error: "Only locally created practice matches can be edited." };
+    const context = await practiceMatchContext(formData);
+    if ("error" in context) return { error: context.error };
+    const { data: match } = await context.database.from("matches").select("id,red_teams,blue_teams").eq("id", context.parsed.matchId).eq("event_id", context.event.id).eq("match_type", "practice").like("tba_match_key", "manual_practice_%").maybeSingle();
+    if (!match) return { error: "Only locally created practice matches can be edited." };
+    const changedTeams = [...match.red_teams, ...match.blue_teams].sort().join(":") !== [...context.redTeamIds, ...context.blueTeamIds].sort().join(":");
+    if (changedTeams) {
+      const [{ data: reports }, { data: legacySubmissions }, { data: completeAssignments }] = await Promise.all([
+        context.database.from("scouting_entries").select("id").eq("match_id", match.id).eq("status", "submitted").limit(1),
+        context.database.from("match_submissions").select("id").eq("match_id", match.id).limit(1),
+        context.database.from("scouting_assignments").select("id").eq("match_id", match.id).eq("status", "complete").limit(1),
+      ]);
+      if (reports?.length || legacySubmissions?.length || completeAssignments?.length) return { error: "This practice match has submitted reports, so its teams cannot be changed." };
+      const { error: clearAssignmentsError } = await context.database.from("scouting_assignments").delete().eq("match_id", match.id).neq("status", "complete");
+      if (clearAssignmentsError) return importDatabaseError("pending practice assignments", clearAssignmentsError);
+    }
+    const { error } = await context.database.from("matches").update({ match_number: context.parsed.matchNumber, red_teams: context.redTeamIds, blue_teams: context.blueTeamIds }).eq("id", match.id);
+    if (error) return importDatabaseError("practice match", error);
+    revalidatePracticeMatch(context.event);
+    return { success: "Practice match updated." };
+  } catch { return { error: "Admin access is required to edit a practice match." }; }
+}
+
+export async function deletePracticeMatch(_: ActionState, formData: FormData): Promise<ActionState> {
+  try {
+    const input = z.object({ eventId: z.string().uuid(), matchId: z.string().uuid() }).safeParse({ eventId: formData.get("eventId"), matchId: formData.get("matchId") });
+    if (!input.success) return { error: "This practice match could not be identified." };
+    const { organizationId } = await adminContext();
+    const database: any = createAdminClient();
+    const { data: event } = await database.from("events").select("id,event_key").eq("id", input.data.eventId).eq("organization_id", organizationId).maybeSingle();
+    if (!event) return { error: "This event is unavailable." };
+    const { data: match } = await database.from("matches").select("id").eq("id", input.data.matchId).eq("event_id", event.id).eq("match_type", "practice").like("tba_match_key", "manual_practice_%").maybeSingle();
+    if (!match) return { error: "Only locally created practice matches can be deleted." };
+    const [{ data: reports }, { data: legacySubmissions }] = await Promise.all([
+      database.from("scouting_entries").select("id").eq("match_id", match.id).eq("status", "submitted").limit(1),
+      database.from("match_submissions").select("id").eq("match_id", match.id).limit(1),
+    ]);
+    if (reports?.length || legacySubmissions?.length) return { error: "This practice match has submitted reports and cannot be deleted." };
+    const { error } = await database.from("matches").delete().eq("id", match.id);
+    if (error) return importDatabaseError("practice match", error);
+    revalidatePracticeMatch(event);
+    return { success: "Practice match deleted." };
+  } catch { return { error: "Admin access is required to delete a practice match." }; }
 }
 
 const manualEventSchema = z.object({ name: z.string().trim().min(3).max(160), startsAt: z.string().date(), endsAt: z.string().date().optional() }).refine((input) => !input.endsAt || input.endsAt >= input.startsAt, { message: "The end date must not be before the event date." });

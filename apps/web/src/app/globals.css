@@ -298,20 +298,29 @@
   .assignment-roster-add { @apply grid items-end gap-2; grid-template-columns:minmax(0,1fr) auto; }
   .assignment-roster-add .error, .assignment-roster-add .trend { @apply col-span-full m-0 text-xs; }
   .assignment-board { @apply grid gap-4; }
-  .assignment-match { @apply overflow-hidden rounded-panel bg-stuypulse-surface shadow-panel; }
-  .assignment-match-head { @apply flex items-center justify-between bg-stuypulse-elevated px-3.5 py-3; }
+  .assignment-match { @apply overflow-visible rounded-panel bg-stuypulse-surface shadow-panel; }
+  .assignment-match-head { @apply flex items-center justify-between rounded-t-panel bg-stuypulse-elevated px-3.5 py-3; }
   .assignment-match-head strong { @apply text-[13px] font-semibold text-stuypulse-text; font-family: 'DM Mono', monospace; }
   .assignment-match-head span:not(.tag) { @apply ml-2.5 text-xs text-stuypulse-textMuted; }
   .assignment-alliance-grid { @apply grid grid-cols-2 gap-px bg-stuypulse-border; }
   .assignment-alliance-grid > div { @apply bg-stuypulse-surface p-3; }
   .assignment-alliance-title { @apply mb-2 text-[10px] font-semibold uppercase tracking-[0.1em]; font-family: 'DM Mono', monospace; }
-  .assignment-editor { @apply grid grid-cols-[minmax(116px,1fr)_auto_minmax(130px,1.2fr)_auto] items-center gap-2 border-t border-stuypulse-border py-2; }
+  .assignment-editor { @apply grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 border-t border-stuypulse-border py-2; }
   .assignment-editor-team { @apply grid min-w-0 gap-0.5; }
   .assignment-editor strong { @apply text-xs text-stuypulse-text; }
   .assignment-editor-complete { @apply -mx-1 rounded-md bg-stuypulse-success/10 px-1.5; }
-  .assignment-editor select { @apply rounded-md px-2 py-1.5 text-xs; }
+  .assignment-editor-controls { @apply col-span-full grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2; }
   .assignment-editor .button { @apply px-2.5 py-2; }
   .assignment-editor .error, .assignment-editor .trend { @apply col-span-full m-0; }
+  .searchable-member-select { @apply relative min-w-0; }
+  .searchable-member-input { @apply flex overflow-hidden rounded-md border border-stuypulse-border bg-stuypulse-bg focus-within:border-stuypulse-redHover focus-within:ring-1 focus-within:ring-stuypulse-redHover; }
+  .searchable-member-input input { @apply min-h-10 min-w-0 flex-1 border-0 bg-transparent px-2.5 text-sm text-stuypulse-text outline-none placeholder:text-stuypulse-textMuted; }
+  .searchable-member-input button { @apply grid min-h-10 w-10 shrink-0 place-items-center border-l border-stuypulse-border text-stuypulse-textMuted transition hover:bg-stuypulse-elevated hover:text-stuypulse-text disabled:cursor-not-allowed disabled:opacity-60; }
+  .searchable-member-select.is-open { z-index:60; }
+  .searchable-member-results { @apply absolute left-0 right-0 top-[calc(100%+0.35rem)] z-[70] grid max-h-80 overflow-y-auto rounded-lg border border-stuypulse-border bg-stuypulse-elevated p-1 shadow-elevated; }
+  .searchable-member-results button { @apply min-h-10 rounded-md px-3 py-2 text-left text-sm font-semibold text-stuypulse-textMuted transition hover:bg-stuypulse-bg hover:text-stuypulse-text; }
+  .searchable-member-results button.selected { @apply bg-stuypulse-red/15 text-stuypulse-text; }
+  .searchable-member-results .muted { @apply m-0 p-3 text-xs; }
   .pit-photo-grid { @apply grid grid-cols-[repeat(auto-fit,minmax(180px,1fr))] gap-3; }
   .pit-photo-grid img { @apply h-auto max-h-[420px] w-full rounded-lg border border-stuypulse-border bg-stuypulse-bg object-contain; }
   .pit-tabs-workspace { @apply grid gap-4; }
@@ -404,7 +413,15 @@
   .schedule-filters { @apply mb-4 grid grid-cols-3 gap-3; }
   .practice-setup { @apply mb-4 rounded-lg border border-stuypulse-border bg-stuypulse-bg p-4; }
   .practice-setup summary { @apply cursor-pointer text-sm font-bold; }
+  .practice-setup > .muted { @apply mb-0 mt-2 text-xs leading-relaxed; }
   .practice-match-form { @apply mt-3 grid grid-cols-[120px_minmax(0,1fr)_minmax(0,1fr)_auto] items-end gap-3; }
+  .practice-delete { @apply mt-3 flex flex-wrap items-center gap-3; }
+  .practice-delete .error, .practice-delete .trend { @apply m-0; }
+  .practice-match-list { @apply mt-4 grid gap-1; }
+  .practice-match-list button { @apply grid grid-cols-[auto_1fr] items-baseline gap-x-3 rounded-md border border-transparent px-3 py-2 text-left text-xs transition hover:border-stuypulse-border hover:bg-stuypulse-elevated; }
+  .practice-match-list button.active { @apply border-stuypulse-red/60 bg-stuypulse-red/10; }
+  .practice-match-list strong { @apply whitespace-nowrap text-stuypulse-text; }
+  .practice-match-list span { @apply min-w-0 truncate text-stuypulse-textMuted; }
   .manual-event-setup { @apply mb-4; }
   .manual-event-section { @apply mt-5 border-t border-stuypulse-border pt-5; }
   .manual-event-section h3 { @apply text-base font-extrabold; }
@@ -847,6 +864,7 @@
   h1 { font-size: clamp(1.55rem, 7vw, 2rem); }
   .event-picker select { @apply w-full min-w-0; }
   .assignment-editor { @apply grid-cols-1; }
+  .assignment-editor-controls { @apply grid-cols-1; }
   .assignment-editor .button { @apply w-full; }
   .list-row, .match-row { @apply flex-wrap items-start gap-3; }
   .list-row > :first-child, .match-row .alliances { @apply min-w-0 flex-1; }

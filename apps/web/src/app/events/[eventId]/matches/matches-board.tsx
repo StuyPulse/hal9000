@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { type FormEvent, useActionState, useMemo, useState } from "react";
-import { addManualEventTeam, createPracticeMatch, deleteManualMatch, removeManualEventTeam, saveManualMatch, type ActionState } from "@/lib/admin-actions";
+import { addManualEventTeam, createPracticeMatch, deleteManualMatch, deletePracticeMatch, removeManualEventTeam, saveManualMatch, updatePracticeMatch, type ActionState } from "@/lib/admin-actions";
 import { formatLocalDateTime } from "@/components/local-date-time";
 import { SearchableTeamSelect } from "@/components/searchable-team-select";
 import { AppSelect } from "@/components/app-select";
@@ -32,7 +32,16 @@ function captureScheduledAtInstant(event: FormEvent<HTMLFormElement>) {
   if (instantInput) instantInput.value = localInput?.value ? new Date(localInput.value).toISOString() : "";
 }
 
-function PracticeMatchSetup({ eventId }: { eventId: string }) { const [state, action, pending] = useActionState(createPracticeMatch, initialActionState); return <details className="practice-setup"><summary>Add a local practice match</summary><p className="muted">Enter the teams manually, including filler teams. This creates a local-only practice record; TBA is read-only and never receives it.</p><form action={action} className="practice-match-form"><input type="hidden" name="eventId" value={eventId}/><div className="field"><label>Practice match #</label><input name="matchNumber" type="text" inputMode="numeric" pattern="[0-9]*" required placeholder="1"/></div><div className="field"><label>Red team numbers</label><input name="redTeams" required placeholder="694, 1678, 254"/></div><div className="field"><label>Blue team numbers</label><input name="blueTeams" required placeholder="118, 6328, 971"/></div><button className="button" disabled={pending}>{pending ? "Adding…" : "Add practice match"}</button></form><Message state={state}/></details>; }
+function PracticeMatchSetup({ eventId, teams, matches }: { eventId: string; teams: Team[]; matches: Match[] }) {
+  const [editing, setEditing] = useState<Match | null>(null);
+  const [createState, createAction, creating] = useActionState(createPracticeMatch, initialActionState);
+  const [updateState, updateAction, updating] = useActionState(updatePracticeMatch, initialActionState);
+  const [deleteState, deleteAction, deleting] = useActionState(deletePracticeMatch, initialActionState);
+  const localPractices = matches.filter((match) => match.type === "practice" && match.key.startsWith("manual_practice_"));
+  const nextNumber = Math.max(0, ...localPractices.map((match) => match.number)) + 1;
+  const pending = creating || updating;
+  return <details className="practice-setup" open={Boolean(editing)}><summary>{editing ? `Edit ${label(editing)}` : "Add or manage local practice matches"}</summary><p className="muted">These local-only practice matches never overwrite TBA. You can edit team numbers before reports are submitted.</p><form key={editing?.id ?? "new"} action={editing ? updateAction : createAction} className="practice-match-form"><input type="hidden" name="eventId" value={eventId}/><input type="hidden" name="matchId" value={editing?.id ?? ""}/><div className="field"><label>Practice match #</label><input name="matchNumber" type="text" inputMode="numeric" pattern="[0-9]*" required defaultValue={editing?.number ?? nextNumber}/></div><div className="field"><label>Red team numbers</label><input name="redTeams" required defaultValue={editing ? teamNumbers(editing.red, teams) : ""} placeholder="694, 1678, 254"/></div><div className="field"><label>Blue team numbers</label><input name="blueTeams" required defaultValue={editing ? teamNumbers(editing.blue, teams) : ""} placeholder="118, 6328, 971"/></div><button className="button" disabled={pending}>{pending ? "Saving…" : editing ? "Save practice match" : "Add practice match"}</button>{editing && <button type="button" className="button secondary" disabled={pending} onClick={() => setEditing(null)}>Cancel</button>}</form><Message state={editing ? updateState : createState}/>{editing && <form action={deleteAction} onSubmit={(event) => { if (!window.confirm(`Delete ${label(editing)}? Submitted reports protect a practice match from deletion.`)) event.preventDefault(); }} className="practice-delete"><input type="hidden" name="eventId" value={eventId}/><input type="hidden" name="matchId" value={editing.id}/><button className="button danger" disabled={deleting}>{deleting ? "Deleting…" : "Delete practice match"}</button><Message state={deleteState}/></form>}{localPractices.length ? <div className="practice-match-list">{localPractices.map((match) => <button type="button" key={match.id} className={editing?.id === match.id ? "active" : ""} onClick={() => setEditing(match)}><strong>{label(match)}</strong><span>{teamNumbers(match.red, teams)} vs {teamNumbers(match.blue, teams)}</span></button>)}</div> : <p className="muted">No local practice matches yet.</p>}</details>;
+}
 
 function ManualTeamRow({ eventId, team }: { eventId: string; team: Team }) { const [state, action, pending] = useActionState(removeManualEventTeam, initialActionState); return <div className="manual-team-row"><span><strong>{team.number}</strong> · {team.name}</span><form action={action}><input type="hidden" name="eventId" value={eventId}/><input type="hidden" name="teamId" value={team.id}/><button type="submit" className="button secondary" disabled={pending}>Remove</button></form>{state.error && <span className="error">{state.error}</span>}</div>; }
 
@@ -80,7 +89,7 @@ export function MatchesBoard({ matches, teams, eventId, isManual, canManage }: {
     {canManage && isManual && <ManualEventSetup eventId={eventId} teams={teams} matches={orderedMatches}/>}
     <section className="card">
       <div className="card-head"><div><h2>Match schedule</h2><p className="muted">{isManual ? "Locally managed schedule and scores." : "Official schedule and final scores refresh automatically while the active event is open."}</p></div><span className="muted">{upcoming} left · {completed} complete</span></div>
-      {canManage && !isManual && <PracticeMatchSetup eventId={eventId}/>}
+      {canManage && !isManual && <PracticeMatchSetup eventId={eventId} teams={teams} matches={matches}/>}
       <div className="schedule-filters">
         <AppSelect ariaLabel="Filter by round" value={type} onValueChange={setType} options={[{ value: "all", label: "All rounds" }, { value: "qualification", label: "Qualifications" }, { value: "playoff", label: "Playoffs" }, { value: "practice", label: "Practice" }]}/>
         <SearchableTeamSelect id="schedule-team-filter" value={teamId} onValueChange={setTeamId} teams={teams.map((team) => ({ ...team, name: team.name }))} emptyLabel="All teams" placeholder="Search team…"/>
