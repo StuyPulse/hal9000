@@ -13,6 +13,7 @@
   input, select, textarea { @apply text-base; }
   button { @apply cursor-pointer; }
   button:disabled, input:disabled, select:disabled, textarea:disabled { @apply cursor-not-allowed opacity-60; }
+  button:disabled, button[aria-disabled="true"] { pointer-events: none; }
   h1, h2 { @apply text-stuypulse-text; }
   h1 { @apply mt-1 text-3xl font-extrabold tracking-[-0.06em]; }
   h2 { @apply m-0 text-[17px] font-bold tracking-[-0.04em]; }
@@ -193,11 +194,11 @@
   .auto-notes-label { @apply mb-2 mt-4 block text-xs font-bold text-stuypulse-text; }
   .field label { @apply mb-2 block text-xs font-bold text-stuypulse-text; }
   .field input, .field select, .field textarea, .event-picker select, .assignment-editor select { @apply min-h-11 w-full rounded-lg border border-stuypulse-border bg-stuypulse-bg px-3 py-2.5 text-stuypulse-text outline-none transition-colors placeholder:text-stuypulse-textMuted focus:border-stuypulse-redHover focus:ring-1 focus:ring-stuypulse-redHover; }
-  .app-select { @apply relative min-w-0; }
+  .app-select { @apply relative w-full min-w-40 max-w-xs; }
   .app-select-trigger { @apply flex min-h-11 w-full items-center justify-between gap-3 rounded-lg border border-stuypulse-border bg-stuypulse-bg px-3 py-2.5 text-left text-sm text-stuypulse-text outline-none transition-colors hover:border-stuypulse-textMuted focus:border-stuypulse-redHover focus:ring-1 focus:ring-stuypulse-redHover disabled:cursor-not-allowed disabled:opacity-60; }
   .app-select-trigger > span { @apply min-w-0 flex-1 truncate; }
   .app-select-trigger svg { @apply shrink-0 text-stuypulse-textMuted; }
-  .app-select-menu { @apply absolute left-0 right-0 top-[calc(100%+0.35rem)] z-50 grid max-h-64 overflow-y-auto rounded-lg border border-stuypulse-border bg-stuypulse-elevated p-1 shadow-elevated; }
+  .app-select-menu { @apply absolute left-0 right-0 top-[calc(100%+0.35rem)] z-50 grid max-h-80 overflow-y-auto rounded-lg border border-stuypulse-border bg-stuypulse-elevated p-1 shadow-elevated; }
   .app-select-menu button { @apply min-h-10 rounded-md px-3 py-2 text-left text-sm font-semibold text-stuypulse-textMuted transition hover:bg-stuypulse-bg hover:text-stuypulse-text disabled:cursor-not-allowed disabled:opacity-50; }
   .app-select-menu button.selected { @apply bg-stuypulse-red/15 text-stuypulse-text; }
   .field textarea { @apply min-h-[94px] resize-y; }
