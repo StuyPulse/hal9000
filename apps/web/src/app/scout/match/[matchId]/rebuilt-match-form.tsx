@@ -2,7 +2,6 @@
 
 import { FlipHorizontal2, Plus, Trash2 } from "lucide-react";
 import { useState, type CSSProperties } from "react";
-import { useRouter } from "next/navigation";
 import { AppSelect } from "@/components/app-select";
 import { queueScoutingEntry, removeQueuedScoutingEntry, tryUpsertScoutingEntry } from "@/lib/offline-scouting-queue";
 import { updateMatchScoutingEntry } from "./actions";
@@ -78,7 +77,6 @@ function normalizeMatchTimestamp(value: string) {
 }
 
 export function RebuiltMatchForm({ eventId, organizationId, scoutUserId, matchId, teamId, assignmentId, alliance = "red", otherTeams, manualMatch, editingEntryId, initialPayload = {}, returnTo }: Props) {
-  const router = useRouter();
   const [noShow, setNoShow] = useState(() => Boolean(initialPayload.no_show));
   const [spot, setSpot] = useState<string | undefined>(() => typeof initialPayload.starting_spot === "string" ? initialPayload.starting_spot : undefined);
   const [auto, setAuto] = useState(() => { const score = asRecord(initialPayload.auto); return { shoot: asNumber(score.shoot), ferry: asNumber(score.ferry) }; });
@@ -129,6 +127,7 @@ export function RebuiltMatchForm({ eventId, organizationId, scoutUserId, matchId
       return;
     }
     const savedBreakageIssues = broke ? breakageIssues.map(({ timestamp, tag, otherIssue }) => ({ timestamp: normalizeMatchTimestamp(timestamp), issue: tag === "Other" ? otherIssue.trim() || "Other" : tag || null })).filter((issue) => issue.timestamp || issue.issue) : [];
+    const existingManualMatch = asRecord(initialPayload.manual_match);
     const payload = {
       no_show: noShow, starting_spot: noShow ? null : spot, starting_spot_confirmed: Boolean(!noShow && spot),
       auto: { shoot: auto.shoot, ferry: auto.ferry }, teleop: { shoot: teleop.shoot, ferry: teleop.ferry },
@@ -136,8 +135,10 @@ export function RebuiltMatchForm({ eventId, organizationId, scoutUserId, matchId
       fouls: noShow ? 0 : fouls, defense: noShow ? false : defense, defense_level: defense ? level : null,
       defended_teams: defense ? defended : [], robot_broke: noShow ? false : broke, breakage_issues: noShow ? [] : savedBreakageIssues,
       break_timestamp: noShow ? null : savedBreakageIssues[0]?.timestamp ?? null, break_tag: noShow ? null : savedBreakageIssues[0]?.issue ?? null, comments,
-      report_source: manualMatch ? "manual" : "scheduled",
-      manual_match: manualMatch ? { stage: manualStageLabel(manualStage), label: manualMatchNumber.trim() || null, alliance: manualMatch.alliance ?? alliance } : null,
+      // Keep the original manual label when an automatically linked report is
+      // edited from the scheduled-match view.
+      report_source: manualMatch || Object.keys(existingManualMatch).length ? "manual" : "scheduled",
+      manual_match: manualMatch ? { stage: manualStageLabel(manualStage), label: manualMatchNumber.trim() || null, alliance: manualMatch.alliance ?? alliance } : Object.keys(existingManualMatch).length ? existingManualMatch : null,
     };
     const submittedAt = finalize ? new Date().toISOString() : null;
     const entry = {
@@ -162,9 +163,16 @@ export function RebuiltMatchForm({ eventId, organizationId, scoutUserId, matchId
     setMessage(error ?? (editingEntryId ? "Changes saved." : finalize ? "Scout report submitted and visible in team history." : "Draft saved."));
     setSaving(false);
     if (!error && (editingEntryId || finalize)) {
-      if (returnTo) router.replace(returnTo);
-      else if (window.history.length > 1) router.back();
-      else router.replace("/scout/match");
+      // Assignment cards are Server Components. A full navigation here makes
+      // their completed state visible immediately instead of restoring a stale
+      // client-side route from history.
+      if (returnTo) window.location.assign(returnTo);
+      else if (assignmentId) window.location.assign("/dashboard");
+      else {
+        const previous = document.referrer ? new URL(document.referrer) : null;
+        const sameOriginReturnTo = previous?.origin === window.location.origin ? `${previous.pathname}${previous.search}${previous.hash}` : "/scout/match";
+        window.location.assign(sameOriginReturnTo);
+      }
     }
   }
 

@@ -49,12 +49,32 @@ export default async function ManualMatchFormPage({ searchParams }: { searchPara
 
   const team = selectedEventTeam.teams as unknown as { team_number: number; name: string } | null;
   const { data: eventTeams } = await supabase.from("event_teams").select("team_id,teams(team_number)").eq("event_id", event.id);
-  const otherTeams = (eventTeams ?? []).filter((row) => row.team_id !== selectedEventTeam.team_id).map((row: any) => ({ id: row.team_id, number: row.teams?.team_number ?? 0, alliance: "manual" as const }));
+  const numericLabel = label?.trim() ?? "";
+  const normalizedStage = stage.trim().toLowerCase();
+  const matchType = normalizedStage === "qualification" || normalizedStage === "practice"
+    ? normalizedStage
+    : ["quarterfinal", "semifinal", "final"].includes(normalizedStage) ? "playoff" : null;
+  const { data: scheduledCandidates } = !editingEntry && matchType && /^\d+$/.test(numericLabel)
+    ? await supabase.from("matches").select("id,red_teams,blue_teams").eq("event_id", event.id).eq("match_type", matchType).eq("match_number", Number(numericLabel))
+    : { data: [] };
+  // The fallback form should become a scheduled report only when the entered
+  // details identify one actual slot. An exception stays manual rather than
+  // risking a bad link to a similarly numbered playoff match.
+  const matchingCandidates = (scheduledCandidates ?? []).filter((match) => [...match.red_teams, ...match.blue_teams].includes(selectedEventTeam.team_id));
+  const scheduledMatch = matchingCandidates.length === 1 ? matchingCandidates[0] : null;
+  const opposingTeamIds = scheduledMatch
+    ? scheduledMatch.red_teams.includes(selectedEventTeam.team_id) ? scheduledMatch.blue_teams : scheduledMatch.red_teams
+    : null;
+  const otherTeams = (opposingTeamIds ?? (eventTeams ?? []).filter((row) => row.team_id !== selectedEventTeam.team_id).map((row) => row.team_id))
+    .map((teamId: string) => {
+      const eventTeam = (eventTeams ?? []).find((row) => row.team_id === teamId);
+      return { id: teamId, number: (eventTeam as any)?.teams?.team_number ?? 0, alliance: "manual" as const };
+    });
 
   const returnTo = requestedReturnTo?.startsWith("/") && !requestedReturnTo.startsWith("//") ? requestedReturnTo : undefined;
   if (!viewer?.organizationId) notFound();
   return <AppShell active="Manual scouting">
     <PageHeader eyebrow={`${manualMatchLabel({ stage, label })} · ${alliance} alliance`} title={`${team?.team_number} · ${team?.name}`} />
-    <RebuiltMatchForm eventId={event.id} organizationId={viewer.organizationId} scoutUserId={viewer.userId} teamId={selectedEventTeam.team_id} alliance={alliance} otherTeams={otherTeams} manualMatch={{ stage, label, alliance }} editingEntryId={editingEntry?.id} initialPayload={editingEntry?.payload ?? {}} returnTo={returnTo}/>
+    <RebuiltMatchForm eventId={event.id} organizationId={viewer.organizationId} scoutUserId={viewer.userId} matchId={scheduledMatch?.id} teamId={selectedEventTeam.team_id} alliance={alliance} otherTeams={otherTeams} manualMatch={{ stage, label, alliance }} editingEntryId={editingEntry?.id} initialPayload={editingEntry?.payload ?? {}} returnTo={returnTo}/>
   </AppShell>;
 }
