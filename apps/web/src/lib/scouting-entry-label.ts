@@ -1,4 +1,4 @@
-import { matchLabel } from "@/lib/match-label";
+import { manualMatchLabel, matchLabel } from "@/lib/match-label";
 
 type MatchDetails = Parameters<typeof matchLabel>[0];
 
@@ -21,8 +21,7 @@ export function scoutingEntryLabel(entry: EntryForLabel) {
   if (entry.entry_type === "match") {
     if (entry.matches) return matchLabel(entry.matches);
     const manualMatch = readManualMatch(entry.payload);
-    const stage = manualMatch?.stage && manualMatch.stage !== "Other / exception" ? manualMatch.stage : "Manual match";
-    return manualMatch?.label ? `${stage} · ${manualMatch.label}` : stage;
+    return manualMatchLabel(manualMatch ?? {});
   }
   if (entry.entry_type === "pit") return "Pit scouting";
   if (entry.entry_type === "pre_scout") return "Pre scouting";

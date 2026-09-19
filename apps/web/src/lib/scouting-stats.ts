@@ -1,3 +1,5 @@
+import { manualMatchIsCompetitive } from "@/lib/match-label";
+
 export type ScoutStats = {
   entries: number; autoMaxScored: number; autoMaxFerried: number; autoAvgScored: number; autoAvgFerried: number;
   teleopMaxScored: number; teleopMaxFerried: number; teleopAvgScored: number; teleopAvgFerried: number;
@@ -9,6 +11,19 @@ export const SCOUT_STAT_LABELS: Record<keyof Omit<ScoutStats, "entries">, string
 const number = (value: unknown) => Number.isFinite(Number(value)) ? Number(value) : 0;
 const average = (values: number[]) => values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : 0;
 const maximum = (values: number[]) => values.length ? Math.max(...values) : 0;
+
+/** Only official qualification/playoff reports and manually-labelled equivalents affect team metrics. */
+export function isCompetitiveMatchEntry(entry: any) {
+  const match = Array.isArray(entry?.matches) ? entry.matches[0] : entry?.matches;
+  if (match?.match_type) return match.match_type === "qualification" || match.match_type === "playoff";
+  const manualMatch = entry?.payload?.manual_match;
+  return manualMatchIsCompetitive(manualMatch && typeof manualMatch === "object" && !Array.isArray(manualMatch) ? manualMatch : {});
+}
+
+export function competitiveMatchEntries(entries: any[]) {
+  return entries.filter(isCompetitiveMatchEntry);
+}
+
 export function calculateScoutStats(entries: any[]): ScoutStats {
   const autoScored = entries.map((entry) => number(entry.payload?.auto?.shoot));
   const autoFerried = entries.map((entry) => number(entry.payload?.auto?.ferry));

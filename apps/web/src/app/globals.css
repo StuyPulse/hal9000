@@ -276,9 +276,27 @@
   .event-picker label { @apply block text-xs font-bold text-stuypulse-text; }
   .event-picker select { @apply min-w-[250px] py-2; }
   .assignment-generation { @apply p-5; }
+  .assignment-generation { @apply grid items-end gap-3; grid-template-columns:minmax(10rem,20rem) auto; }
   .assignment-generation .muted { @apply mb-0 mt-2 leading-relaxed; }
   .assignment-generation .error, .assignment-generation .trend { @apply mb-0; }
+  .assignment-generation .error, .assignment-generation .trend { @apply col-span-full; }
   .assignment-setup-hint { @apply m-0 border-t border-stuypulse-border bg-stuypulse-bg/40 px-5 py-3 text-xs leading-relaxed text-stuypulse-textMuted; }
+  .assignment-rosters { @apply mb-[18px]; }
+  .assignment-roster-create { @apply mb-4 grid items-end gap-3; grid-template-columns:minmax(0,22rem) auto; }
+  .assignment-roster-create .error, .assignment-roster-create .trend { @apply col-span-full mb-0; }
+  .assignment-roster-list { @apply grid gap-3; grid-template-columns:repeat(auto-fit,minmax(260px,1fr)); }
+  .assignment-roster-card { @apply rounded-lg border border-stuypulse-border bg-stuypulse-bg/50 p-4; }
+  .assignment-roster-head { @apply mb-3 flex items-start justify-between gap-3; }
+  .assignment-roster-head h3 { @apply text-sm font-extrabold; }
+  .assignment-roster-head .muted { @apply m-0 mt-0.5 text-xs; }
+  .assignment-roster-head form { @apply text-right; }
+  .assignment-roster-head .error, .assignment-roster-head .trend { @apply m-0 mt-1 text-xs; }
+  .assignment-roster-members { @apply mb-3 grid gap-1; }
+  .assignment-roster-member { @apply flex min-w-0 items-center justify-between gap-2 rounded-md border border-stuypulse-border bg-stuypulse-surface px-2.5 py-2 text-xs; }
+  .assignment-roster-member span { @apply min-w-0 truncate font-semibold; }
+  .assignment-roster-member .error, .assignment-roster-member .trend { @apply hidden; }
+  .assignment-roster-add { @apply grid items-end gap-2; grid-template-columns:minmax(0,1fr) auto; }
+  .assignment-roster-add .error, .assignment-roster-add .trend { @apply col-span-full m-0 text-xs; }
   .assignment-board { @apply grid gap-4; }
   .assignment-match { @apply overflow-hidden rounded-panel bg-stuypulse-surface shadow-panel; }
   .assignment-match-head { @apply flex items-center justify-between bg-stuypulse-elevated px-3.5 py-3; }
@@ -437,11 +455,11 @@
   .team-photo-empty { @apply content-center justify-items-center gap-1 px-5 text-center text-stuypulse-textMuted; }
   .team-photo-empty strong { @apply text-sm font-extrabold text-stuypulse-text; }
   .team-photo-empty span { @apply text-xs leading-relaxed; }
-  .team-photo-controls { @apply absolute bottom-0 left-0 right-0 grid grid-cols-[auto_1fr_auto_auto] items-center gap-2 border-t border-stuypulse-border bg-stuypulse-bg/95 p-2; }
-  .team-photo-controls.single { @apply grid-cols-[1fr_auto]; }
+  .team-photo-controls { @apply absolute bottom-0 left-0 right-0 grid grid-cols-[auto_auto_1fr] items-center gap-2 border-t border-stuypulse-border bg-stuypulse-bg/95 p-2; }
   .team-photo-controls button { @apply min-h-10 rounded-md border border-stuypulse-border bg-stuypulse-surface px-3 text-xs font-bold text-stuypulse-text transition hover:border-stuypulse-textMuted hover:bg-stuypulse-elevated focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-stuypulse-redHover; }
-  .team-photo-controls span { @apply text-center text-[11px] font-bold text-stuypulse-textMuted; font-family:'DM Mono',monospace; }
   .team-photo-expand { @apply border-stuypulse-redHover bg-stuypulse-red/10 text-stuypulse-text; }
+  .team-photo-controls .team-photo-expand { @apply justify-self-end; }
+  .team-photo-expand-solo { @apply absolute bottom-3 right-3 z-10 min-h-10 rounded-md border px-3 text-xs font-bold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-stuypulse-redHover; }
   .team-photo-lightbox { @apply fixed inset-0 z-[120] grid grid-rows-[minmax(0,1fr)_auto] gap-3 bg-stuypulse-bg/95 p-4; padding-top:max(1rem, env(safe-area-inset-top)); padding-right:max(1rem, env(safe-area-inset-right)); padding-bottom:max(1rem, env(safe-area-inset-bottom)); padding-left:max(1rem, env(safe-area-inset-left)); }
   .team-photo-lightbox > img { @apply min-h-0 max-h-full w-full max-w-full self-center justify-self-center object-contain; }
   .team-photo-lightbox-controls { @apply mx-auto flex w-full max-w-2xl flex-wrap items-center justify-center gap-2; }
@@ -635,8 +653,17 @@
   .summary-table-sticky-header { @apply sticky top-0 z-40 overflow-hidden; background:#252930; }
   .summary-table-sticky-header table, .summary-table table { @apply min-w-[720px]; border-collapse:separate; border-spacing:0; table-layout:fixed; }
   .summary-table { @apply overflow-x-auto; overflow-y:visible; scrollbar-gutter:stable both-edges; }
-  .pre-scout-table { @apply min-w-[1300px]; }
-  .pre-scout-table td { @apply max-w-[260px] align-top text-xs leading-relaxed; }
+  .pre-scout-table-shell { @apply relative; }
+  .pre-scout-table-sticky-header { @apply sticky top-0 z-40 overflow-hidden; background:#252930; }
+  .pre-scout-table-sticky-header table, .pre-scout-table { @apply min-w-[2060px]; border-collapse:separate; border-spacing:0; table-layout:fixed; }
+  .pre-scout-table-sticky-header th { @apply whitespace-nowrap bg-stuypulse-elevated px-3 py-3 text-left text-xs font-extrabold uppercase tracking-[0.06em] text-stuypulse-textMuted; font-family:'DM Mono',monospace; }
+  .pre-scout-table-scroll { @apply overflow-x-auto; overflow-y:visible; scrollbar-gutter:stable both-edges; }
+  .pre-scout-table td { @apply whitespace-pre-wrap break-words align-top px-3 py-3 text-xs leading-relaxed text-stuypulse-textMuted; }
+  .pre-scout-table tbody tr + tr td { @apply border-t border-stuypulse-border; }
+  .pre-scout-table td.pre-scout-team { @apply text-stuypulse-text; }
+  .pre-scout-team strong, .pre-scout-team span { @apply block; }
+  .pre-scout-team strong { @apply text-base font-extrabold; }
+  .pre-scout-team span { @apply mt-0.5 text-[11px] text-stuypulse-textMuted; }
   .summary-table-sticky-header th { @apply whitespace-nowrap bg-stuypulse-elevated px-2.5 py-3; }
   .summary-table-sticky-header th button { @apply text-left font-bold text-stuypulse-textMuted hover:text-stuypulse-text; }
   .summary-table td { @apply whitespace-nowrap px-2.5 py-3 font-medium; }
@@ -777,6 +804,7 @@
   .manual-match-form { @apply grid-cols-2; }
   .assignment-setup-controls { @apply grid-cols-1; }
   .assignment-setup .event-picker { @apply border-r-0 border-b; }
+  .assignment-generation, .assignment-roster-create, .assignment-roster-add { @apply grid-cols-1; }
   .manual-match-form > label, .manual-match-form > .button { grid-column: auto; }
   .scoring-head { @apply hidden; }
   .scoring-row { @apply grid-cols-1 gap-3 px-3 py-3; }
@@ -940,7 +968,7 @@
   .summary-mobile-stat-cell { @apply -mx-1 rounded-md px-1.5 py-1; background-color:rgb(var(--summary-stat-color) / 0.16); }
   .summary-open { @apply mt-3 block text-xs font-bold text-stuypulse-redHover; }
   .summary-table table { @apply min-w-[720px]; }
-  .pre-scout-table { @apply min-w-[1100px]; }
+  .pre-scout-table-sticky-header table, .pre-scout-table { @apply min-w-[2060px]; }
   .compare-picker { @apply grid-cols-1; }
   .compare-picker .button { @apply col-auto; }
   .compare-team-heading { @apply grid-cols-[1fr_auto_1fr] gap-2; }

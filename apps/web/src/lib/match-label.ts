@@ -4,6 +4,33 @@ type MatchLabelInput = {
   tba_match_key?: string | null;
 };
 
+export type ManualMatchDetails = {
+  stage?: unknown;
+  label?: unknown;
+};
+
+const manualStageNames: Record<string, string> = {
+  qualification: "Qualification",
+  practice: "Practice",
+  quarterfinal: "Quarterfinal",
+  semifinal: "Semifinal",
+  final: "Final",
+};
+
+/** A human-readable label for a manual report, including its round and number. */
+export function manualMatchLabel({ stage, label }: ManualMatchDetails) {
+  const rawStage = typeof stage === "string" ? stage.trim() : "";
+  const rawLabel = typeof label === "string" ? label.trim() : "";
+  const normalizedStage = rawStage.toLowerCase();
+  const stageLabel = manualStageNames[normalizedStage]
+    ?? (normalizedStage === "other" || normalizedStage === "other / exception" || normalizedStage === "manual match" ? "Manual report" : rawStage || "Manual report");
+  return rawLabel ? `${stageLabel} ${rawLabel}` : stageLabel;
+}
+
+export function manualMatchIsCompetitive({ stage }: ManualMatchDetails) {
+  return ["qualification", "quarterfinal", "semifinal", "final", "playoff"].includes(typeof stage === "string" ? stage.trim().toLowerCase() : "");
+}
+
 export function matchLabel({ match_number, match_type, tba_match_key }: MatchLabelInput) {
   const key = tba_match_key ?? "";
   const qualification = key.match(/_qm(\d+)$/);

@@ -5,10 +5,19 @@ type BreakageNotification = {
     event_name?: string;
     team_number?: number;
     match_number?: number;
+    match_type?: "qualification" | "playoff" | "practice";
+    manual_match?: { stage?: string; label?: string };
     scout_name?: string;
     issues?: { timestamp?: string; issue?: string }[];
   };
 };
+
+function manualMatchLabel(manualMatch: BreakageNotification["payload"]["manual_match"]) {
+  const stage = manualMatch?.stage?.trim() ?? "";
+  const label = manualMatch?.label?.trim() ?? "";
+  const stageLabel = ({ qualification: "Qualification", practice: "Practice", quarterfinal: "Quarterfinal", semifinal: "Semifinal", final: "Final" } as Record<string, string>)[stage.toLowerCase()] ?? (stage && !["other", "other / exception", "manual match"].includes(stage.toLowerCase()) ? stage : "Manual report");
+  return label ? `${stageLabel} ${label}` : stageLabel;
+}
 
 const requiredSecret = (name: string) => {
   const value = Deno.env.get(name);
@@ -31,7 +40,8 @@ function messageFor(notification: BreakageNotification) {
       .join("\n")
     : "• Breakage reported (no issue details entered)";
   const title = `:warning: Breakage reported — Team ${payload.team_number ?? "unknown"}`;
-  const match = payload.match_number ? `Qualification ${payload.match_number}` : "Manual report";
+  const matchType = payload.match_type === "practice" ? "Practice" : payload.match_type === "playoff" ? "Playoff Match" : "Qualification";
+  const match = payload.match_number ? `${matchType} ${payload.match_number}` : manualMatchLabel(payload.manual_match);
 
   return {
     text: title,

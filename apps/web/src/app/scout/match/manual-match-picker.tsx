@@ -40,8 +40,8 @@ export function ManualMatchPicker({ teams }: { teams: Team[] }) {
         <AppSelect id="manual-stage" ariaLabel="Competition stage" value={stage} onValueChange={(value) => setStage(value as (typeof stages)[number][0])} options={stages.map(([value, label]) => ({value,label}))}/>
       </div>
       <div className="field">
-        <label htmlFor="manual-match-label">Match / set (optional)</label>
-        <input id="manual-match-label" value={matchLabel} onChange={(event) => setMatchLabel(event.target.value)} placeholder="e.g. 18 or 2–1" />
+        <label htmlFor="manual-match-label">Match number{stage === "other" ? " (optional)" : ""}</label>
+        <input id="manual-match-label" value={matchLabel} onChange={(event) => setMatchLabel(event.target.value)} placeholder="e.g. 3 or 2–1" />
       </div>
     </div>
     <fieldset className="field manual-alliance-picker"><legend>Alliance</legend><div role="radiogroup" aria-label="Manual scouting alliance" className="alliance-toggle"><button type="button" role="radio" aria-checked={alliance === "red"} className={alliance === "red" ? "red" : ""} onClick={() => setAlliance("red")}>Red</button><button type="button" role="radio" aria-checked={alliance === "blue"} className={alliance === "blue" ? "blue" : ""} onClick={() => setAlliance("blue")}>Blue</button></div></fieldset>
@@ -54,7 +54,7 @@ export function ManualMatchPicker({ teams }: { teams: Team[] }) {
       {selectedTeam && <p className="manual-selection">Selected: <strong>{selectedTeam.number} · {selectedTeam.name}</strong></p>}
     </div>
     <div className="form-actions">
-      {selectedTeamId && alliance ? <Link className="button" href={`/scout/match/manual?${params.toString()}`}>Open manual match form</Link> : <button className="button" disabled>{selectedTeamId ? "Choose an alliance to continue" : "Choose a team to continue"}</button>}
+      {selectedTeamId && alliance && (stage === "other" || matchLabel.trim()) ? <Link className="button" href={`/scout/match/manual?${params.toString()}`}>Open manual match form</Link> : <button className="button" disabled>{!selectedTeamId ? "Choose a team to continue" : stage !== "other" && !matchLabel.trim() ? "Enter a match number" : "Choose an alliance to continue"}</button>}
     </div>
   </section>;
 }

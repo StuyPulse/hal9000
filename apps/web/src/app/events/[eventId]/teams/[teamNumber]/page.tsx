@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { AppShell, PageHeader } from "@/components/app-shell";
 import { LiveRefresh } from "@/components/live-refresh";
 import { createClient } from "@/lib/supabase/server";
-import { calculateScoutStats, formatStat } from "@/lib/scouting-stats";
+import { calculateScoutStats, competitiveMatchEntries, formatStat } from "@/lib/scouting-stats";
 import { LocalDateTime } from "@/components/local-date-time";
 import { PayloadGrid } from "@/components/scouting-payload";
 import { TeamMatchTimeline, type TimelineMatch } from "./team-match-timeline";
@@ -49,7 +49,7 @@ export default async function TeamDetail({ params }: { params: Promise<{ eventId
   const matchEntries = (entries ?? []).filter((entry: any) => entry.entry_type === "match");
   const submittedEntries = matchEntries.filter((entry: any) => entry.status === "submitted");
   const byType = (type: string) => (entries ?? []).filter((entry: any) => entry.entry_type === type);
-  const stats = calculateScoutStats(matchEntries);
+  const stats = calculateScoutStats(competitiveMatchEntries(matchEntries));
   const teamMatches = ((localMatches ?? []) as LocalMatch[]).filter((match) => [...(match.red_teams ?? []), ...(match.blue_teams ?? [])].includes(team.id));
   const localByTbaKey = new Map(teamMatches.map((match) => [match.tba_match_key, match]));
   const reportByMatchId = new Map<string, any>();

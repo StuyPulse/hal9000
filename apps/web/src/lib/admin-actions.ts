@@ -243,20 +243,92 @@ export async function setActiveEvent(_: ActionState, formData: FormData): Promis
   } catch { return { error: "Admin access is required." }; }
 }
 
+const scoutCapableRoles = ["scout", "global_scout", "admin", "developer"] as const;
+const rosterIdSchema = z.object({ rosterId: z.string().uuid() });
+
+function revalidateAssignmentRosters() {
+  revalidatePath("/admin/assignments");
+}
+
+export async function createScoutAssignmentRoster(_: ActionState, formData: FormData): Promise<ActionState> {
+  try {
+    const input = z.object({ name: z.string().trim().min(1).max(80) }).safeParse({ name: formData.get("name") });
+    if (!input.success) return { error: "Enter a roster name up to 80 characters." };
+    const { organizationId } = await adminContext();
+    const database: any = createAdminClient();
+    const { error } = await database.from("scout_assignment_rosters").insert({ organization_id: organizationId, name: input.data.name });
+    if (error?.code === "23505") return { error: "A roster already uses that name." };
+    if (error) return importDatabaseError("the scout roster", error);
+    revalidateAssignmentRosters();
+    return { success: `${input.data.name} is ready for scout assignments.` };
+  } catch { return { error: "Admin access is required to create a scout roster." }; }
+}
+
+export async function addScoutAssignmentRosterMember(_: ActionState, formData: FormData): Promise<ActionState> {
+  try {
+    const input = z.object({ rosterId: z.string().uuid(), userId: z.string().uuid() }).safeParse({ rosterId: formData.get("rosterId"), userId: formData.get("userId") });
+    if (!input.success) return { error: "Choose a roster and scout." };
+    const { organizationId } = await adminContext();
+    const database: any = createAdminClient();
+    const [{ data: roster }, { data: scout }] = await Promise.all([
+      database.from("scout_assignment_rosters").select("id").eq("id", input.data.rosterId).eq("organization_id", organizationId).maybeSingle(),
+      database.from("organization_members").select("user_id").eq("organization_id", organizationId).eq("user_id", input.data.userId).in("role", scoutCapableRoles).maybeSingle(),
+    ]);
+    if (!roster || !scout) return { error: "Choose a scout-capable member in this organization." };
+    const { error } = await database.from("scout_assignment_roster_members").upsert({ roster_id: roster.id, user_id: scout.user_id }, { onConflict: "roster_id,user_id", ignoreDuplicates: true });
+    if (error) return importDatabaseError("the scout roster", error);
+    revalidateAssignmentRosters();
+    return { success: "Scout added to this roster." };
+  } catch { return { error: "Admin access is required to update scout rosters." }; }
+}
+
+export async function removeScoutAssignmentRosterMember(_: ActionState, formData: FormData): Promise<ActionState> {
+  try {
+    const input = z.object({ rosterId: z.string().uuid(), userId: z.string().uuid() }).safeParse({ rosterId: formData.get("rosterId"), userId: formData.get("userId") });
+    if (!input.success) return { error: "This roster member could not be identified." };
+    const { organizationId } = await adminContext();
+    const database: any = createAdminClient();
+    const { data: roster } = await database.from("scout_assignment_rosters").select("id").eq("id", input.data.rosterId).eq("organization_id", organizationId).maybeSingle();
+    if (!roster) return { error: "This roster is unavailable." };
+    const { error } = await database.from("scout_assignment_roster_members").delete().eq("roster_id", roster.id).eq("user_id", input.data.userId);
+    if (error) return importDatabaseError("the roster member", error);
+    revalidateAssignmentRosters();
+    return { success: "Scout removed from this roster." };
+  } catch { return { error: "Admin access is required to update scout rosters." }; }
+}
+
+export async function deleteScoutAssignmentRoster(_: ActionState, formData: FormData): Promise<ActionState> {
+  try {
+    const input = rosterIdSchema.safeParse({ rosterId: formData.get("rosterId") });
+    if (!input.success) return { error: "This roster could not be identified." };
+    const { organizationId } = await adminContext();
+    const database: any = createAdminClient();
+    const { error } = await database.from("scout_assignment_rosters").delete().eq("id", input.data.rosterId).eq("organization_id", organizationId);
+    if (error) return importDatabaseError("the scout roster", error);
+    revalidateAssignmentRosters();
+    return { success: "Scout roster deleted." };
+  } catch { return { error: "Admin access is required to delete a scout roster." }; }
+}
+
 export async function generateObjectiveAssignments(_: ActionState, formData: FormData): Promise<ActionState> {
   try {
-    const input = z.object({ eventId: z.string().uuid() }).safeParse({ eventId: formData.get("eventId") });
-    if (!input.success) return { error: "This event could not be identified." };
+    const input = z.object({ eventId: z.string().uuid(), rosterId: z.string().uuid() }).safeParse({ eventId: formData.get("eventId"), rosterId: formData.get("rosterId") });
+    if (!input.success) return { error: "Choose an event and scout roster." };
     const { organizationId } = await adminContext();
     const database = createAdminClient();
     const { data: event, error: eventError } = await database.from("events").select("id").eq("id", input.data.eventId).eq("organization_id", organizationId).maybeSingle();
     if (eventError || !event) return { error: "This event is unavailable or you no longer have admin access." };
-    const [{ data: scouts, error: scoutsError }, { data: matches, error: matchesError }] = await Promise.all([
-      database.from("organization_members").select("user_id").eq("organization_id", organizationId).in("role", ["scout", "global_scout", "admin", "developer"]),
+    const { data: roster } = await database.from("scout_assignment_rosters").select("id,name").eq("id", input.data.rosterId).eq("organization_id", organizationId).maybeSingle();
+    if (!roster) return { error: "Choose a scout roster from this organization." };
+    const [{ data: rosterMembers, error: rosterMembersError }, { data: scouts, error: scoutsError }, { data: matches, error: matchesError }] = await Promise.all([
+      database.from("scout_assignment_roster_members").select("user_id").eq("roster_id", roster.id),
+      database.from("organization_members").select("user_id").eq("organization_id", organizationId).in("role", scoutCapableRoles),
       database.from("matches").select("id,red_teams,blue_teams").eq("event_id", event.id).order("scheduled_at"),
     ]);
-    if (scoutsError || matchesError) return { error: "Couldn’t read the schedule or scout roster." };
-    if (!scouts?.length) return { error: "Add at least one scout-capable user before creating assignments." };
+    if (rosterMembersError || scoutsError || matchesError) return { error: "Couldn’t read the schedule or scout roster." };
+    const rosterUserIds = new Set((rosterMembers ?? []).map((member: any) => member.user_id));
+    const selectedScouts = (scouts ?? []).filter((scout: any) => rosterUserIds.has(scout.user_id));
+    if (!selectedScouts.length) return { error: `Add at least one scout-capable member to ${roster.name}.` };
     if (!matches?.length) return { error: "Import a match schedule before creating assignments." };
     const { data: existing, error: existingError } = await database.from("scouting_assignments").select("match_id,team_id,assignment_type").eq("assignment_type", "objective").in("match_id", matches.map((match) => match.id));
     if (existingError) return { error: "Couldn’t read existing scouting assignments." };
@@ -267,7 +339,7 @@ export async function generateObjectiveAssignments(_: ActionState, formData: For
       for (const teamId of [...new Set([...match.red_teams, ...match.blue_teams])]) {
         const key = `${match.id}:${teamId}:objective`;
         if (alreadyAssigned.has(key)) continue;
-        assignments.push({ match_id: match.id, scout_user_id: scouts[scoutIndex % scouts.length].user_id, team_id: teamId, assignment_type: "objective" });
+        assignments.push({ match_id: match.id, scout_user_id: selectedScouts[scoutIndex % selectedScouts.length].user_id, team_id: teamId, assignment_type: "objective" });
         scoutIndex += 1;
       }
     }
@@ -277,7 +349,7 @@ export async function generateObjectiveAssignments(_: ActionState, formData: For
     revalidatePath(`/events/${event.id}/matches`);
     revalidatePath("/scout/assignments");
     revalidatePath("/dashboard");
-    return { success: `Created ${assignments.length} objective assignments across the imported schedule.` };
+    return { success: `Created ${assignments.length} objective assignments using ${roster.name}.` };
   } catch {
     return { error: "Admin access and the server secret are required to create assignments." };
   }

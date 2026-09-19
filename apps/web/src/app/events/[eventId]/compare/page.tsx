@@ -1,7 +1,7 @@
 import { AppShell, PageHeader } from "@/components/app-shell";
 import { createClient } from "@/lib/supabase/server";
 import { LiveRefresh } from "@/components/live-refresh";
-import { calculateScoutStats } from "@/lib/scouting-stats";
+import { calculateScoutStats, competitiveMatchEntries } from "@/lib/scouting-stats";
 import { officialFuelAverages } from "@/lib/official-fuel-stats";
 import { CompareMetrics } from "./compare-metrics";
 import { CompareTeamPicker } from "./compare-team-picker";
@@ -31,7 +31,7 @@ export default async function ComparePage({ params, searchParams }: { params: Pr
   const pick = (id?: string) => teamRows.find((row: any) => String(row.teams?.team_number) === id) as any;
   const left = pick(a), right = pick(b); const selectedTeamIds = left && right ? [left.team_id, right.team_id] : [];
   const [{ data: entries }, { data: officialMatches }, { data: photos }] = await Promise.all([
-    event && selectedTeamIds.length ? (supabase as any).from("scouting_entries").select("team_id,payload").eq("event_id", event.id).eq("entry_type", "match").eq("status", "submitted").in("team_id", selectedTeamIds) : Promise.resolve({ data: [] }),
+    event && selectedTeamIds.length ? (supabase as any).from("scouting_entries").select("team_id,payload,matches(match_type)").eq("event_id", event.id).eq("entry_type", "match").eq("status", "submitted").in("team_id", selectedTeamIds) : Promise.resolve({ data: [] }),
     event && selectedTeamIds.length ? (supabase as any).from("matches").select("red_teams,blue_teams,tba_score_breakdown").eq("event_id", event.id).eq("status", "played") : Promise.resolve({ data: [] }),
     event && selectedTeamIds.length ? (supabase as any).from("pit_photos").select("team_id,storage_path,created_at").eq("event_id", event.id).in("team_id", selectedTeamIds).order("created_at", { ascending: false }) : Promise.resolve({ data: [] }),
   ]);
@@ -51,7 +51,7 @@ export default async function ComparePage({ params, searchParams }: { params: Pr
   } catch {}
   const tbaByTeam = new Map(rankings.map((ranking) => [Number(String(ranking.team_key ?? "").replace("frc", "")), ranking]));
   const formatTeam = (row: any, color: string) => {
-    const reports = (entries ?? []).filter((entry: any) => entry.team_id === row.team_id);
+    const reports = competitiveMatchEntries((entries ?? []).filter((entry: any) => entry.team_id === row.team_id));
     const tba = tbaByTeam.get(row.teams?.team_number);
     const matchFuel = reports.map((entry: any) => {
       const auto = asNumber(entry.payload?.auto?.shoot) + asNumber(entry.payload?.auto?.ferry) || asNumber(entry.payload?.auto_fuel);

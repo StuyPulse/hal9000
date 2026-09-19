@@ -6,6 +6,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { getViewerContext, viewerCanManage } from "@/lib/viewer-context";
 import { notFound } from "next/navigation";
 import { RebuiltMatchForm } from "../[matchId]/rebuilt-match-form";
+import { manualMatchLabel } from "@/lib/match-label";
 
 const stageNames: Record<string, string> = {
   qualification: "Qualification",
@@ -53,7 +54,7 @@ export default async function ManualMatchFormPage({ searchParams }: { searchPara
   const returnTo = requestedReturnTo?.startsWith("/") && !requestedReturnTo.startsWith("//") ? requestedReturnTo : undefined;
   if (!viewer?.organizationId) notFound();
   return <AppShell active="Manual scouting">
-    <PageHeader eyebrow={`${stage}${label ? ` · ${label}` : ""} · ${alliance} alliance`} title={`${team?.team_number} · ${team?.name}`} />
+    <PageHeader eyebrow={`${manualMatchLabel({ stage, label })} · ${alliance} alliance`} title={`${team?.team_number} · ${team?.name}`} />
     <RebuiltMatchForm eventId={event.id} organizationId={viewer.organizationId} scoutUserId={viewer.userId} teamId={selectedEventTeam.team_id} alliance={alliance} otherTeams={otherTeams} manualMatch={{ stage, label, alliance }} editingEntryId={editingEntry?.id} initialPayload={editingEntry?.payload ?? {}} returnTo={returnTo}/>
   </AppShell>;
 }

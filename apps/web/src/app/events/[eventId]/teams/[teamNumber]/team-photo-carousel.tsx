@@ -29,12 +29,11 @@ export function TeamPhotoCarousel({ photos, teamNumber }: { photos: string[]; te
     {/* Signed Supabase URLs cannot use the static Next image optimizer. */}
     {/* eslint-disable-next-line @next/next/no-img-element */}
     <img src={photos[displayedIndex]} alt={`${teamNumber} robot pit photo ${displayedIndex + 1} of ${photoCount}`} />
-    <figcaption className={`team-photo-controls${photoCount === 1 ? " single" : ""}`}>
-      {photoCount > 1 && <button type="button" onClick={previous} aria-label="Show previous robot photo">Previous</button>}
-      <span aria-live="polite">{photoCount === 1 ? "Robot photo" : `Photo ${displayedIndex + 1} of ${photoCount}`}</span>
-      {photoCount > 1 && <button type="button" onClick={next} aria-label="Show next robot photo">Next</button>}
+    {photoCount > 1 ? <figcaption className="team-photo-controls">
+      <button type="button" onClick={previous} aria-label="Show previous robot photo">Previous</button>
+      <button type="button" onClick={next} aria-label="Show next robot photo">Next</button>
       <button type="button" className="team-photo-expand" onClick={() => setExpanded(true)}>Expand photo</button>
-    </figcaption>
+    </figcaption> : <button type="button" className="team-photo-expand team-photo-expand-solo" onClick={() => setExpanded(true)}>Expand photo</button>}
     {expanded && <div className="team-photo-lightbox" role="dialog" aria-modal="true" aria-label={`Expanded robot photo for team ${teamNumber}`}>
       {/* Signed Supabase URLs cannot use the static Next image optimizer. */}
       {/* eslint-disable-next-line @next/next/no-img-element */}
