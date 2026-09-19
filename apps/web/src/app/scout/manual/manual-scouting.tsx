@@ -35,7 +35,7 @@ function PitFields({ payload, setPayload }: { payload: Payload; setPayload: (nex
   const length = clamp(Number(payload.drivetrain_length ?? 0), 0, 55);
   const width = clamp(Number(payload.drivetrain_width ?? 0), 0, 55);
   const hopper = clamp(Number(payload.hopper_capacity ?? 0), 0, 500);
-  const traversal = new Set((payload.traversal ?? "none").split(",").filter(Boolean));
+  const traversal = new Set((payload.traversal ?? "").split(",").filter((value) => value === "bump" || value === "trench"));
   const perimeter = 2 * (length + width);
 
   function set(id: string, value: string) {
@@ -48,13 +48,11 @@ function PitFields({ payload, setPayload }: { payload: Payload; setPayload: (nex
     setPayload((current) => ({ ...current, drivetrain_length: String(safeLength), drivetrain_width: String(safeWidth), dimensions: `${safeLength} in × ${safeWidth} in (${2 * (safeLength + safeWidth)} in perimeter)` }));
   }
 
-  function setTraversal(value: "bump" | "trench" | "none") {
-    if (value === "none") return set("traversal", "none");
+  function setTraversal(value: "bump" | "trench") {
     const next = new Set(traversal);
-    next.delete("none");
     if (next.has(value)) next.delete(value);
     else next.add(value);
-    set("traversal", next.size ? [...next].join(",") : "none");
+    set("traversal", [...next].join(","));
   }
 
   return <>
@@ -67,7 +65,7 @@ function PitFields({ payload, setPayload }: { payload: Payload; setPayload: (nex
     <Field id="teleop-inactive-hub" label="Teleop strategy — inactive HUB" value={payload.teleop_inactive_hub ?? ""} onChange={(value) => set("teleop_inactive_hub", value)} placeholder="e.g. Collects and stages fuel while inactive"/>
     <Field id="offseason" label="Offseason drive-team plans" value={payload.offseason ?? ""} onChange={(value) => set("offseason", value)} placeholder="e.g. Two events planned before build season"/>
     <Field id="scoring-area" label="Preferred scoring area" value={payload.scoring_area ?? ""} onChange={(value) => set("scoring_area", value)} placeholder="e.g. Near-side HUB"/>
-    <fieldset className="field pit-traversal"><legend>Traversal</legend><p className="field-hint">Select every route the robot can use, or mark neither.</p><div className="traversal-options"><button type="button" aria-pressed={traversal.has("bump")} className={traversal.has("bump") ? "active" : ""} onClick={() => setTraversal("bump")}><strong>Bump</strong><small>Can cross the bump</small></button><button type="button" aria-pressed={traversal.has("trench")} className={traversal.has("trench") ? "active" : ""} onClick={() => setTraversal("trench")}><strong>Trench</strong><small>Can use the trench</small></button><button type="button" aria-pressed={traversal.has("none")} className={traversal.has("none") ? "active" : ""} onClick={() => setTraversal("none")}><strong>Neither</strong><small>Uses neither route</small></button></div></fieldset>
+    <fieldset className="field pit-traversal"><legend>Traversal</legend><p className="field-hint">Select every route the robot can use.</p><div className="traversal-options"><button type="button" aria-pressed={traversal.has("bump")} className={traversal.has("bump") ? "active" : ""} onClick={() => setTraversal("bump")}><strong>Bump</strong><small>Can cross the bump</small></button><button type="button" aria-pressed={traversal.has("trench")} className={traversal.has("trench") ? "active" : ""} onClick={() => setTraversal("trench")}><strong>Trench</strong><small>Can use the trench</small></button></div></fieldset>
     <Field id="comments" label="Additional comments" value={payload.comments ?? ""} onChange={(value) => set("comments", value)} placeholder="Anything a strategist should know"/>
     <div className="field auto-path-field"><label>Autonomous routines / paths</label><AutoPathDrawer value={payload.auto_routines_drawing ?? ""} onChange={(value) => set("auto_routines_drawing", value)}/><label className="auto-notes-label" htmlFor="auto-routines-notes">Auton notes</label><textarea id="auto-routines-notes" value={payload.auto_routines_notes ?? ""} onChange={(event) => set("auto_routines_notes", event.target.value)} placeholder={"Red — scores preload, then returns through the trench\nBlue — collects from DEPOT before shooting\nGreen — alternate routine"}/></div>
   </>;

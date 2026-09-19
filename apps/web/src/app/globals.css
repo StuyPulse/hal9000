@@ -228,6 +228,7 @@
   .team-pick { @apply min-h-11 rounded-lg border border-stuypulse-border bg-stuypulse-bg px-3 py-2 text-sm font-bold; }
   .team-pick.red { @apply border-stuypulse-red bg-stuypulse-red text-white; }
   .team-pick.blue { @apply border-sky-500 bg-sky-600 text-white; }
+  .team-pick.manual { @apply border-stuypulse-red bg-stuypulse-red/20 text-stuypulse-text; }
   .scheduled-scout-fields { @apply grid gap-5; }
   .robot-picker { @apply mt-2 grid gap-2; }
   .robot-alliance { @apply grid grid-cols-[auto_repeat(3,minmax(0,1fr))] items-stretch gap-2; }
