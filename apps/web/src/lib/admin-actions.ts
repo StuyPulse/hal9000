@@ -7,6 +7,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { revalidatePath } from "next/cache";
 import { randomUUID } from "crypto";
 import { getViewerContext, viewerCanManage } from "@/lib/viewer-context";
+import { revalidateEventTeamNavigation, revalidateOrganizationNavigation } from "@/lib/navigation-data";
 
 export type ActionState = { error?: string; success?: string };
 async function adminContext() {
@@ -51,6 +52,7 @@ function revalidateLocalMatch(event: { id: string; event_key: string }) {
   revalidatePath("/scout/match");
   revalidatePath(`/events/${event.event_key}/matches`);
   revalidatePath("/admin/assignments");
+  revalidateEventTeamNavigation(event.id);
 }
 
 function revalidateManualMatchCompletion(event: { id: string; event_key: string }) {
@@ -184,6 +186,7 @@ export async function createEvent(_: ActionState, formData: FormData): Promise<A
     const { data: event, error } = await database.from("events").insert({ organization_id: organizationId, name: parsed.data.name, event_key: manualEventKey(), starts_at: `${parsed.data.startsAt}T00:00:00Z`, ends_at: `${parsed.data.endsAt ?? parsed.data.startsAt}T23:59:59Z`, status: "upcoming", is_manual: true }).select("event_key").single();
     if (error || !event) return { error: "Couldn’t create the manual event." };
     revalidatePath("/events");
+    revalidateOrganizationNavigation(organizationId);
     return { success: "Manual event created. Add its teams and matches next." };
   } catch { return { error: "Admin access is required." }; }
 }
@@ -200,6 +203,7 @@ export async function addManualEventTeam(_: ActionState, formData: FormData): Pr
     const { error: linkError } = await database.from("event_teams").upsert({ event_id: event.id, team_id: team.id }, { onConflict: "event_id,team_id" });
     if (linkError) return { error: "Couldn’t add that team to the event." };
     revalidatePath(`/events/${event.event_key}/matches`); revalidatePath(`/events/${event.event_key}/teams`);
+    revalidateEventTeamNavigation(event.id);
     return { success: `Team ${parsed.data.teamNumber} is ready for this event.` };
   } catch { return { error: "Manual-event admin access is required." }; }
 }
@@ -215,6 +219,7 @@ export async function removeManualEventTeam(_: ActionState, formData: FormData):
     const { error } = await database.from("event_teams").delete().eq("event_id", event.id).eq("team_id", parsed.data.teamId);
     if (error) return { error: "Couldn’t remove that team." };
     revalidatePath(`/events/${event.event_key}/matches`); revalidatePath(`/events/${event.event_key}/teams`);
+    revalidateEventTeamNavigation(event.id);
     return { success: "Team removed from this event." };
   } catch { return { error: "Manual-event admin access is required." }; }
 }
@@ -233,6 +238,7 @@ export async function saveManualMatch(_: ActionState, formData: FormData): Promi
       : await database.from("matches").insert({ ...match, tba_match_key: `manual_${randomUUID()}` });
     if (error) return { error: "Couldn’t save that match. Match numbers must be unique within each round type." };
     revalidatePath(`/events/${event.event_key}/matches`); revalidatePath("/scout/match");
+    revalidateEventTeamNavigation(event.id);
     return { success: parsed.data.matchId ? "Match updated." : "Match added." };
   } catch { return { error: "Manual-event admin access is required." }; }
 }
@@ -264,6 +270,7 @@ export async function deleteEvent(_: ActionState, formData: FormData): Promise<A
     if (error || !deleted) return { error: "Couldn’t delete the event. It may have changed or you may not have access." };
     revalidatePath("/events");
     revalidatePath("/admin/sync");
+    revalidateOrganizationNavigation(organizationId);
     return { success: `${input.data.eventName} was deleted.` };
   } catch { return { error: "Admin access is required." }; }
 }
@@ -341,6 +348,7 @@ export async function setActiveEvent(_: ActionState, formData: FormData): Promis
     const { error: activateError } = await database.from("events").update({ status: "active" }).eq("id", event.id).eq("organization_id", organizationId);
     if (activateError) return importDatabaseError("the selected event", activateError);
     revalidatePath("/"); revalidatePath("/dashboard"); revalidatePath("/events"); revalidatePath("/scout/manual");
+    revalidateOrganizationNavigation(organizationId);
     return { success: `${event.name} is now the active event.` };
   } catch { return { error: "Admin access is required." }; }
 }
@@ -685,6 +693,8 @@ export async function importTbaEvent(_: ActionState, formData: FormData): Promis
     revalidatePath("/events");
     revalidatePath("/admin/sync");
     revalidatePath(`/events/${eventId}/matches`);
+    revalidateOrganizationNavigation(organizationId);
+    revalidateEventTeamNavigation(eventId);
     return { success: `Synced ${teamCount} teams and ${matchCount} matches from TBA. Unchanged data was kept from the previous sync.` };
   } catch (error) {
     console.error("TBA import failed", error);

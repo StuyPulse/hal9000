@@ -17,7 +17,7 @@ const matchSchema = z.object({
 });
 
 export type LiveSyncResult = { updated: boolean; skipped?: boolean; message: string };
-export type ActiveEventSyncResult = LiveSyncResult & { eventKey: string };
+export type ActiveEventSyncResult = LiveSyncResult & { eventId: string; eventKey: string };
 const intervalMs = 25_000;
 const typeFor = (level: string) => level === "qm" ? "qualification" : level === "pr" ? "practice" : "playoff";
 const scoreFor = (score: number) => score >= 0 ? score : null;
@@ -148,6 +148,7 @@ export async function syncAllActiveEvents(): Promise<ActiveEventSyncResult[]> {
   if (error) throw new Error("Could not load active events for live synchronization.");
 
   return Promise.all((events ?? []).map(async (event: { id: string; organization_id: string; event_key: string }) => ({
+    eventId: event.id,
     eventKey: event.event_key,
     ...(await syncLiveEvent(event.id, event.organization_id)),
   })));

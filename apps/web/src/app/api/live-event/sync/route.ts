@@ -3,6 +3,7 @@ import { revalidatePath } from "next/cache";
 import { getViewerContext } from "@/lib/viewer-context";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { syncAllActiveEvents, syncLiveEvent } from "@/lib/tba-live-sync";
+import { revalidateEventTeamNavigation } from "@/lib/navigation-data";
 
 export const dynamic = "force-dynamic";
 
@@ -22,7 +23,10 @@ export async function POST() {
   if (!viewer?.organizationId || !viewer.activeEvent) return NextResponse.json({ error: "No active event is available." }, { status: 401, headers: { "Cache-Control": "private, no-store" } });
   try {
     const result = await syncLiveEvent(viewer.activeEvent.id, viewer.organizationId);
-    if (result.updated) revalidateLiveEvent(viewer.activeEvent.event_key);
+    if (result.updated) {
+      revalidateLiveEvent(viewer.activeEvent.event_key);
+      revalidateEventTeamNavigation(viewer.activeEvent.id);
+    }
     return NextResponse.json(result, { headers: { "Cache-Control": "private, no-store" } });
   } catch (error) {
     console.error("Live TBA sync failed", error);
@@ -41,7 +45,10 @@ export async function GET(request: Request) {
   }
   try {
     const results = await syncAllActiveEvents();
-    for (const result of results) if (result.updated) revalidateLiveEvent(result.eventKey);
+    for (const result of results) if (result.updated) {
+      revalidateLiveEvent(result.eventKey);
+      revalidateEventTeamNavigation(result.eventId);
+    }
     return NextResponse.json({ activeEvents: results.length, updatedEvents: results.filter((result) => result.updated).length }, { headers: { "Cache-Control": "no-store" } });
   } catch (error) {
     console.error("Scheduled live TBA sync failed", error);

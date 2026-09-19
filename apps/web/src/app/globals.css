@@ -1,5 +1,3 @@
-@import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Manrope:wght@400;500;600;700;800&display=swap');
-
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -7,7 +5,7 @@
 @layer base {
   * { @apply box-border; }
   html { @apply bg-stuypulse-bg; overflow-y: scroll; scrollbar-color: theme('colors.stuypulse.border') theme('colors.stuypulse.bg'); scrollbar-gutter: stable; -webkit-text-size-adjust: 100%; }
-  body { @apply m-0 bg-stuypulse-bg font-sans text-stuypulse-text antialiased; overflow-x: clip; font-family: Manrope, sans-serif; }
+  body { @apply m-0 bg-stuypulse-bg font-sans text-stuypulse-text antialiased; overflow-x: clip; font-family: var(--font-manrope), sans-serif; }
   a { @apply text-inherit no-underline; }
   button, input, select, textarea { font: inherit; color-scheme: dark; }
   input, select, textarea { @apply text-base; }
@@ -18,7 +16,7 @@
   h1 { @apply mt-1 text-3xl font-extrabold tracking-[-0.06em]; }
   h2 { @apply m-0 text-[17px] font-bold tracking-[-0.04em]; }
   table { @apply w-full border-collapse; }
-  th { @apply px-2 pb-3 text-left text-[10px] font-medium uppercase tracking-[0.08em] text-stuypulse-textMuted; font-family: 'DM Mono', monospace; }
+  th { @apply px-2 pb-3 text-left text-[10px] font-medium uppercase tracking-[0.08em] text-stuypulse-textMuted; font-family: var(--font-dm-mono), monospace; }
   td { @apply border-t border-stuypulse-border px-2 py-3.5 text-[13px]; }
   tbody tr:nth-child(even) td { @apply bg-stuypulse-surface; }
   * { scrollbar-width: thin; }
@@ -43,7 +41,7 @@
   .brand-mark { @apply grid h-[34px] w-[34px] shrink-0 place-items-center; }
   .brand-mark img { @apply block h-full w-full; }
   .brand small { @apply block text-[10px] font-bold tracking-[0.12em] text-stuypulse-textMuted; }
-  .nav-label { @apply px-2.5 pb-2 pt-4 text-[10px] font-medium uppercase tracking-[0.14em] text-stuypulse-textMuted; font-family: 'DM Mono', monospace; }
+  .nav-label { @apply px-2.5 pb-2 pt-4 text-[10px] font-medium uppercase tracking-[0.14em] text-stuypulse-textMuted; font-family: var(--font-dm-mono), monospace; }
   .nav-item { @apply my-0.5 flex items-center gap-3 rounded-lg px-2.5 py-2.5 text-sm font-semibold text-stuypulse-textMuted transition-colors hover:bg-stuypulse-elevated hover:text-stuypulse-text; }
   .nav-item.active { @apply bg-stuypulse-elevated text-stuypulse-text; box-shadow: inset 3px 0 0 theme('colors.stuypulse.red'); }
   .nav-links { @apply min-h-0 flex-1 overflow-y-auto; }
@@ -58,12 +56,12 @@
   .global-search-input input { @apply min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-stuypulse-textMuted; }
   .global-search-results { @apply absolute right-0 z-50 mt-1 max-h-[min(60dvh,28rem)] w-full overflow-y-auto rounded-lg border border-stuypulse-border bg-stuypulse-surface p-1 shadow-elevated; }
   .global-search-group { @apply grid gap-0.5 border-b border-stuypulse-border p-1 last:border-b-0; }
-  .global-search-group > span { @apply px-2 py-1 text-[10px] font-bold uppercase tracking-[0.1em] text-stuypulse-textMuted; font-family:'DM Mono',monospace; }
+  .global-search-group > span { @apply px-2 py-1 text-[10px] font-bold uppercase tracking-[0.1em] text-stuypulse-textMuted; font-family: var(--font-dm-mono), monospace; }
   .global-search-group a { @apply grid grid-cols-[auto_auto_minmax(0,1fr)] items-center gap-2 rounded-md px-2 py-2 text-sm text-stuypulse-text no-underline transition hover:bg-stuypulse-elevated focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-stuypulse-red; }
   .global-search-group a small { @apply min-w-0 truncate text-xs text-stuypulse-textMuted; }
   .global-search-results > .muted { @apply m-0 px-3 py-2 text-xs; }
   .back-button { @apply mt-1 inline-flex min-h-9 shrink-0 items-center rounded-lg border border-stuypulse-border bg-stuypulse-surface px-2.5 text-xs font-bold text-stuypulse-textMuted transition hover:bg-stuypulse-elevated hover:text-stuypulse-text; }
-  .eyebrow { @apply text-[11px] font-medium uppercase tracking-[0.12em] text-stuypulse-textMuted; font-family: 'DM Mono', monospace; }
+  .eyebrow { @apply text-[11px] font-medium uppercase tracking-[0.12em] text-stuypulse-textMuted; font-family: var(--font-dm-mono), monospace; }
   .event-chip { @apply flex items-center gap-2 rounded-lg border border-stuypulse-border bg-stuypulse-surface px-3 py-2 text-xs text-stuypulse-textMuted no-underline shadow-panel; }
   .main :target { scroll-margin-top: 1rem; }
   .online { @apply h-[7px] w-[7px] rounded-full bg-stuypulse-success shadow-status; }
@@ -83,23 +81,23 @@
   .admin-stack { @apply grid gap-4; }
   .stat-value { @apply mt-3.5 text-3xl font-extrabold leading-none tracking-[-0.07em]; }
   .stat-label { @apply text-xs font-semibold text-stuypulse-textMuted; }
-  .trend { @apply mt-2 text-[11px] font-medium text-stuypulse-success; font-family: 'DM Mono', monospace; }
+  .trend { @apply mt-2 text-[11px] font-medium text-stuypulse-success; font-family: var(--font-dm-mono), monospace; }
   .dashboard-grid { @apply mt-[18px] grid grid-cols-[1.45fr_1fr] items-start gap-4; }
   .card-head { @apply mb-[18px] flex items-center justify-between gap-3; }
   .link { @apply text-xs font-semibold text-stuypulse-redHover transition-colors hover:text-stuypulse-text; }
-  .rank { @apply text-xs font-medium text-stuypulse-textMuted; font-family: 'DM Mono', monospace; }
+  .rank { @apply text-xs font-medium text-stuypulse-textMuted; font-family: var(--font-dm-mono), monospace; }
   .team { @apply font-bold; }
-  .score { @apply text-[13px] font-medium text-stuypulse-text; font-family: 'DM Mono', monospace; }
-  .tag { @apply inline-flex items-center rounded px-2 py-1 text-[10px] font-semibold; font-family: 'DM Mono', monospace; }
+  .score { @apply text-[13px] font-medium text-stuypulse-text; font-family: var(--font-dm-mono), monospace; }
+  .tag { @apply inline-flex items-center rounded px-2 py-1 text-[10px] font-semibold; font-family: var(--font-dm-mono), monospace; }
   .tag.complete { @apply bg-stuypulse-success/15 text-stuypulse-success; }
   .tag.pending { @apply bg-stuypulse-warning/15 text-stuypulse-warning; }
   .tag.live { @apply bg-stuypulse-red/20 text-stuypulse-redHover; }
 
   .match-row { @apply flex min-w-0 items-center gap-3 border-t border-stuypulse-border py-3; }
-  .match-time { @apply w-11 text-[11px] font-medium text-stuypulse-textMuted; font-family: 'DM Mono', monospace; }
+  .match-time { @apply w-11 text-[11px] font-medium text-stuypulse-textMuted; font-family: var(--font-dm-mono), monospace; }
   .match-num { @apply shrink-0 whitespace-nowrap font-bold; }
   .alliances { @apply min-w-0 flex-1 break-words text-xs leading-relaxed; }
-  .match-score { @apply flex min-w-16 items-center justify-center gap-1 rounded-md border border-stuypulse-border bg-stuypulse-bg px-2 py-1 text-sm font-extrabold; font-family: 'DM Mono', monospace; }
+  .match-score { @apply flex min-w-16 items-center justify-center gap-1 rounded-md border border-stuypulse-border bg-stuypulse-bg px-2 py-1 text-sm font-extrabold; font-family: var(--font-dm-mono), monospace; }
   .red { @apply text-stuypulse-redHover; }
   .blue { @apply text-sky-300; }
   .button { @apply inline-flex min-h-11 items-center justify-center rounded-lg bg-stuypulse-red px-4 py-2.5 text-sm font-extrabold text-stuypulse-text shadow-panel transition-colors hover:bg-stuypulse-redHover active:bg-stuypulse-redPressed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-stuypulse-redHover focus-visible:ring-offset-2 focus-visible:ring-offset-stuypulse-bg; }
@@ -114,7 +112,7 @@
   .submission-row-action { @apply flex shrink-0 items-center gap-3 text-sm font-bold text-stuypulse-textMuted; }
   .submission-filter-row { @apply mb-5 max-w-sm; }
   .submission-top-controls { @apply flex flex-wrap items-end justify-end gap-3; }
-  .submission-event-filter { @apply grid min-w-[220px] gap-1 text-[10px] font-bold uppercase tracking-[0.08em] text-stuypulse-textMuted; font-family:'DM Mono',monospace; }
+  .submission-event-filter { @apply grid min-w-[220px] gap-1 text-[10px] font-bold uppercase tracking-[0.08em] text-stuypulse-textMuted; font-family: var(--font-dm-mono), monospace; }
   .submission-event-filter .app-select { @apply min-w-0; }
   .submission-scout-filter .searchable-team-input { @apply items-center; }
   .submission-scout-search { @apply ml-3 shrink-0 text-stuypulse-textMuted; }
@@ -128,11 +126,11 @@
   .submission-detail-head { @apply flex items-start justify-between gap-4 border-b border-stuypulse-border bg-stuypulse-elevated/50 px-5 py-5; }
   .submission-detail-head h2 { @apply mt-1 text-xl; }
   .submission-detail-head p { @apply mb-0 mt-1; }
-  .submission-kind { @apply text-[10px] font-bold uppercase tracking-[0.12em] text-stuypulse-redHover; font-family:'DM Mono',monospace; }
-  .submission-meta { @apply mx-5 mb-5 flex flex-wrap gap-x-5 gap-y-2 border-b border-stuypulse-border py-3 text-[10px] font-medium uppercase tracking-[0.1em] text-stuypulse-textMuted; font-family: 'DM Mono', monospace; }
+  .submission-kind { @apply text-[10px] font-bold uppercase tracking-[0.12em] text-stuypulse-redHover; font-family: var(--font-dm-mono), monospace; }
+  .submission-meta { @apply mx-5 mb-5 flex flex-wrap gap-x-5 gap-y-2 border-b border-stuypulse-border py-3 text-[10px] font-medium uppercase tracking-[0.1em] text-stuypulse-textMuted; font-family: var(--font-dm-mono), monospace; }
   .submission-detail-grid { @apply grid grid-cols-[repeat(auto-fit,minmax(220px,1fr))] items-start gap-x-8 px-5 pb-5; }
   .submission-detail-grid > div { @apply h-fit min-w-0 self-start border-t border-stuypulse-border py-4; }
-  .submission-detail-grid dt { @apply mb-1.5 text-[10px] font-bold uppercase tracking-[0.1em] text-stuypulse-textMuted; font-family: 'DM Mono', monospace; }
+  .submission-detail-grid dt { @apply mb-1.5 text-[10px] font-bold uppercase tracking-[0.1em] text-stuypulse-textMuted; font-family: var(--font-dm-mono), monospace; }
   .submission-detail-grid dd { @apply m-0 break-words text-sm font-semibold text-stuypulse-text; }
   .submission-detail-grid-compact { @apply grid-cols-2 gap-x-4 gap-y-0 p-0; }
   .submission-detail-grid-compact > div { @apply border-0 bg-transparent py-1; }
@@ -148,7 +146,7 @@
   .submission-detail-grid > .submission-drawing { @apply col-span-full; }
   .payload-score { @apply grid grid-cols-2 gap-5; }
   .payload-score span { @apply grid gap-0.5; }
-  .payload-score small { @apply text-[10px] font-bold uppercase tracking-[0.08em] text-stuypulse-textMuted; font-family:'DM Mono',monospace; }
+  .payload-score small { @apply text-[10px] font-bold uppercase tracking-[0.08em] text-stuypulse-textMuted; font-family: var(--font-dm-mono), monospace; }
   .payload-score strong { @apply text-base text-stuypulse-text; }
   .auto-path-preview { @apply relative aspect-[1380/674] overflow-hidden rounded-md border border-stuypulse-border bg-white; background-image: url('/2026-field-map.png'); background-position: center; background-size: cover; }
   .auto-path-preview img { @apply absolute inset-0 h-full w-full; }
@@ -166,14 +164,14 @@
   .pit-photo-submit > .button:disabled { @apply cursor-not-allowed opacity-50; }
   .muted { @apply text-xs text-stuypulse-textMuted; }
   .section { @apply mt-[18px]; }
-  .section-title { @apply mb-2.5 mt-[22px] text-[11px] font-medium uppercase tracking-[0.12em] text-stuypulse-textMuted; font-family: 'DM Mono', monospace; }
+  .section-title { @apply mb-2.5 mt-[22px] text-[11px] font-medium uppercase tracking-[0.12em] text-stuypulse-textMuted; font-family: var(--font-dm-mono), monospace; }
   .form-grid { @apply grid grid-cols-2 gap-4; }
   .auto-path-field { @apply col-span-full; }
   .field-hint { @apply mb-2 mt-1 text-xs leading-relaxed text-stuypulse-textMuted; }
   .range-warning { @apply text-stuypulse-warning; }
   .scouting-range-field { @apply col-span-full; }
   .scouting-range-pair { @apply grid grid-cols-2 gap-4; }
-  .scouting-range-pair label { @apply grid gap-2 text-sm font-bold normal-case tracking-normal text-stuypulse-text; font-family:Manrope,sans-serif; }
+  .scouting-range-pair label { @apply grid gap-2 text-sm font-bold normal-case tracking-normal text-stuypulse-text; font-family: var(--font-manrope), sans-serif; }
   .scouting-range-pair label > span { @apply flex items-center justify-between; }
   .scouting-range-pair input[type=range], .scouting-range-with-input input[type=range] { @apply h-10 w-full; }
   .scouting-slider { @apply cursor-pointer appearance-none bg-transparent; --range-progress: 0%; }
@@ -214,7 +212,7 @@
   .field textarea { @apply min-h-[94px] resize-y; }
   .counter { @apply flex items-center gap-2.5; }
   .counter button { @apply h-11 w-11 shrink-0 rounded-lg border border-stuypulse-border bg-stuypulse-elevated text-lg font-extrabold text-stuypulse-text transition-colors hover:bg-stuypulse-red hover:text-stuypulse-text; }
-  .counter output { @apply min-w-[25px] text-center text-lg font-semibold; font-family: 'DM Mono', monospace; }
+  .counter output { @apply min-w-[25px] text-center text-lg font-semibold; font-family: var(--font-dm-mono), monospace; }
   .counter input { @apply h-11 w-20 rounded-lg border border-stuypulse-border bg-stuypulse-bg px-2 py-1 text-center; }
   .match-form, .match-form fieldset, .match-form .form-section { min-width: 0; }
   .match-form fieldset { min-inline-size: 0; }
@@ -229,7 +227,7 @@
   .spot.red span { @apply text-white; }
   .spot.blue { @apply border-stuypulse-border bg-sky-600 text-white; }
   .spot.blue span { @apply text-white; }
-  .spot-choice { @apply mt-3 text-xs font-semibold text-stuypulse-textMuted; font-family: 'DM Mono', monospace; }
+  .spot-choice { @apply mt-3 text-xs font-semibold text-stuypulse-textMuted; font-family: var(--font-dm-mono), monospace; }
   @container (max-width: 44rem) {
     .field-map .spot { width:clamp(2.9rem, 14cqw, 4rem); height:clamp(1.8rem, 7cqw, 2.25rem); border-radius:0.5rem; }
     .field-map .spot span { font-size:clamp(0.5rem, 2.4cqw, 0.625rem); }
@@ -242,7 +240,7 @@
   .scheduled-scout-fields { @apply grid gap-5; }
   .robot-picker { @apply mt-2 grid gap-2; }
   .robot-alliance { @apply grid grid-cols-[auto_repeat(3,minmax(0,1fr))] items-stretch gap-2; }
-  .robot-alliance-label { @apply px-1 text-[10px] font-extrabold uppercase tracking-[0.1em]; font-family:'DM Mono',monospace; }
+  .robot-alliance-label { @apply px-1 text-[10px] font-extrabold uppercase tracking-[0.1em]; font-family: var(--font-dm-mono), monospace; }
   .robot-alliance.red .robot-alliance-label { @apply text-stuypulse-redHover; }
   .robot-alliance.blue .robot-alliance-label { @apply text-sky-400; }
   .robot-pick { @apply min-h-12 min-w-0 rounded-lg border-2 px-3 py-2 text-left text-sm font-extrabold transition hover:brightness-110; }
@@ -313,11 +311,11 @@
   .assignment-board { @apply grid gap-4; }
   .assignment-match { @apply overflow-visible rounded-panel bg-stuypulse-surface shadow-panel; }
   .assignment-match-head { @apply flex items-center justify-between rounded-t-panel bg-stuypulse-elevated px-3.5 py-3; }
-  .assignment-match-head strong { @apply text-[13px] font-semibold text-stuypulse-text; font-family: 'DM Mono', monospace; }
+  .assignment-match-head strong { @apply text-[13px] font-semibold text-stuypulse-text; font-family: var(--font-dm-mono), monospace; }
   .assignment-match-head span:not(.tag) { @apply ml-2.5 text-xs text-stuypulse-textMuted; }
   .assignment-alliance-grid { @apply grid grid-cols-2 gap-px bg-stuypulse-border; }
   .assignment-alliance-grid > div { @apply bg-stuypulse-surface p-3; }
-  .assignment-alliance-title { @apply mb-2 text-[10px] font-semibold uppercase tracking-[0.1em]; font-family: 'DM Mono', monospace; }
+  .assignment-alliance-title { @apply mb-2 text-[10px] font-semibold uppercase tracking-[0.1em]; font-family: var(--font-dm-mono), monospace; }
   .assignment-editor { @apply grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 border-t border-stuypulse-border py-2; }
   .assignment-editor-team { @apply grid min-w-0 gap-0.5; }
   .assignment-editor strong { @apply text-xs text-stuypulse-text; }
@@ -340,7 +338,7 @@
   .pit-tabs { @apply flex gap-1 overflow-x-auto rounded-lg border border-stuypulse-border bg-stuypulse-bg/50 p-1; -webkit-overflow-scrolling:touch; }
   .pit-tabs button { @apply min-h-11 shrink-0 rounded-md px-3 text-xs font-extrabold text-stuypulse-textMuted transition hover:bg-stuypulse-elevated hover:text-stuypulse-text; }
   .pit-tabs button.active { @apply bg-stuypulse-surface text-stuypulse-text shadow-sm; }
-  .pit-tabs button span { @apply ml-1.5 rounded-full bg-stuypulse-warning/15 px-1.5 py-0.5 text-[10px] text-stuypulse-warning; font-family:'DM Mono',monospace; }
+  .pit-tabs button span { @apply ml-1.5 rounded-full bg-stuypulse-warning/15 px-1.5 py-0.5 text-[10px] text-stuypulse-warning; font-family: var(--font-dm-mono), monospace; }
   .team-directory-row { @apply transition-colors hover:bg-stuypulse-elevated focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-stuypulse-redHover; }
   .photo-coverage { @apply grid grid-cols-2 gap-3; }
   .photo-coverage > div { @apply rounded-lg border border-stuypulse-border bg-stuypulse-bg p-3; }
@@ -369,7 +367,7 @@
   .comparison-bar.blue { @apply bg-sky-600; }
   .form-launcher { @apply grid grid-cols-[repeat(auto-fit,minmax(220px,1fr))] gap-3; }
   .form-launch { @apply grid min-h-36 content-between rounded-panel border border-stuypulse-border bg-stuypulse-surface p-5 transition hover:-translate-y-0.5 hover:border-stuypulse-redHover hover:bg-stuypulse-elevated; }
-  .form-launch span, .form-kicker { @apply text-[10px] font-medium uppercase tracking-[0.14em] text-stuypulse-redHover; font-family: 'DM Mono', monospace; }
+  .form-launch span, .form-kicker { @apply text-[10px] font-medium uppercase tracking-[0.14em] text-stuypulse-redHover; font-family: var(--font-dm-mono), monospace; }
   .form-launch strong { @apply text-base text-stuypulse-text; }
   .form-launch small { @apply text-xs text-stuypulse-textMuted; }
   .match-scout-grid { @apply grid grid-cols-2 items-start gap-5; }
@@ -391,7 +389,7 @@
   .form-section .section-title { @apply mt-0 text-stuypulse-redHover; }
   .scoring-table { @apply mt-4 overflow-hidden rounded-lg border border-stuypulse-border; }
   .scoring-head, .scoring-row { @apply grid grid-cols-[minmax(130px,1fr)_minmax(185px,1fr)_minmax(185px,1fr)] items-center gap-3 border-b border-stuypulse-border px-3 py-3; }
-  .scoring-head { @apply bg-stuypulse-elevated text-[10px] font-medium uppercase tracking-[0.1em] text-stuypulse-textMuted; font-family: 'DM Mono', monospace; }
+  .scoring-head { @apply bg-stuypulse-elevated text-[10px] font-medium uppercase tracking-[0.1em] text-stuypulse-textMuted; font-family: var(--font-dm-mono), monospace; }
   .scoring-row:last-child { @apply border-b-0; }
   .scoring-row.auto-row { @apply border-l-2 border-l-stuypulse-red bg-stuypulse-red/10; }
   .scoring-row strong { @apply text-sm; }
@@ -451,8 +449,8 @@
   .manual-match-form > label:nth-of-type(3) { grid-column: span 3 / span 3; }
   .manual-match-form > label:nth-of-type(4), .manual-match-form > label:nth-of-type(5) { grid-column: span 3 / span 3; }
   .manual-match-form > .button { grid-column: span 1 / span 1; }
-  .manual-team-form label, .manual-match-form label { @apply grid gap-1 text-[10px] font-bold uppercase tracking-[0.08em] text-stuypulse-textMuted; font-family:'DM Mono',monospace; }
-  .manual-team-form input, .manual-match-form input, .manual-match-form select { @apply min-h-10 rounded-md border border-stuypulse-border bg-stuypulse-surface px-2 text-sm text-stuypulse-text; font-family:Manrope,sans-serif; }
+  .manual-team-form label, .manual-match-form label { @apply grid gap-1 text-[10px] font-bold uppercase tracking-[0.08em] text-stuypulse-textMuted; font-family: var(--font-dm-mono), monospace; }
+  .manual-team-form input, .manual-match-form input, .manual-match-form select { @apply min-h-10 rounded-md border border-stuypulse-border bg-stuypulse-surface px-2 text-sm text-stuypulse-text; font-family: var(--font-manrope), sans-serif; }
   .manual-team-list { @apply mt-3 grid gap-1; }
   .manual-team-row { @apply flex items-center gap-3 rounded-md border border-stuypulse-border bg-stuypulse-bg/50 px-3 py-2 text-sm; }
   .manual-team-row > span:first-child { @apply flex-1; }
@@ -482,7 +480,7 @@
   .event-select select { @apply min-h-11 w-full rounded-lg border border-stuypulse-border bg-stuypulse-bg px-3 py-2 text-sm text-stuypulse-text; }
   .team-stat-grid { @apply grid grid-cols-[repeat(auto-fill,minmax(150px,1fr))] gap-3; }
   .team-stat-grid .card { @apply min-h-[104px] p-4; }
-  .team-stat-value { @apply mt-3 text-xl font-extrabold tracking-[-0.05em]; font-family:'DM Mono',monospace; }
+  .team-stat-value { @apply mt-3 text-xl font-extrabold tracking-[-0.05em]; font-family: var(--font-dm-mono), monospace; }
   .team-hero { @apply grid grid-cols-[minmax(250px,.85fr)_minmax(0,1.15fr)] overflow-hidden p-0; height: clamp(18rem, 38dvh, 28rem); }
   .team-hero-photo { @apply h-full min-h-0 border-r border-stuypulse-border bg-stuypulse-bg/60; }
   .team-photo-carousel, .team-photo-empty { @apply relative grid h-full min-h-0 overflow-hidden; }
@@ -499,14 +497,14 @@
   .team-photo-lightbox > img { @apply min-h-0 max-h-full w-full max-w-full self-center justify-self-center object-contain; }
   .team-photo-lightbox-controls { @apply mx-auto flex w-full max-w-2xl flex-wrap items-center justify-center gap-2; }
   .team-photo-lightbox-controls button { @apply min-h-11 rounded-md border border-stuypulse-border bg-stuypulse-surface px-4 text-sm font-bold text-stuypulse-text transition hover:border-stuypulse-textMuted hover:bg-stuypulse-elevated focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-stuypulse-redHover; }
-  .team-photo-lightbox-controls span { @apply px-2 text-xs font-bold text-stuypulse-textMuted; font-family:'DM Mono',monospace; }
+  .team-photo-lightbox-controls span { @apply px-2 text-xs font-bold text-stuypulse-textMuted; font-family: var(--font-dm-mono), monospace; }
   .team-hero-summary { @apply grid content-center gap-5 p-5; }
   .team-hero-head, .team-research-head { @apply flex flex-wrap items-start justify-between gap-3; }
   .team-hero-head h2, .team-research-head h2 { @apply text-base font-extrabold tracking-[-0.02em] text-stuypulse-text; }
   .team-overview-metrics { @apply grid grid-cols-2 gap-x-5 gap-y-4; }
   .team-overview-metrics > div { @apply border-l border-stuypulse-border pl-3; }
   .team-overview-metrics span, .team-overview-metrics small { @apply block text-xs text-stuypulse-textMuted; }
-  .team-overview-metrics strong { @apply mt-1.5 block text-2xl font-extrabold tracking-[-0.05em]; font-family:'DM Mono',monospace; }
+  .team-overview-metrics strong { @apply mt-1.5 block text-2xl font-extrabold tracking-[-0.05em]; font-family: var(--font-dm-mono), monospace; }
   .team-overview-metrics small { @apply mt-1 text-[10px]; }
   .coverage-list { @apply mt-4 grid gap-3; }
   .team-research-empty { @apply flex items-center justify-between gap-4 rounded-lg border border-stuypulse-border bg-stuypulse-bg/40 px-4 py-3 text-xs; }
@@ -539,10 +537,10 @@
   .team-timeline-row.missing { box-shadow: inset 3px 0 0 theme('colors.stuypulse.warning'); }
   .team-timeline-match, .team-timeline-result, .team-timeline-coverage { @apply grid gap-0.5; }
   .team-timeline-match strong, .team-timeline-result strong, .team-timeline-coverage strong { @apply text-xs; }
-  .team-timeline-match span, .team-timeline-result span, .team-timeline-coverage span { @apply text-[10px] font-medium text-stuypulse-textMuted; font-family:'DM Mono',monospace; }
+  .team-timeline-match span, .team-timeline-result span, .team-timeline-coverage span { @apply text-[10px] font-medium text-stuypulse-textMuted; font-family: var(--font-dm-mono), monospace; }
   .team-timeline-match span { @apply font-bold uppercase; }
   .team-timeline-actions { @apply flex justify-end gap-3 text-nowrap; }
-  .team-timeline-quick-stats { @apply col-span-full grid grid-cols-[auto_repeat(2,minmax(0,1fr))_auto_repeat(2,minmax(0,1fr))] items-center gap-x-3 border-t border-stuypulse-border pt-2 text-[10px] text-stuypulse-textMuted; font-family:'DM Mono',monospace; }
+  .team-timeline-quick-stats { @apply col-span-full grid grid-cols-[auto_repeat(2,minmax(0,1fr))_auto_repeat(2,minmax(0,1fr))] items-center gap-x-3 border-t border-stuypulse-border pt-2 text-[10px] text-stuypulse-textMuted; font-family: var(--font-dm-mono), monospace; }
   .team-timeline-quick-stats > span { @apply flex min-w-0 items-center gap-1 whitespace-nowrap; }
   .team-timeline-quick-stats > span:nth-child(1), .team-timeline-quick-stats > span:nth-child(4) { @apply font-bold uppercase tracking-[0.08em] text-stuypulse-text; }
   .team-timeline-quick-stats strong { @apply font-bold text-stuypulse-textMuted; }
@@ -554,13 +552,13 @@
   .team-timeline-report-head { @apply mb-2 flex items-center justify-between gap-3 text-xs font-semibold text-stuypulse-textMuted; }
   .match-report-summary { @apply grid gap-4; }
   .match-report-start { @apply grid gap-1; }
-  .match-report-start span, .match-report-fact > strong { @apply text-[10px] font-bold uppercase tracking-[0.1em] text-stuypulse-textMuted; font-family:'DM Mono',monospace; }
+  .match-report-start span, .match-report-fact > strong { @apply text-[10px] font-bold uppercase tracking-[0.1em] text-stuypulse-textMuted; font-family: var(--font-dm-mono), monospace; }
   .match-report-start strong { @apply text-sm text-stuypulse-text; }
   .match-report-periods { @apply grid grid-cols-2 gap-4; }
   .match-report-period { @apply grid grid-cols-2 gap-x-5 gap-y-1; }
   .match-report-period > strong { @apply col-span-2 text-xs font-extrabold uppercase tracking-[0.1em] text-stuypulse-text; }
   .match-report-period > div { @apply grid gap-0.5; }
-  .match-report-period span { @apply text-[10px] font-bold uppercase tracking-[0.08em] text-stuypulse-textMuted; font-family:'DM Mono',monospace; }
+  .match-report-period span { @apply text-[10px] font-bold uppercase tracking-[0.08em] text-stuypulse-textMuted; font-family: var(--font-dm-mono), monospace; }
   .match-report-period b { @apply text-base text-stuypulse-text; }
   .match-report-facts { @apply grid gap-2 border-t border-stuypulse-border pt-3; }
   .match-report-fact { @apply flex flex-wrap items-baseline gap-x-3 gap-y-1 text-xs text-stuypulse-text; }
@@ -578,12 +576,12 @@
   .graph-bars { @apply grid gap-2; }
   .graph-bar-wrap { @apply grid grid-cols-[minmax(60px,1fr)_84px] items-center gap-2; }
   .graph-bar { @apply block min-h-7 rounded-md px-2 py-1 text-right text-xs font-bold text-white; min-width: 3.5rem; }
-  .graph-bar-wrap small { @apply truncate text-right text-[10px] text-stuypulse-textMuted; font-family:'DM Mono',monospace; }
+  .graph-bar-wrap small { @apply truncate text-right text-[10px] text-stuypulse-textMuted; font-family: var(--font-dm-mono), monospace; }
   .comparison-table { @apply mt-4 overflow-hidden rounded-lg border border-stuypulse-border; }
   .comparison-head, .comparison-metric { @apply grid grid-cols-[minmax(160px,1fr)_minmax(90px,.4fr)_minmax(90px,.4fr)] gap-3 border-b border-stuypulse-border px-4 py-3 text-xs; }
-  .comparison-head { @apply bg-stuypulse-elevated text-[10px] uppercase tracking-[0.1em] text-stuypulse-textMuted; font-family:'DM Mono',monospace; }
+  .comparison-head { @apply bg-stuypulse-elevated text-[10px] uppercase tracking-[0.1em] text-stuypulse-textMuted; font-family: var(--font-dm-mono), monospace; }
   .comparison-metric:last-child { @apply border-b-0; }
-  .comparison-metric strong { @apply text-right; font-family:'DM Mono',monospace; }
+  .comparison-metric strong { @apply text-right; font-family: var(--font-dm-mono), monospace; }
   .category-list { @apply flex flex-wrap gap-2; }
   .category-chip { @apply rounded-full border px-3 py-1.5 text-xs font-extrabold; border-color:var(--category); color:var(--category); }
   .category-create { @apply mt-4 flex flex-wrap gap-2; }
@@ -594,8 +592,8 @@
   .pick-row > div { @apply pb-1; }
   .pick-row > div strong { @apply mr-2 text-base; }
   .pick-row > div span { @apply text-xs text-stuypulse-textMuted; }
-  .pick-row label { @apply text-[10px] font-bold uppercase tracking-[0.08em] text-stuypulse-textMuted; font-family:'DM Mono',monospace; }
-  .pick-row input, .pick-row select, .pick-row textarea { @apply mt-1 block min-h-10 w-full rounded-md border border-stuypulse-border bg-stuypulse-surface px-2 py-1 text-sm text-stuypulse-text; font-family:Manrope,sans-serif; }
+  .pick-row label { @apply text-[10px] font-bold uppercase tracking-[0.08em] text-stuypulse-textMuted; font-family: var(--font-dm-mono), monospace; }
+  .pick-row input, .pick-row select, .pick-row textarea { @apply mt-1 block min-h-10 w-full rounded-md border border-stuypulse-border bg-stuypulse-surface px-2 py-1 text-sm text-stuypulse-text; font-family: var(--font-manrope), sans-serif; }
   .pick-row textarea { @apply min-h-10 max-h-20 resize-y; }
   .pick-mobile-order { display: none; }
   .picklist-activity { @apply grid gap-2; }
@@ -603,7 +601,7 @@
   .picklist-activity-row > div { @apply grid gap-0.5; }
   .picklist-activity-row strong { @apply text-sm; }
   .picklist-activity-row span, .picklist-activity-row small { @apply text-xs text-stuypulse-textMuted; }
-  .picklist-activity-row small { @apply shrink-0 text-right; font-family:'DM Mono',monospace; }
+  .picklist-activity-row small { @apply shrink-0 text-right; font-family: var(--font-dm-mono), monospace; }
   .picklist-activity-actions { @apply flex shrink-0 items-center gap-2; }
   .picklist-undo-button { @apply inline-flex min-h-8 items-center gap-1 rounded-md border border-stuypulse-border bg-stuypulse-elevated px-2 text-xs font-bold text-stuypulse-text transition hover:border-stuypulse-red hover:text-stuypulse-red disabled:cursor-wait disabled:opacity-60; }
   .picklist-revision { @apply rounded-lg border border-stuypulse-border bg-stuypulse-surface; }
@@ -618,7 +616,7 @@
   .picklist-tier-manager { @apply flex flex-wrap items-center gap-x-5 gap-y-3 px-4 py-3; }
   .picklist-manager-notice { @apply mb-0 basis-full text-xs; }
   .picklist-toolbar-group { @apply relative flex flex-wrap items-center gap-2; }
-  .picklist-manager-label { @apply text-[10px] font-bold uppercase tracking-[0.1em] text-stuypulse-textMuted; font-family:'DM Mono',monospace; }
+  .picklist-manager-label { @apply text-[10px] font-bold uppercase tracking-[0.1em] text-stuypulse-textMuted; font-family: var(--font-dm-mono), monospace; }
   .picklist-tier-controls { @apply flex flex-wrap items-center gap-2; }
   .picklist-tier-jump { @apply min-h-9 rounded-full border border-stuypulse-border bg-stuypulse-bg px-3 text-xs font-extrabold transition hover:border-current; color:var(--tier); }
   .picklist-tag-controls { @apply flex flex-wrap items-center gap-2; }
@@ -650,12 +648,12 @@
   .picklist-team-name { @apply flex min-w-0 items-center gap-2; }
   .picklist-drag-source { @apply grid shrink-0 cursor-grab touch-none active:cursor-grabbing; }
   .picklist-drag-handle { @apply text-stuypulse-textMuted; }
-  .picklist-team-position { @apply grid h-7 w-7 shrink-0 place-items-center rounded-full bg-stuypulse-elevated text-xs font-extrabold text-stuypulse-textMuted; font-family:'DM Mono',monospace; }
+  .picklist-team-position { @apply grid h-7 w-7 shrink-0 place-items-center rounded-full bg-stuypulse-elevated text-xs font-extrabold text-stuypulse-textMuted; font-family: var(--font-dm-mono), monospace; }
   .picklist-team-name > :is(span, a):last-child { @apply flex min-w-0 flex-col; }
   .picklist-team-summary-link { @apply rounded-sm outline-none transition hover:text-stuypulse-red focus-visible:ring-2 focus-visible:ring-stuypulse-red; }
   .picklist-team-name strong { @apply inline-flex items-center gap-1.5 text-sm; }
   .picklist-team-name small { @apply truncate text-xs text-stuypulse-textMuted; }
-  .picklist-event-rank { @apply not-italic text-[10px] font-bold text-stuypulse-textMuted; font-family:'DM Mono',monospace; }
+  .picklist-event-rank { @apply not-italic text-[10px] font-bold text-stuypulse-textMuted; font-family: var(--font-dm-mono), monospace; }
   .picklist-tag-picker { @apply relative; }
   .picklist-row-controls { @apply relative flex items-center gap-1; }
   .picklist-tier-picker { @apply relative; }
@@ -685,8 +683,8 @@
   .summary-tabs button { @apply min-h-10 rounded-lg border border-stuypulse-border bg-stuypulse-bg px-3.5 text-xs font-extrabold text-stuypulse-textMuted transition hover:bg-stuypulse-elevated hover:text-stuypulse-text; }
   .summary-tabs button.active { @apply border-stuypulse-red bg-stuypulse-red text-white; }
   .summary-controls { @apply mb-4 flex flex-wrap items-end gap-3 rounded-lg border border-stuypulse-border bg-stuypulse-bg/50 p-3; }
-  .summary-controls label { @apply grid min-w-[220px] flex-1 gap-1 text-[10px] font-bold uppercase tracking-[0.08em] text-stuypulse-textMuted; font-family:'DM Mono',monospace; }
-  .summary-controls input, .summary-controls select { @apply min-h-11 rounded-lg border border-stuypulse-border bg-stuypulse-surface px-3 text-sm normal-case tracking-normal text-stuypulse-text outline-none placeholder:text-stuypulse-textMuted; font-family:Manrope,sans-serif; }
+  .summary-controls label { @apply grid min-w-[220px] flex-1 gap-1 text-[10px] font-bold uppercase tracking-[0.08em] text-stuypulse-textMuted; font-family: var(--font-dm-mono), monospace; }
+  .summary-controls input, .summary-controls select { @apply min-h-11 rounded-lg border border-stuypulse-border bg-stuypulse-surface px-3 text-sm normal-case tracking-normal text-stuypulse-text outline-none placeholder:text-stuypulse-textMuted; font-family: var(--font-manrope), sans-serif; }
   .summary-direction { @apply flex min-h-11 items-center gap-2 rounded-lg border border-stuypulse-border bg-stuypulse-surface px-3 text-xs text-stuypulse-text hover:bg-stuypulse-elevated; }
   .summary-direction span { @apply text-base text-stuypulse-redHover; }
   .summary-sort-active { @apply text-stuypulse-redHover underline decoration-2 underline-offset-4; }
@@ -698,8 +696,8 @@
   .pre-scout-table-shell { @apply relative; }
   .pre-scout-table-sticky-header { @apply sticky top-0 z-40 overflow-hidden; background:#252930; }
   .pre-scout-table-sticky-header table, .pre-scout-table { @apply min-w-[2060px]; border-collapse:separate; border-spacing:0; table-layout:fixed; }
-  .pre-scout-table-sticky-header th { @apply whitespace-nowrap bg-stuypulse-elevated px-3 py-3 text-left text-xs font-extrabold uppercase tracking-[0.06em] text-stuypulse-textMuted; font-family:'DM Mono',monospace; }
-  .pre-scout-team-header { @apply absolute left-0 top-0 z-50 flex h-full w-[180px] items-center border-r border-stuypulse-border bg-stuypulse-elevated px-3 text-left text-xs font-extrabold uppercase tracking-[0.06em] text-stuypulse-textMuted; font-family:'DM Mono',monospace; box-shadow:4px 0 8px rgb(0 0 0 / 0.15); }
+  .pre-scout-table-sticky-header th { @apply whitespace-nowrap bg-stuypulse-elevated px-3 py-3 text-left text-xs font-extrabold uppercase tracking-[0.06em] text-stuypulse-textMuted; font-family: var(--font-dm-mono), monospace; }
+  .pre-scout-team-header { @apply absolute left-0 top-0 z-50 flex h-full w-[180px] items-center border-r border-stuypulse-border bg-stuypulse-elevated px-3 text-left text-xs font-extrabold uppercase tracking-[0.06em] text-stuypulse-textMuted; font-family: var(--font-dm-mono), monospace; box-shadow:4px 0 8px rgb(0 0 0 / 0.15); }
   .pre-scout-table-scroll { @apply overflow-x-auto; overflow-y:visible; scrollbar-gutter:stable both-edges; }
   .pre-scout-table td { @apply whitespace-pre-wrap break-words align-top px-3 py-3 text-xs leading-relaxed text-stuypulse-textMuted; }
   .pre-scout-table tbody tr + tr td { @apply border-t border-stuypulse-border; }
@@ -713,48 +711,48 @@
   .summary-table-sticky-header th.summary-team, .summary-table td.summary-team { @apply sticky left-0 z-10 min-w-[88px] bg-stuypulse-surface; }
   .summary-table-sticky-header th.summary-team { @apply z-30 bg-stuypulse-elevated; }
   .summary-table td.summary-team { @apply font-extrabold; box-shadow:inset -1px 0 0 theme('colors.stuypulse.border'); }
-  .summary-table-sticky-header .summary-section-heading { @apply border-b-2 px-2.5 py-2 text-left text-xs font-extrabold uppercase tracking-[0.08em]; font-family:'DM Mono',monospace; }
+  .summary-table-sticky-header .summary-section-heading { @apply border-b-2 px-2.5 py-2 text-left text-xs font-extrabold uppercase tracking-[0.08em]; font-family: var(--font-dm-mono), monospace; }
   .summary-table-sticky-header .summary-section-tba { color:#93c5fd; border-color:#3b82f6; background:#1e293b; }
   .summary-table-sticky-header .summary-section-auto { color:#fcd34d; border-color:#f59e0b; background:#3b2718; }
   .summary-table-sticky-header .summary-section-teleop { color:#86efac; border-color:#22c55e; background:#173a23; }
   .summary-team-link { @apply text-stuypulse-text underline decoration-stuypulse-red/60 underline-offset-4 hover:text-stuypulse-redHover; }
   .summary-table .summary-stat-cell { background-color:rgb(var(--summary-stat-color) / 0.18); }
   .summary-table tr:hover .summary-stat-cell { background-color:rgb(var(--summary-stat-color) / 0.28); }
-  .summary-table .summary-rank-cell { font-family:'DM Mono',monospace; }
+  .summary-table .summary-rank-cell { font-family: var(--font-dm-mono), monospace; }
   .summary-mobile-list { display: none; }
   .summary-mobile-view-toggle, .summary-table-scroll-help { display: none; }
   .strategy-card { @apply max-w-none; }
   .strategy-controls { @apply mb-4 grid gap-4 rounded-lg border border-stuypulse-border bg-stuypulse-bg/50 p-3; grid-template-columns:minmax(260px,.8fr) minmax(0,2.2fr); }
-  .strategy-controls label { @apply grid min-w-0 gap-1 text-[10px] font-bold uppercase tracking-[0.08em] text-stuypulse-textMuted; font-family:'DM Mono',monospace; }
-  .strategy-controls select, .strategy-controls input, .strategy-slot select { @apply min-h-10 w-full rounded-md border border-stuypulse-border bg-stuypulse-surface px-2 text-sm font-semibold normal-case tracking-normal text-stuypulse-text outline-none focus:border-stuypulse-redHover focus:ring-1 focus:ring-stuypulse-redHover; font-family:Manrope,sans-serif; }
+  .strategy-controls label { @apply grid min-w-0 gap-1 text-[10px] font-bold uppercase tracking-[0.08em] text-stuypulse-textMuted; font-family: var(--font-dm-mono), monospace; }
+  .strategy-controls select, .strategy-controls input, .strategy-slot select { @apply min-h-10 w-full rounded-md border border-stuypulse-border bg-stuypulse-surface px-2 text-sm font-semibold normal-case tracking-normal text-stuypulse-text outline-none focus:border-stuypulse-redHover focus:ring-1 focus:ring-stuypulse-redHover; font-family: var(--font-manrope), sans-serif; }
   .strategy-match-select { @apply min-w-[260px]; }
   .strategy-manual-lineup { @apply grid min-w-0 grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)_auto_auto] items-end gap-2; }
-  .strategy-manual-label { @apply col-span-full text-[10px] font-bold uppercase tracking-[0.08em] text-stuypulse-textMuted; font-family:'DM Mono',monospace; }
+  .strategy-manual-label { @apply col-span-full text-[10px] font-bold uppercase tracking-[0.08em] text-stuypulse-textMuted; font-family: var(--font-dm-mono), monospace; }
   .strategy-manual-alliance { @apply grid min-w-0 grid-cols-[auto_repeat(3,minmax(0,1fr))] items-center gap-1.5; }
-  .strategy-manual-alliance > span { @apply text-[10px] font-extrabold uppercase tracking-[0.08em]; font-family:'DM Mono',monospace; }
+  .strategy-manual-alliance > span { @apply text-[10px] font-extrabold uppercase tracking-[0.08em]; font-family: var(--font-dm-mono), monospace; }
   .strategy-manual-alliance input { @apply min-w-0 text-center; }
   .strategy-manual-alliance.red > span { @apply text-stuypulse-redHover; }
   .strategy-manual-alliance.red input { @apply border-stuypulse-red/60; }
   .strategy-manual-alliance.blue > span { @apply text-sky-400; }
   .strategy-manual-alliance.blue input { @apply border-sky-500/60; }
-  .strategy-manual-versus { @apply self-end pb-3 text-xs font-extrabold uppercase text-stuypulse-textMuted; font-family:'DM Mono',monospace; }
+  .strategy-manual-versus { @apply self-end pb-3 text-xs font-extrabold uppercase text-stuypulse-textMuted; font-family: var(--font-dm-mono), monospace; }
   .strategy-clear-lineup { @apply min-h-10 whitespace-nowrap text-xs font-bold text-stuypulse-textMuted transition hover:text-stuypulse-text; }
   .strategy-lineup-error { @apply col-span-full text-xs font-semibold text-red-400; }
   .strategy-alliance-overviews { @apply mb-4 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-stretch gap-3; }
-  .strategy-alliance-overviews > span { @apply self-center text-sm font-extrabold uppercase text-stuypulse-textMuted; font-family:'DM Mono',monospace; }
+  .strategy-alliance-overviews > span { @apply self-center text-sm font-extrabold uppercase text-stuypulse-textMuted; font-family: var(--font-dm-mono), monospace; }
   .strategy-alliance-overview { @apply rounded-lg border bg-stuypulse-bg/50 p-3; }
   .strategy-alliance-overview.red { @apply border-stuypulse-red/50; }
   .strategy-alliance-overview.blue { @apply border-sky-500/50; }
-  .strategy-alliance-overview-head { @apply mb-2 flex items-center justify-between gap-2 text-[10px] font-bold uppercase tracking-[0.08em] text-stuypulse-textMuted; font-family:'DM Mono',monospace; }
+  .strategy-alliance-overview-head { @apply mb-2 flex items-center justify-between gap-2 text-[10px] font-bold uppercase tracking-[0.08em] text-stuypulse-textMuted; font-family: var(--font-dm-mono), monospace; }
   .strategy-alliance-overview.red .strategy-alliance-overview-head strong { @apply text-stuypulse-redHover; }
   .strategy-alliance-overview.blue .strategy-alliance-overview-head strong { @apply text-sky-400; }
   .strategy-alliance-teams { @apply grid grid-cols-3 gap-1.5; }
   .strategy-alliance-teams > * { @apply min-w-0 rounded-md border border-stuypulse-border bg-stuypulse-surface px-2 py-1.5; }
   .strategy-alliance-teams a { @apply outline-none transition hover:bg-stuypulse-elevated focus-visible:ring-2 focus-visible:ring-stuypulse-redHover; }
-  .strategy-alliance-teams strong { @apply block text-sm font-extrabold; font-family:'DM Mono',monospace; }
+  .strategy-alliance-teams strong { @apply block text-sm font-extrabold; font-family: var(--font-dm-mono), monospace; }
   .strategy-alliance-teams span, .strategy-alliance-teams small { @apply block truncate text-[9px] text-stuypulse-textMuted; }
-  .strategy-alliance-teams small { @apply mt-1 font-medium; font-family:'DM Mono',monospace; }
-  .strategy-alliance-totals { @apply mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[10px] text-stuypulse-textMuted; font-family:'DM Mono',monospace; }
+  .strategy-alliance-teams small { @apply mt-1 font-medium; font-family: var(--font-dm-mono), monospace; }
+  .strategy-alliance-totals { @apply mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[10px] text-stuypulse-textMuted; font-family: var(--font-dm-mono), monospace; }
   .strategy-alliance-totals strong { @apply text-stuypulse-text; }
   @media (max-width: 900px) {
     .strategy-alliance-overviews { @apply grid-cols-1 gap-2; }
@@ -773,17 +771,17 @@
   .strategy-slot-2 { top:36%; }
   .strategy-slot-3 { top:62%; }
   .strategy-slot-head { @apply mb-1 flex items-center justify-between gap-2; }
-  .strategy-slot-head span { @apply text-[9px] font-bold uppercase tracking-[0.1em] text-stuypulse-textMuted; font-family:'DM Mono',monospace; }
+  .strategy-slot-head span { @apply text-[9px] font-bold uppercase tracking-[0.1em] text-stuypulse-textMuted; font-family: var(--font-dm-mono), monospace; }
   .strategy-team-link { @apply mt-2 block rounded-sm outline-none transition hover:bg-white/5 focus-visible:ring-2 focus-visible:ring-stuypulse-redHover; }
-  .strategy-team-link > strong { @apply block text-lg font-extrabold; font-family:'DM Mono',monospace; }
+  .strategy-team-link > strong { @apply block text-lg font-extrabold; font-family: var(--font-dm-mono), monospace; }
   .strategy-slot.red .strategy-team-link > strong { @apply text-stuypulse-redHover; }
   .strategy-slot.blue .strategy-team-link > strong { @apply text-sky-400; }
   .strategy-team-link > span { @apply block truncate text-xs font-bold text-stuypulse-text; }
   .strategy-metrics { @apply mt-2 grid grid-cols-2 gap-x-2 gap-y-1.5 border-y border-stuypulse-border py-2; }
   .strategy-metrics div { @apply min-w-0; }
-  .strategy-metrics span { @apply block truncate text-[8px] font-medium uppercase tracking-[0.08em] text-stuypulse-textMuted; font-family:'DM Mono',monospace; }
-  .strategy-metrics strong { @apply block text-xs font-extrabold; font-family:'DM Mono',monospace; }
-  .strategy-tendencies { @apply mt-2 flex flex-wrap gap-x-2 gap-y-1 text-[9px] font-medium text-stuypulse-textMuted; font-family:'DM Mono',monospace; }
+  .strategy-metrics span { @apply block truncate text-[8px] font-medium uppercase tracking-[0.08em] text-stuypulse-textMuted; font-family: var(--font-dm-mono), monospace; }
+  .strategy-metrics strong { @apply block text-xs font-extrabold; font-family: var(--font-dm-mono), monospace; }
+  .strategy-tendencies { @apply mt-2 flex flex-wrap gap-x-2 gap-y-1 text-[9px] font-medium text-stuypulse-textMuted; font-family: var(--font-dm-mono), monospace; }
   .strategy-open-slot { @apply mb-0 mt-3 text-xs; }
   .strategy-drawing-toolbar { @apply mb-3 flex flex-wrap items-center gap-1.5 rounded-lg border border-stuypulse-border bg-stuypulse-bg/50 p-1.5; }
   .strategy-color-picker { @apply flex items-center gap-1 border-r border-stuypulse-border pr-1.5; }
@@ -808,7 +806,7 @@
   .compare-team-photo img { @apply h-full w-full object-contain; }
   .compare-team-card strong { @apply ml-2 text-2xl font-extrabold tracking-[-0.06em]; }
   .compare-team-card small { @apply mt-1 block max-w-[180px] text-xs font-semibold text-stuypulse-textMuted; }
-  .compare-team-heading > span { @apply rounded-full border border-stuypulse-border px-2 py-1 text-[10px] font-bold uppercase tracking-[0.1em] text-stuypulse-textMuted; font-family:'DM Mono',monospace; }
+  .compare-team-heading > span { @apply rounded-full border border-stuypulse-border px-2 py-1 text-[10px] font-bold uppercase tracking-[0.1em] text-stuypulse-textMuted; font-family: var(--font-dm-mono), monospace; }
   .compare-dot { @apply inline-block h-3 w-3 rounded-full; }
   .compare-dot.red { @apply bg-stuypulse-red; }
   .compare-dot.blue { @apply bg-sky-500; }
@@ -824,7 +822,7 @@
   .pick-team span strong { @apply text-base; }
   .pick-team span small { @apply truncate text-xs text-stuypulse-textMuted; }
   .consensus-rank { @apply rounded-lg border border-stuypulse-border bg-stuypulse-bg px-3 py-2; }
-  .consensus-rank span { @apply block text-[10px] font-bold uppercase tracking-[0.08em] text-stuypulse-textMuted; font-family:'DM Mono',monospace; }
+  .consensus-rank span { @apply block text-[10px] font-bold uppercase tracking-[0.08em] text-stuypulse-textMuted; font-family: var(--font-dm-mono), monospace; }
   .consensus-rank strong { @apply mt-1 block text-sm; }
 }
 
@@ -854,7 +852,7 @@
   .scoring-row { @apply grid-cols-1 gap-3 px-3 py-3; }
   .scoring-row strong { @apply col-auto; }
   .scoring-row .counter { @apply relative w-full justify-between pt-5; }
-  .scoring-row .counter::before { @apply absolute left-0 top-0 text-[10px] font-medium uppercase tracking-[0.1em] text-stuypulse-textMuted; font-family: 'DM Mono', monospace; content: attr(data-label); }
+  .scoring-row .counter::before { @apply absolute left-0 top-0 text-[10px] font-medium uppercase tracking-[0.1em] text-stuypulse-textMuted; font-family: var(--font-dm-mono), monospace; content: attr(data-label); }
 }
 
 @media (max-width: 1280px) {
@@ -874,7 +872,7 @@
   .sidebar .nav-item.active { box-shadow: inset 0 3px 0 theme('colors.stuypulse.red'); }
   .sidebar .mobile-more-trigger { @apply border-0 bg-transparent text-stuypulse-textMuted; }
   .mobile-more { @apply fixed bottom-[86px] left-3 right-3 z-40 max-h-[min(68dvh,500px)] overflow-y-auto rounded-panel border border-stuypulse-border bg-stuypulse-surface p-2 shadow-elevated; bottom:calc(86px + env(safe-area-inset-bottom)); display: block; }
-  .mobile-more-head { @apply mb-1 flex items-center justify-between px-2.5 py-2 text-[10px] font-bold uppercase tracking-[0.12em] text-stuypulse-textMuted; font-family:'DM Mono',monospace; }
+  .mobile-more-head { @apply mb-1 flex items-center justify-between px-2.5 py-2 text-[10px] font-bold uppercase tracking-[0.12em] text-stuypulse-textMuted; font-family: var(--font-dm-mono), monospace; }
   .mobile-more-head button { @apply grid h-10 w-10 place-items-center rounded-lg border border-stuypulse-border bg-stuypulse-bg text-stuypulse-text; }
   .mobile-more .nav-item { @apply my-0 flex min-h-11 flex-row justify-start gap-3 px-3 text-sm; }
   .mobile-more .nav-item span { @apply block; }
@@ -959,9 +957,9 @@
   .comparison-head, .comparison-metric { @apply grid-cols-[minmax(110px,1fr)_minmax(65px,.45fr)_minmax(65px,.45fr)] px-3; }
   .comparison-head { @apply hidden; }
   .comparison-metric { @apply grid-cols-2 gap-x-4 gap-y-2 px-3.5 py-3.5; }
-  .comparison-metric > span { @apply col-span-2 text-[11px] font-bold uppercase tracking-[0.08em] text-stuypulse-textMuted; font-family:'DM Mono',monospace; }
+  .comparison-metric > span { @apply col-span-2 text-[11px] font-bold uppercase tracking-[0.08em] text-stuypulse-textMuted; font-family: var(--font-dm-mono), monospace; }
   .comparison-metric strong { @apply flex items-center justify-between rounded-md bg-stuypulse-bg px-2.5 py-2 text-sm; }
-  .comparison-metric strong::before { @apply text-[10px] font-medium text-stuypulse-textMuted; font-family:'DM Mono',monospace; content: attr(data-team); }
+  .comparison-metric strong::before { @apply text-[10px] font-medium text-stuypulse-textMuted; font-family: var(--font-dm-mono), monospace; content: attr(data-team); }
   .summary-card { @apply p-4; }
   .strategy-controls { @apply grid-cols-1 items-stretch; }
   .strategy-controls label { @apply min-w-0; }
@@ -1020,8 +1018,8 @@
   .summary-mobile-heading span:not(.rank) { @apply min-w-0 truncate text-xs font-semibold text-stuypulse-textMuted; }
   .summary-mobile-metrics { @apply grid grid-cols-2 gap-x-4 gap-y-2.5; }
   .summary-mobile-metrics div { @apply flex min-w-0 flex-col gap-0.5; }
-  .summary-mobile-metrics span { @apply truncate text-[10px] font-medium uppercase tracking-[0.07em] text-stuypulse-textMuted; font-family:'DM Mono',monospace; }
-  .summary-mobile-metrics strong { @apply text-sm; font-family:'DM Mono',monospace; }
+  .summary-mobile-metrics span { @apply truncate text-[10px] font-medium uppercase tracking-[0.07em] text-stuypulse-textMuted; font-family: var(--font-dm-mono), monospace; }
+  .summary-mobile-metrics strong { @apply text-sm; font-family: var(--font-dm-mono), monospace; }
   .summary-mobile-stat-cell { @apply -mx-1 rounded-md px-1.5 py-1; background-color:rgb(var(--summary-stat-color) / 0.16); }
   .summary-open { @apply mt-3 block text-xs font-bold text-stuypulse-redHover; }
   .summary-table table { @apply min-w-[720px]; }
