@@ -977,12 +977,12 @@
   .auto-path-expand { display: inline-flex; }
   .auto-path-drawer.is-expanded { position: fixed; inset: 0; z-index: 100; margin: 0; display: flex; flex-direction: column; overflow: hidden; border-radius: 0; padding: max(0.75rem, env(safe-area-inset-top)) max(0.75rem, env(safe-area-inset-right)) max(0.75rem, env(safe-area-inset-bottom)) max(0.75rem, env(safe-area-inset-left)); }
   .auto-path-drawer.is-expanded .auto-path-tools { position: relative; z-index: 1; flex: 0 0 auto; padding-bottom: 0.75rem; background: theme('colors.stuypulse.bg'); }
-  .auto-path-drawer.is-expanded .auto-path-canvas { min-height: 0; flex: 1 1 auto; width: 100%; max-height: calc(100dvh - 5.5rem); object-fit: contain; }
+  .auto-path-drawer.is-expanded .auto-path-canvas { flex: 0 0 auto; width: 100%; height: auto; max-height: 66dvh; margin: auto 0; }
 }
 
 @media (max-height: 560px) and (orientation: landscape) {
   .auto-path-drawer.is-expanded .auto-path-tools { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; }
-  .auto-path-drawer.is-expanded .auto-path-canvas { width: auto; max-width: 100%; align-self: center; }
+  .auto-path-drawer.is-expanded .auto-path-canvas { min-height: 0; flex: 1 1 auto; width: auto; height: auto; max-width: 100%; max-height: calc(100dvh - 5.5rem); margin: 0; align-self: center; object-fit: contain; }
 }
 
 @media (max-width: 380px) {
