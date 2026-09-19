@@ -1,4 +1,4 @@
-const STATIC_CACHE = "hal9000-static-v1";
+const STATIC_CACHE = "hal9000-static-v2";
 const SCHEDULE_CACHE = "hal9000-schedule-v1";
 const STATIC_ASSETS = ["/694-logo.svg", "/2026-field-map.png"];
 

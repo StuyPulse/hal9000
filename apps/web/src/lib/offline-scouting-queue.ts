@@ -112,6 +112,22 @@ function isTransientUploadError(message: string) {
   return /abort|fetch|network|failed to fetch|offline|timed out|timeout/i.test(message);
 }
 
+/** A request can reach Supabase just before its response is interrupted. Since
+ * report IDs are created client-side, a read-back makes that outcome safely
+ * distinguishable from a failed write without creating a duplicate report. */
+async function entryWasStored(supabase: any, entryId: string) {
+  try {
+    const { data, error } = await supabase
+      .from("scouting_entries")
+      .select("id")
+      .eq("id", entryId)
+      .maybeSingle();
+    return !error && data?.id === entryId;
+  } catch {
+    return false;
+  }
+}
+
 async function upsertScoutingEntry(
   supabase: any,
   entry: Omit<QueuedScoutingEntry, "queued_at">,
@@ -128,9 +144,11 @@ async function upsertScoutingEntry(
       .from("scouting_entries")
       .upsert(entry, { onConflict: "id" })
       .abortSignal(controller.signal);
+    if (error && await entryWasStored(supabase, entry.id)) return { error: null, timedOut: false, transient: false };
     const message = error ? getErrorMessage(error) : null;
     return { error: message, timedOut, transient: timedOut || Boolean(message && isTransientUploadError(message)) };
   } catch (error) {
+    if (await entryWasStored(supabase, entry.id)) return { error: null, timedOut: false, transient: false };
     const message = getErrorMessage(error);
     return { error: message, timedOut, transient: timedOut || isTransientUploadError(message) };
   } finally {
