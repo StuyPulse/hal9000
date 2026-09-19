@@ -24,6 +24,16 @@ export function competitiveMatchEntries(entries: any[]) {
   return entries.filter(isCompetitiveMatchEntry);
 }
 
+/** Practice reports are useful for early-event strategy before a team has played a qualification match. */
+export function practiceMatchEntries(entries: any[]) {
+  return entries.filter((entry) => {
+    const match = Array.isArray(entry?.matches) ? entry.matches[0] : entry?.matches;
+    if (match?.match_type) return match.match_type === "practice";
+    const manualMatch = entry?.payload?.manual_match;
+    return manualMatch?.stage === "practice";
+  });
+}
+
 export function calculateScoutStats(entries: any[]): ScoutStats {
   const autoScored = entries.map((entry) => number(entry.payload?.auto?.shoot));
   const autoFerried = entries.map((entry) => number(entry.payload?.auto?.ferry));

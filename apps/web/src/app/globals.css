@@ -52,6 +52,16 @@
   .topbar { @apply mb-8 flex items-center justify-between; }
   .topbar-title { @apply flex items-start gap-3; }
   .topbar-actions { @apply flex items-center gap-3; }
+  .global-search { @apply relative w-[min(22rem,42vw)]; }
+  .global-search-input { @apply flex min-h-10 items-center gap-2 rounded-lg border border-stuypulse-border bg-stuypulse-surface px-3 text-stuypulse-text shadow-panel transition focus-within:border-stuypulse-red focus-within:ring-2 focus-within:ring-stuypulse-red/20; }
+  .global-search-input svg { @apply shrink-0 text-stuypulse-textMuted; }
+  .global-search-input input { @apply min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-stuypulse-textMuted; }
+  .global-search-results { @apply absolute right-0 z-50 mt-1 max-h-[min(60dvh,28rem)] w-full overflow-y-auto rounded-lg border border-stuypulse-border bg-stuypulse-surface p-1 shadow-elevated; }
+  .global-search-group { @apply grid gap-0.5 border-b border-stuypulse-border p-1 last:border-b-0; }
+  .global-search-group > span { @apply px-2 py-1 text-[10px] font-bold uppercase tracking-[0.1em] text-stuypulse-textMuted; font-family:'DM Mono',monospace; }
+  .global-search-group a { @apply grid grid-cols-[auto_auto_minmax(0,1fr)] items-center gap-2 rounded-md px-2 py-2 text-sm text-stuypulse-text no-underline transition hover:bg-stuypulse-elevated focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-stuypulse-red; }
+  .global-search-group a small { @apply min-w-0 truncate text-xs text-stuypulse-textMuted; }
+  .global-search-results > .muted { @apply m-0 px-3 py-2 text-xs; }
   .back-button { @apply mt-1 inline-flex min-h-9 shrink-0 items-center rounded-lg border border-stuypulse-border bg-stuypulse-surface px-2.5 text-xs font-bold text-stuypulse-textMuted transition hover:bg-stuypulse-elevated hover:text-stuypulse-text; }
   .eyebrow { @apply text-[11px] font-medium uppercase tracking-[0.12em] text-stuypulse-textMuted; font-family: 'DM Mono', monospace; }
   .event-chip { @apply flex items-center gap-2 rounded-lg border border-stuypulse-border bg-stuypulse-surface px-3 py-2 text-xs text-stuypulse-textMuted no-underline shadow-panel; }
@@ -637,7 +647,8 @@
   .picklist-drag-source { @apply grid shrink-0 cursor-grab touch-none active:cursor-grabbing; }
   .picklist-drag-handle { @apply text-stuypulse-textMuted; }
   .picklist-team-position { @apply grid h-7 w-7 shrink-0 place-items-center rounded-full bg-stuypulse-elevated text-xs font-extrabold text-stuypulse-textMuted; font-family:'DM Mono',monospace; }
-  .picklist-team-name > span:last-child { @apply flex min-w-0 flex-col; }
+  .picklist-team-name > :is(span, a):last-child { @apply flex min-w-0 flex-col; }
+  .picklist-team-summary-link { @apply rounded-sm outline-none transition hover:text-stuypulse-red focus-visible:ring-2 focus-visible:ring-stuypulse-red; }
   .picklist-team-name strong { @apply inline-flex items-center gap-1.5 text-sm; }
   .picklist-team-name small { @apply truncate text-xs text-stuypulse-textMuted; }
   .picklist-event-rank { @apply not-italic text-[10px] font-bold text-stuypulse-textMuted; font-family:'DM Mono',monospace; }
