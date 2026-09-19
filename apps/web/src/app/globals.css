@@ -305,7 +305,7 @@
   .photo-coverage > div { @apply rounded-lg border border-stuypulse-border bg-stuypulse-bg p-3; }
   .photo-coverage strong { @apply text-xs uppercase tracking-[0.08em] text-stuypulse-textMuted; }
   .photo-coverage p { @apply mb-0 mt-2 text-sm font-bold; }
-  .pit-photo-coverage { @apply mb-5; }
+  .pit-photo-tab-stack, .scouting-page-stack { @apply grid gap-4; }
   .pit-photo-missing { @apply rounded-lg border border-stuypulse-border bg-stuypulse-bg/50 p-4; }
   .pit-photo-missing > p { @apply mb-3 text-sm font-bold text-stuypulse-text; }
   .pit-photo-missing-list { @apply flex flex-wrap gap-2; }

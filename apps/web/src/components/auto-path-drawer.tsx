@@ -11,7 +11,7 @@ const height = 674;
 const maxStrokes = 12;
 const maxPointsPerStroke = 600;
 const minPointDistance = 5;
-const startOpacity = 0.22;
+const startOpacity = 0.4;
 
 function transparentColor(hex: string, opacity: number) {
   const value = hex.slice(1);

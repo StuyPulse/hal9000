@@ -12,7 +12,7 @@ export default async function ManualPage() {
 
   return <AppShell active="Manual scouting">
     <PageHeader eyebrow={event?.name ?? "No active event"} title="Scouting forms." />
-    {event ? <>
+    {event ? <div className="scouting-page-stack">
       <section className="form-launcher">
         <Link href="/scout/match" className="form-launch"><span>1</span><strong>Match scouting</strong><small>Choose scheduled or manual match scouting</small></Link>
         <Link href="/scout/pre-scout" className="form-launch"><span>2</span><strong>Pre scouting</strong><small>Plan before the event</small></Link>
@@ -20,6 +20,6 @@ export default async function ManualPage() {
         <Link href="/scout/global" className="form-launch"><span>4</span><strong>Global scouting</strong><small>Shared event Google Doc</small></Link>
       </section>
       <PitPhotoUpload eventId={event.id} teams={teams} />
-    </> : <section className="card"><p className="muted">An admin must set an active event before scouting can begin.</p></section>}
+    </div> : <section className="card"><p className="muted">An admin must set an active event before scouting can begin.</p></section>}
   </AppShell>;
 }
