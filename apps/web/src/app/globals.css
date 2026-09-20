@@ -872,6 +872,11 @@
 }
 
 @media (max-width: 1280px) {
+  .topbar { @apply flex-wrap items-start gap-4; }
+  .topbar-actions { @apply flex-1 flex-wrap justify-end; flex-basis:34rem; }
+  .topbar-actions .global-search { width:min(22rem, 100%); }
+  .strategy-controls { @apply grid-cols-1 items-stretch; }
+
   .match-row { @apply flex-wrap items-start; }
   .match-row .alliances { @apply order-3 basis-full; }
   .match-row .row-actions { @apply order-4 w-full; }

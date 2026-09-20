@@ -17,6 +17,7 @@ const slots: Slot[] = [
   { id: "blue-1", alliance: "blue", position: 1 }, { id: "blue-2", alliance: "blue", position: 2 }, { id: "blue-3", alliance: "blue", position: 3 },
 ];
 const drawingColors = ["#ef4444", "#38bdf8", "#facc15", "#34d399", "#a78bfa", "#fb923c"];
+const playedMatchDelayMs = 5 * 60 * 1_000;
 const round = (value: number) => value.toFixed(2);
 const matchLabel = (match: Match) => formatMatchLabel({ match_number: match.number, match_type: match.type, tba_match_key: match.key });
 const matchLineupLabel = (match: Match, teamById: Map<string, Team>) => `${match.red.map((teamId) => teamById.get(teamId)?.number ?? "—").join(" ")} vs ${match.blue.map((teamId) => teamById.get(teamId)?.number ?? "—").join(" ")}`;
@@ -135,10 +136,39 @@ export function MatchStrategyPanel({ matches, teams, eventId, eventKey, organiza
   const [saving, setSaving] = useState(false);
   const [saveState, setSaveState] = useState("");
   const [color, setColor] = useState(drawingColors[0]);
+  const [now, setNow] = useState(() => Date.now());
+  const [playedObservedAt, setPlayedObservedAt] = useState<Record<string, number>>({});
+  const previousStatuses = useRef(new Map(matches.map((match) => [match.id, match.status])));
   const selectedMatch = matches.find((match) => match.id === matchId);
   const teamIdFor = (slot: Slot) => overrides[slot.id] ?? (slot.alliance === "red" ? selectedMatch?.red[slot.position - 1] : selectedMatch?.blue[slot.position - 1]) ?? "";
   const redAlliance = slots.filter((slot) => slot.alliance === "red").map((slot) => teamById.get(teamIdFor(slot)));
   const blueAlliance = slots.filter((slot) => slot.alliance === "blue").map((slot) => teamById.get(teamIdFor(slot)));
+
+  useEffect(() => {
+    const interval = window.setInterval(() => setNow(Date.now()), 30_000);
+    return () => window.clearInterval(interval);
+  }, []);
+
+  useEffect(() => {
+    const currentStatuses = new Map(matches.map((match) => [match.id, match.status]));
+    const newlyPlayed = matches.filter((match) => match.status === "played" && previousStatuses.current.get(match.id) !== "played");
+    if (newlyPlayed.length) setPlayedObservedAt((current) => ({ ...current, ...Object.fromEntries(newlyPlayed.map((match) => [match.id, Date.now()])) }));
+    previousStatuses.current = currentStatuses;
+  }, [matches]);
+
+  const hasPlayedDelayElapsed = (match: Match) => {
+    if (match.status !== "played") return false;
+    const observedAt = playedObservedAt[match.id];
+    if (!observedAt) return previousStatuses.current.get(match.id) === "played";
+    return now >= observedAt + playedMatchDelayMs;
+  };
+
+  const orderedMatches = useMemo(() => [...matches].sort((left, right) => {
+    const leftPlayed = hasPlayedDelayElapsed(left);
+    const rightPlayed = hasPlayedDelayElapsed(right);
+    if (leftPlayed !== rightPlayed) return leftPlayed ? 1 : -1;
+    return left.number - right.number || matchLabel(left).localeCompare(matchLabel(right));
+  }), [matches, now, playedObservedAt]);
 
   function chooseMatch(nextMatchId: string) {
     const next = matches.find((match) => match.id === nextMatchId);
@@ -172,7 +202,7 @@ export function MatchStrategyPanel({ matches, teams, eventId, eventKey, organiza
   }
 
   return <section className="strategy-panel">
-    <div className="strategy-controls"><label><span>Choose match</span><SearchableMatchSelect matches={matches} teams={teams} value={matchId} onValueChange={chooseMatch}/></label><form className="strategy-manual-lineup" onSubmit={applyManualLineup}><span className="strategy-manual-label">Manual event lineup</span><div className="strategy-manual-alliance red"><span>Red</span>{slots.filter((slot) => slot.alliance === "red").map((slot) => <input key={slot.id} aria-label={`Red alliance team ${slot.position}`} value={manualNumbers[slot.id] ?? ""} inputMode="numeric" pattern="[0-9]*" maxLength={5} placeholder={`R${slot.position}`} onChange={(event) => { setManualNumbers((current) => ({ ...current, [slot.id]: event.target.value.replace(/\D/g, "") })); setManualError(""); }}/>)}</div><span className="strategy-manual-versus">vs</span><div className="strategy-manual-alliance blue"><span>Blue</span>{slots.filter((slot) => slot.alliance === "blue").map((slot) => <input key={slot.id} aria-label={`Blue alliance team ${slot.position}`} value={manualNumbers[slot.id] ?? ""} inputMode="numeric" pattern="[0-9]*" maxLength={5} placeholder={`B${slot.position}`} onChange={(event) => { setManualNumbers((current) => ({ ...current, [slot.id]: event.target.value.replace(/\D/g, "") })); setManualError(""); }}/>)}</div><button type="submit" className="button secondary">Use lineup</button>{Object.keys(overrides).length > 0 && <button type="button" className="strategy-clear-lineup" onClick={() => { setOverrides({}); setManualNumbers(lineupNumbersFor(selectedMatch, teamById)); setManualError(""); }}>Use scheduled</button>}{manualError && <span className="strategy-lineup-error" role="alert">{manualError}</span>}</form></div>
+    <div className="strategy-controls"><label><span>Choose match</span><SearchableMatchSelect matches={orderedMatches} teams={teams} value={matchId} onValueChange={chooseMatch}/></label><form className="strategy-manual-lineup" onSubmit={applyManualLineup}><span className="strategy-manual-label">Manual event lineup</span><div className="strategy-manual-alliance red"><span>Red</span>{slots.filter((slot) => slot.alliance === "red").map((slot) => <input key={slot.id} aria-label={`Red alliance team ${slot.position}`} value={manualNumbers[slot.id] ?? ""} inputMode="numeric" pattern="[0-9]*" maxLength={5} placeholder={`R${slot.position}`} onChange={(event) => { setManualNumbers((current) => ({ ...current, [slot.id]: event.target.value.replace(/\D/g, "") })); setManualError(""); }}/>)}</div><span className="strategy-manual-versus">vs</span><div className="strategy-manual-alliance blue"><span>Blue</span>{slots.filter((slot) => slot.alliance === "blue").map((slot) => <input key={slot.id} aria-label={`Blue alliance team ${slot.position}`} value={manualNumbers[slot.id] ?? ""} inputMode="numeric" pattern="[0-9]*" maxLength={5} placeholder={`B${slot.position}`} onChange={(event) => { setManualNumbers((current) => ({ ...current, [slot.id]: event.target.value.replace(/\D/g, "") })); setManualError(""); }}/>)}</div><button type="submit" className="button secondary">Use lineup</button>{Object.keys(overrides).length > 0 && <button type="button" className="strategy-clear-lineup" onClick={() => { setOverrides({}); setManualNumbers(lineupNumbersFor(selectedMatch, teamById)); setManualError(""); }}>Use scheduled</button>}{manualError && <span className="strategy-lineup-error" role="alert">{manualError}</span>}</form></div>
     <div className="strategy-alliance-overviews" aria-label="Alliance scouting comparison"><AllianceOverview alliance="red" teams={redAlliance} eventKey={eventKey}/><span aria-hidden="true">vs</span><AllianceOverview alliance="blue" teams={blueAlliance} eventKey={eventKey}/></div>
     <div className="strategy-drawing-toolbar"><div className="strategy-color-picker" aria-label="Drawing color">{drawingColors.map((value) => <button key={value} type="button" className={color === value ? "selected" : ""} style={{ backgroundColor: value }} aria-label={`Use ${value} drawing color`} onClick={() => setColor(value)}/>)}</div><button type="button" className="button secondary strategy-tool-button" disabled={!strokes.length} onClick={() => { setStrokes((current) => current.slice(0, -1)); setSaveState(""); }}>Undo</button><button type="button" className="button secondary strategy-tool-button" disabled={!strokes.length} onClick={() => { setStrokes([]); setSaveState(""); }}>Clear</button><button type="button" className="button strategy-tool-button" disabled={!userId || saving} onClick={saveDrawing}>{saving ? "Saving…" : "Save drawing"}</button>{saveState && <span className="strategy-save-state" role="status">{saveState}</span>}<button type="button" className="button secondary strategy-flip-button" aria-pressed={flipped} onClick={() => setFlipped((current) => !current)}>Flip alliance view</button></div>
     <div className={`strategy-field${flipped ? " flip-alliance-view" : ""}`} aria-label={`${selectedMatch ? matchLabel(selectedMatch) : "Selected"} strategy field`}>
