@@ -9,6 +9,10 @@ type Team = { id: string; number: number; name: string };
 
 const playedMatchDelayMs = 5 * 60 * 1_000;
 const label = (match: Match) => matchLabel({ match_number: match.number, match_type: match.type, tba_match_key: match.key });
+const playoffSequence = (match: Match) => {
+  const parsed = match.key.match(/_(?:qf|sf|f)(\d+)m(\d+)$/);
+  return parsed ? [Number(parsed[1]), Number(parsed[2])] : [match.number, 0];
+};
 
 function SearchableMatchSelect({ value, onValueChange, matches, teams }: { value: string; onValueChange: (value: string) => void; matches: Match[]; teams: Team[] }) {
   const [query, setQuery] = useState("");
@@ -66,7 +70,9 @@ export function MatchScoutPicker({ matches, teams, initialMatchId = "" }: { matc
     if (leftPlayed !== rightPlayed) return leftPlayed ? 1 : -1;
     const roundDifference = matchRoundOrder({ match_type: left.type, tba_match_key: left.key }) - matchRoundOrder({ match_type: right.type, tba_match_key: right.key });
     if (roundDifference) return roundDifference;
-    return left.number - right.number || label(left).localeCompare(label(right));
+    const [leftSet, leftMatch] = playoffSequence(left);
+    const [rightSet, rightMatch] = playoffSequence(right);
+    return leftSet - rightSet || leftMatch - rightMatch || left.number - right.number || label(left).localeCompare(label(right));
   }), [matches, now, playedObservedAt]);
   const allowedTeams = match ? teams.filter((team) => [...match.red, ...match.blue].includes(team.id)).sort((a, b) => a.number - b.number) : [];
   const redTeams = match ? allowedTeams.filter((team) => match.red.includes(team.id)) : [];
