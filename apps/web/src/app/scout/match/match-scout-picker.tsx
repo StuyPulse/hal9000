@@ -1,8 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
-import { AppSelect } from "@/components/app-select";
+import { useEffect, useId, useMemo, useState } from "react";
 import { matchLabel } from "@/lib/match-label";
 
 type Match = { id: string; key: string; number: number; type: string; status: string; updatedAt: string | null; red: string[]; blue: string[] };
@@ -17,10 +16,36 @@ function hasPlayedDelayElapsed(match: Match, now: number) {
   return Number.isFinite(playedAt) && now >= playedAt + playedMatchDelayMs;
 }
 
+function SearchableMatchSelect({ value, onValueChange, matches, teams }: { value: string; onValueChange: (value: string) => void; matches: Match[]; teams: Team[] }) {
+  const [query, setQuery] = useState("");
+  const [open, setOpen] = useState(false);
+  const listId = useId();
+  const selected = matches.find((match) => match.id === value);
+  const selectedLabel = selected ? label(selected) : "";
+  const normalizedQuery = query.trim().toLowerCase();
+  const results = matches.filter((match) => {
+    const participants = teams.filter((team) => [...match.red, ...match.blue].includes(team.id));
+    return [label(match), match.number, ...participants.flatMap((team) => [team.number, team.name])].join(" ").toLowerCase().includes(normalizedQuery);
+  });
+  const openMenu = () => { setQuery(""); setOpen(true); };
+  const closeMenu = () => { setOpen(false); setQuery(""); };
+  const choose = (match?: Match) => { onValueChange(match?.id ?? ""); closeMenu(); };
+
+  return <div className="searchable-team-select" onBlur={(event) => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) closeMenu(); }}>
+    <div className="searchable-team-input">
+      <input id="scheduled-match" value={open ? query : selectedLabel} role="combobox" aria-autocomplete="list" aria-expanded={open} aria-controls={listId} placeholder="Search scheduled matches…" autoComplete="off" onFocus={openMenu} onChange={(event) => { setQuery(event.target.value); setOpen(true); if (value) onValueChange(""); }} onKeyDown={(event) => { if (event.key === "Escape") closeMenu(); if (event.key === "ArrowDown") openMenu(); if (event.key === "Enter" && results[0]) { event.preventDefault(); choose(results[0]); } }} />
+      <button type="button" aria-label={open ? "Close match choices" : "Show match choices"} aria-expanded={open} onMouseDown={(event) => event.preventDefault()} onClick={() => open ? closeMenu() : openMenu()}>⌄</button>
+    </div>
+    {open && <div className="searchable-team-results" id={listId} role="listbox">
+      <button type="button" role="option" aria-selected={!value} onMouseDown={(event) => event.preventDefault()} onClick={() => choose()}>Choose a scheduled match…</button>
+      {results.length ? results.map((match) => <button key={match.id} type="button" role="option" aria-selected={match.id === value} className={match.id === value ? "selected" : ""} onMouseDown={(event) => event.preventDefault()} onClick={() => choose(match)}><strong>{label(match)}</strong></button>) : <p className="muted">No scheduled matches match that search.</p>}
+    </div>}
+  </div>;
+}
+
 export function MatchScoutPicker({ matches, teams, initialMatchId = "" }: { matches: Match[]; teams: Team[]; initialMatchId?: string }) {
   const [matchId, setMatchId] = useState(initialMatchId);
   const [teamId, setTeamId] = useState("");
-  const [search, setSearch] = useState("");
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
     const interval = window.setInterval(() => setNow(Date.now()), 30_000);
@@ -33,21 +58,6 @@ export function MatchScoutPicker({ matches, teams, initialMatchId = "" }: { matc
     if (leftPlayed !== rightPlayed) return leftPlayed ? 1 : -1;
     return left.number - right.number || label(left).localeCompare(label(right));
   }), [matches, now]);
-  const normalizedSearch = search.trim().toLowerCase();
-  const visibleMatches = useMemo(() => orderedMatches.filter((item) => {
-    if (!normalizedSearch) return true;
-    const participatingTeams = teams.filter((team) => [...item.red, ...item.blue].includes(team.id));
-    const searchable = [label(item), item.number, ...participatingTeams.flatMap((team) => [team.number, team.name])].join(" ").toLowerCase();
-    return searchable.includes(normalizedSearch);
-  }), [normalizedSearch, orderedMatches, teams]);
-  const activeMatches = visibleMatches.filter((item) => !hasPlayedDelayElapsed(item, now));
-  const playedMatches = visibleMatches.filter((item) => hasPlayedDelayElapsed(item, now));
-  const matchOptions = [
-    { value: "", label: "Choose a scheduled match…" },
-    ...activeMatches.map((item) => ({ value: item.id, label: label(item) })),
-    ...(activeMatches.length && playedMatches.length ? [{ value: "played-matches", label: "Played matches", disabled: true }] : []),
-    ...playedMatches.map((item) => ({ value: item.id, label: `${label(item)} · played` })),
-  ];
   const allowedTeams = match ? teams.filter((team) => [...match.red, ...match.blue].includes(team.id)).sort((a, b) => a.number - b.number) : [];
   const redTeams = match ? allowedTeams.filter((team) => match.red.includes(team.id)) : [];
   const blueTeams = match ? allowedTeams.filter((team) => match.blue.includes(team.id)) : [];
@@ -60,14 +70,8 @@ export function MatchScoutPicker({ matches, teams, initialMatchId = "" }: { matc
     </div>
     <div className="scheduled-scout-fields">
       <div className="field">
-        <label htmlFor="scheduled-match-search">Search scheduled matches</label>
-        <input id="scheduled-match-search" type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Match number or team…" />
-      </div>
-      <div className="field">
         <label htmlFor="scheduled-match">Match</label>
-        <AppSelect id="scheduled-match" ariaLabel="Scheduled match" value={matchId} onValueChange={(value) => { setMatchId(value); setTeamId(""); }} options={matchOptions}/>
-        {normalizedSearch && !visibleMatches.length && <p className="muted">No scheduled matches match that search.</p>}
-        {playedMatches.length > 0 && <p className="muted">Played matches move to the end after five minutes.</p>}
+        <SearchableMatchSelect value={matchId} onValueChange={(value) => { setMatchId(value); setTeamId(""); }} matches={orderedMatches} teams={teams}/>
       </div>
       <div className="field"><label>Robot</label>{match ? <div className="robot-picker" aria-label="Choose a robot"><div className="robot-alliance red"><span className="robot-alliance-label">Red alliance</span>{redTeams.map((team) => robotButton(team, "red"))}</div><div className="robot-alliance blue"><span className="robot-alliance-label">Blue alliance</span>{blueTeams.map((team) => robotButton(team, "blue"))}</div></div> : <p className="muted">Choose a scheduled match first.</p>}</div>
     </div>
