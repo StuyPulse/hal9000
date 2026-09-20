@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useId, useMemo, useRef, useState } from "react";
-import { matchLabel } from "@/lib/match-label";
+import { matchLabel, matchRoundOrder } from "@/lib/match-label";
 
 type Match = { id: string; key: string; number: number; type: string; status: string; red: string[]; blue: string[] };
 type Team = { id: string; number: number; name: string };
@@ -64,6 +64,8 @@ export function MatchScoutPicker({ matches, teams, initialMatchId = "" }: { matc
     const leftPlayed = hasPlayedDelayElapsed(left);
     const rightPlayed = hasPlayedDelayElapsed(right);
     if (leftPlayed !== rightPlayed) return leftPlayed ? 1 : -1;
+    const roundDifference = matchRoundOrder({ match_type: left.type, tba_match_key: left.key }) - matchRoundOrder({ match_type: right.type, tba_match_key: right.key });
+    if (roundDifference) return roundDifference;
     return left.number - right.number || label(left).localeCompare(label(right));
   }), [matches, now, playedObservedAt]);
   const allowedTeams = match ? teams.filter((team) => [...match.red, ...match.blue].includes(team.id)).sort((a, b) => a.number - b.number) : [];
