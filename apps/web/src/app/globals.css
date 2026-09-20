@@ -548,6 +548,10 @@
   .team-timeline-match, .team-timeline-result, .team-timeline-coverage { @apply grid gap-0.5; }
   .team-timeline-match strong, .team-timeline-result strong, .team-timeline-coverage strong { @apply text-xs; }
   .team-timeline-match span, .team-timeline-result span, .team-timeline-coverage span { @apply text-[10px] font-medium text-stuypulse-textMuted; font-family: var(--font-dm-mono), monospace; }
+  .team-timeline-source { @apply font-medium text-stuypulse-textMuted; }
+  .team-timeline-source-picker { @apply mt-1 min-w-0; }
+  .team-timeline-source-picker .app-select-trigger { @apply min-h-7 px-2 text-[10px]; }
+  .team-timeline-source-picker .app-select-menu { @apply z-20 text-[10px]; }
   .team-timeline-match span { @apply font-bold uppercase; }
   .team-timeline-actions { @apply flex justify-end gap-3 text-nowrap; }
   .team-timeline-compact-reports { @apply col-span-full grid gap-2 border-t border-stuypulse-border pt-2; }
