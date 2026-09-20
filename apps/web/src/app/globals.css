@@ -871,9 +871,6 @@
   .consensus-rank span { @apply block text-[10px] font-bold uppercase tracking-[0.08em] text-stuypulse-textMuted; font-family: var(--font-dm-mono), monospace; }
   .consensus-rank strong { @apply mt-1 block text-sm; }
   .leaderboard-card { @apply rounded-panel border border-stuypulse-border bg-stuypulse-surface p-5 shadow-panel; }
-  .leaderboard-heading { @apply mb-5 flex flex-wrap items-end justify-between gap-3; }
-  .leaderboard-heading h2 { @apply mt-1 text-2xl font-extrabold tracking-[-0.05em]; }
-  .leaderboard-heading p { @apply m-0 text-xs; }
   .leaderboard-tabs { @apply mb-4 flex flex-wrap gap-2 border-b border-stuypulse-border pb-4; }
   .leaderboard-tab { @apply min-h-9 rounded-lg border border-stuypulse-border bg-stuypulse-bg px-3 text-xs font-bold text-stuypulse-textMuted transition hover:bg-stuypulse-elevated hover:text-stuypulse-text; }
   .leaderboard-tab[aria-selected="true"] { @apply border-stuypulse-red/50 bg-stuypulse-red/15 text-stuypulse-text; }
@@ -883,14 +880,11 @@
   .leaderboard-round[aria-pressed="true"] { @apply border-stuypulse-success/50 bg-stuypulse-success/10 text-stuypulse-success; }
   .leaderboard-rounds small { @apply basis-full text-[11px] text-stuypulse-textMuted; }
   .leaderboard-list { @apply m-0 grid list-none overflow-hidden rounded-lg border border-stuypulse-border p-0; }
-  .leaderboard-row { @apply grid grid-cols-[2.5rem_minmax(11rem,1fr)_minmax(15rem,1.2fr)_minmax(10rem,.9fr)] items-center gap-4 border-b border-stuypulse-border bg-stuypulse-bg px-4 py-3.5 last:border-b-0; }
+  .leaderboard-row { @apply grid grid-cols-[2.5rem_minmax(11rem,1fr)_minmax(15rem,1.2fr)] items-center gap-4 border-b border-stuypulse-border bg-stuypulse-bg px-4 py-3.5 last:border-b-0; }
   .leaderboard-rank { @apply grid h-8 w-8 place-items-center rounded-full bg-stuypulse-elevated text-xs font-extrabold text-stuypulse-textMuted; font-family: var(--font-dm-mono), monospace; }
-  .leaderboard-scout { @apply min-w-0; }
-  .leaderboard-scout strong { @apply block truncate text-sm; }
-  .leaderboard-scout span { @apply mt-0.5 block text-xs text-stuypulse-textMuted; }
+  .leaderboard-scout { @apply min-w-0 truncate text-sm; }
   .leaderboard-breakdown { @apply flex flex-wrap gap-x-3 gap-y-1 text-xs text-stuypulse-textMuted; font-family: var(--font-dm-mono), monospace; }
   .leaderboard-breakdown b { @apply text-stuypulse-text; }
-  .leaderboard-latest { @apply text-right text-[11px] leading-relaxed text-stuypulse-textMuted; font-family: var(--font-dm-mono), monospace; }
   .leaderboard-empty { @apply rounded-lg border border-dashed border-stuypulse-border bg-stuypulse-bg/50 p-8 text-center; }
   .leaderboard-empty p { @apply mb-0 mt-2; }
 }
@@ -924,7 +918,6 @@
   .scoring-row .counter { @apply relative w-full justify-between pt-5; }
   .scoring-row .counter::before { @apply absolute left-0 top-0 text-[10px] font-medium uppercase tracking-[0.1em] text-stuypulse-textMuted; font-family: var(--font-dm-mono), monospace; content: attr(data-label); }
   .leaderboard-row { @apply grid-cols-[2.5rem_minmax(0,1fr)_minmax(10rem,1fr)]; }
-  .leaderboard-latest { @apply col-start-2 text-left; }
 }
 
 @media (max-width: 1280px) {
@@ -989,7 +982,7 @@
   .leaderboard-tabs { @apply flex-nowrap overflow-x-auto pb-4; -webkit-overflow-scrolling:touch; }
   .leaderboard-tab { @apply shrink-0; }
   .leaderboard-row { @apply grid-cols-[2.25rem_minmax(0,1fr)] gap-x-2.5 gap-y-2 px-3 py-3; }
-  .leaderboard-breakdown, .leaderboard-latest { @apply col-start-2 text-left; }
+  .leaderboard-breakdown { @apply col-start-2 text-left; }
   .leaderboard-breakdown { @apply gap-x-2.5; }
   .topbar, .assignment-toolbar, .card-head { @apply flex-col items-stretch gap-3; }
   .assignment-setup .event-picker { grid-template-columns: minmax(0, 1fr); }

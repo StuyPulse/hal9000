@@ -7,6 +7,8 @@ type ScoutingEntryRow = {
   id: string;
   entry_type: "match" | "pit" | "pre_scout";
   scout_user_id: string;
+  team_id: string | null;
+  match_id: string | null;
   created_at: string;
   submitted_at: string | null;
   payload: Record<string, unknown> | null;
@@ -22,7 +24,7 @@ async function getSubmittedEntries(eventId: string) {
   for (let start = 0; ; start += pageSize) {
     const { data, error } = await (supabase as any)
       .from("scouting_entries")
-      .select("id,entry_type,scout_user_id,created_at,submitted_at,payload,matches(match_type),author:profiles!scouting_entries_scout_user_id_fkey(display_name)")
+      .select("id,entry_type,scout_user_id,team_id,match_id,created_at,submitted_at,payload,matches(match_type),author:profiles!scouting_entries_scout_user_id_fkey(display_name)")
       .eq("event_id", eventId)
       .eq("status", "submitted")
       .order("submitted_at", { ascending: false })
@@ -57,8 +59,13 @@ export default async function LeaderboardPage() {
       scoutUserId: entry.scout_user_id,
       scoutName: author?.display_name ?? "Unknown scout",
       submittedAt: entry.submitted_at ?? entry.created_at,
+      teamId: entry.team_id,
+      matchId: entry.match_id,
       matchType: match?.match_type ?? null,
       manualStage,
+      manualMatchKey: typeof manualMatch === "object" && manualMatch && "stage" in manualMatch && "label" in manualMatch
+        ? `${typeof manualMatch.stage === "string" ? manualMatch.stage : ""}|${typeof manualMatch.label === "string" ? manualMatch.label : ""}`
+        : null,
     };
   });
 
