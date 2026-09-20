@@ -796,8 +796,8 @@
   .strategy-alliance-teams > * { @apply min-w-0 rounded-md border border-stuypulse-border bg-stuypulse-surface px-2 py-1.5; }
   .strategy-alliance-teams a { @apply outline-none transition hover:bg-stuypulse-elevated focus-visible:ring-2 focus-visible:ring-stuypulse-redHover; }
   .strategy-alliance-teams strong { @apply block text-sm font-extrabold; font-family: var(--font-dm-mono), monospace; }
-  .strategy-alliance-teams span, .strategy-alliance-teams small { @apply block truncate text-[9px] text-stuypulse-textMuted; }
-  .strategy-alliance-teams small { @apply mt-1 font-medium; font-family: var(--font-dm-mono), monospace; }
+  .strategy-alliance-teams span { @apply block truncate text-[9px] text-stuypulse-textMuted; }
+  .strategy-alliance-teams small { @apply mt-1 block break-words text-[9px] font-medium leading-relaxed text-stuypulse-textMuted; font-family: var(--font-dm-mono), monospace; }
   .strategy-alliance-totals { @apply mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[10px] text-stuypulse-textMuted; font-family: var(--font-dm-mono), monospace; }
   .strategy-alliance-totals strong { @apply text-stuypulse-text; }
   @media (max-width: 900px) {
