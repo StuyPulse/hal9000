@@ -131,6 +131,8 @@ export async function syncLiveEvent(eventId: string, organizationId: string): Pr
   if (rows.length) {
     const { error } = await database.from("matches").upsert(rows, { onConflict: "event_id,tba_match_key" });
     if (error) throw new Error("Could not save live match results.");
+    const { error: reconciliationError } = await database.rpc("reconcile_manual_match_reports", { p_event_id: event.id });
+    if (reconciliationError) throw new Error("Could not reconcile manual scouting reports with the official schedule.");
   }
   const update: Record<string, string> = { tba_last_live_synced_at: now.toISOString() };
   const matchesEtag = response.headers.get("etag");
