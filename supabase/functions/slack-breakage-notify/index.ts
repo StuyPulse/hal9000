@@ -6,6 +6,7 @@ type BreakageNotification = {
     team_number?: number;
     match_number?: number;
     match_type?: "qualification" | "playoff" | "practice";
+    tba_match_key?: string;
     manual_match?: { stage?: string; label?: string };
     scout_name?: string;
     issues?: { timestamp?: string; issue?: string }[];
@@ -17,6 +18,26 @@ function manualMatchLabel(manualMatch: BreakageNotification["payload"]["manual_m
   const label = manualMatch?.label?.trim() ?? "";
   const stageLabel = ({ qualification: "Qualification", practice: "Practice", quarterfinal: "Quarterfinal", semifinal: "Semifinal", final: "Final" } as Record<string, string>)[stage.toLowerCase()] ?? (stage && !["other", "other / exception", "manual match"].includes(stage.toLowerCase()) ? stage : "");
   return label ? `${stageLabel || "Match"} ${label}` : stageLabel || "Match details unavailable";
+}
+
+function officialMatchLabel(payload: BreakageNotification["payload"]) {
+  const key = payload.tba_match_key ?? "";
+  const practice = key.match(/_pm(\d+)$/);
+  const qualification = key.match(/_qm(\d+)$/);
+  const quarterfinal = key.match(/_qf(\d+)m(\d+)$/);
+  const semifinal = key.match(/_sf(\d+)m(\d+)$/);
+  const final = key.match(/_f(\d+)m(\d+)$/);
+  const tiebreaker = key.match(/_ef(\d+)m(\d+)$/);
+
+  if (practice) return `Practice ${practice[1]}`;
+  if (qualification) return `Qualification ${qualification[1]}`;
+  if (quarterfinal) return `Quarterfinal ${quarterfinal[1]} · Match ${quarterfinal[2]}`;
+  if (semifinal) return `Semifinal ${semifinal[1]} · Match ${semifinal[2]}`;
+  if (final) return `Final ${final[1]} · Match ${final[2]}`;
+  if (tiebreaker) return `Tiebreaker ${tiebreaker[1]} · Match ${tiebreaker[2]}`;
+
+  const matchType = payload.match_type === "practice" ? "Practice" : payload.match_type === "playoff" ? "Playoff Match" : "Qualification";
+  return typeof payload.match_number === "number" ? `${matchType} ${payload.match_number}` : manualMatchLabel(payload.manual_match);
 }
 
 const requiredSecret = (name: string) => {
@@ -38,8 +59,7 @@ function messageFor(notification: BreakageNotification) {
   const [firstIssue, ...additionalIssues] = issues;
   const primaryIssue = firstIssue?.issue?.trim() ?? "Breakage reported";
   const title = `⚠️ ${payload.team_number ?? "Unknown team"} - ${primaryIssue}`.slice(0, 150);
-  const matchType = payload.match_type === "practice" ? "Practice" : payload.match_type === "playoff" ? "Playoff Match" : "Qualification";
-  const match = typeof payload.match_number === "number" ? `${matchType} ${payload.match_number}` : manualMatchLabel(payload.manual_match);
+  const match = officialMatchLabel(payload);
   const timedIssues = issues.filter((issue) => issue.timestamp?.trim());
   const time = timedIssues.length
     ? timedIssues.map(({ timestamp, issue }) => issues.length > 1 ? `${timestamp} (${issue?.trim() || "Breakage reported"})` : timestamp!.trim()).join(" · ")
