@@ -331,6 +331,8 @@
   .assignment-editor-assignee { @apply contents; }
   .assignment-editor-assignee > button { @apply inline-flex min-h-7 items-center gap-1 rounded-md border border-stuypulse-border bg-stuypulse-bg px-2 text-[11px] font-semibold text-stuypulse-textMuted transition hover:border-stuypulse-error hover:text-stuypulse-text disabled:cursor-not-allowed disabled:opacity-60; }
   .assignment-editor-assignee > button span { @apply text-base leading-none text-stuypulse-error; }
+  .assignment-editor-assignee.is-complete > button { @apply border-stuypulse-success/50 bg-stuypulse-success/10 text-stuypulse-success hover:border-stuypulse-success hover:text-stuypulse-success; }
+  .assignment-editor-assignee > button .assignment-editor-complete-mark { @apply text-sm text-stuypulse-success; }
   .assignment-editor-assignee .error, .assignment-editor-assignee .trend { @apply basis-full m-0 text-[10px]; }
   .assignment-editor-complete { @apply -mx-1 rounded-md bg-stuypulse-success/10 px-1.5; }
   .assignment-editor-controls { @apply col-span-full grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2; }
