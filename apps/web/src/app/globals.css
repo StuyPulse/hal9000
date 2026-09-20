@@ -904,7 +904,7 @@
   .assignment-setup .event-picker { grid-template-columns: minmax(0, 1fr); }
   .assignment-setup .event-picker label { grid-column: auto; }
   .topbar-title, .topbar-actions { @apply flex-wrap; }
-  .topbar-actions { @apply w-full; }
+  .topbar-actions { @apply w-full flex-none content-start; flex-basis:auto; }
   .topbar-actions > .event-chip, .topbar-actions > .button { @apply w-full justify-center; }
   .card-head > .link { @apply inline-flex min-h-11 items-center; }
   .submission-top-controls { @apply w-full items-stretch; }
