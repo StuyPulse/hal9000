@@ -10,6 +10,7 @@ import { TeamMatchTimeline, type TimelineMatch } from "./team-match-timeline";
 import { TeamPhotoCarousel } from "./team-photo-carousel";
 import { TeamRobotProfile } from "./team-robot-profile";
 import { compactManualMatchLabel, compactMatchLabel, manualMatchLabel, matchLabel, matchRoundOrder } from "@/lib/match-label";
+import { getViewerContext } from "@/lib/viewer-context";
 
 type TbaMatch = { key: string; match_number: number; comp_level?: string; actual_time?: number; alliances?: { red?: { team_keys?: string[]; score?: number }; blue?: { team_keys?: string[]; score?: number } } };
 type LocalMatch = { id: string; tba_match_key: string; match_number: number; match_type: string; scheduled_at: string | null; red_teams: string[]; blue_teams: string[]; red_score: number | null; blue_score: number | null };
@@ -42,6 +43,7 @@ export default async function TeamDetail({ params }: { params: Promise<{ eventId
   if (!Number.isSafeInteger(number) || number < 1) notFound();
 
   const supabase = await createClient();
+  const viewer = await getViewerContext();
   const { data: event } = await supabase.from("events").select("id,event_key,name,is_manual,organization_id").eq("event_key", eventKey).maybeSingle();
   if (!event) notFound();
 
@@ -142,7 +144,7 @@ export default async function TeamDetail({ params }: { params: Promise<{ eventId
 
     <TeamRobotProfile eventId={event.id} eventKey={event.event_key} teamId={team.id} teamNumber={team.team_number} drivetrainType={teamLink?.drivetrain_type ?? null} shooterType={teamLink?.shooter_type ?? null}/>
 
-    <div className="section"><TeamMatchTimeline key={timeline.map((match) => `${match.id}:${match.selectedReportId ?? "combined"}`).join("|")} matches={timeline} teamNames={teamNames} organizationId={event.organization_id} eventId={event.id} teamId={team.id}/></div>
+    <div className="section"><TeamMatchTimeline key={timeline.map((match) => `${match.id}:${match.selectedReportId ?? "combined"}`).join("|")} matches={timeline} teamNames={teamNames} organizationId={event.organization_id} eventId={event.id} teamId={team.id} canChooseReportSource={viewer?.role === "admin"}/></div>
     <section className="card section team-research"><div className="team-research-head"><div><h2>Scouting research</h2><p className="muted">Open a category to review its submitted reports.</p></div><Link className="link" href="/scout/manual">Open scouting forms →</Link></div><div className="coverage-list">{pitEntries.length ? <details className="team-research-details"><summary><span className="team-research-category"><strong>Pit scouting</strong><small>{pitCount} report{pitCount === 1 ? "" : "s"} available</small></span><span className="team-research-action">View reports</span></summary><div className="team-pit-reports">{pitEntries.map((entry: any) => <section key={entry.id} className="team-pit-report"><div className="team-pit-report-head"><span>{entry.author?.display_name ?? "Scout"} · {entry.submitted_at ? <LocalDateTime value={entry.submitted_at}/> : "Draft"}</span><Link className="link" href={`/submissions/${entry.id}`}>Open report →</Link></div><PayloadGrid payload={entry.payload ?? {}} compact teamNames={teamNames}/></section>)}</div></details> : <div className="team-research-empty"><span className="team-research-category"><strong>Pit scouting</strong><small>No reports available</small></span><span>Not scouted yet</span></div>}{preScoutEntries.length ? <details className="team-research-details"><summary><span className="team-research-category"><strong>Pre-scouting</strong><small>{preScoutCount} report{preScoutCount === 1 ? "" : "s"} available</small></span><span className="team-research-action">View reports</span></summary><div className="team-pit-reports">{preScoutEntries.map((entry: any) => <section key={entry.id} className="team-pit-report"><div className="team-pit-report-head"><span>{entry.author?.display_name ?? "Scout"} · {entry.submitted_at ? <LocalDateTime value={entry.submitted_at}/> : "Draft"}</span><Link className="link" href={`/submissions/${entry.id}`}>Open report →</Link></div><PayloadGrid payload={entry.payload ?? {}} compact teamNames={teamNames}/></section>)}</div></details> : <div className="team-research-empty"><span className="team-research-category"><strong>Pre-scouting</strong><small>No reports available</small></span><span>Not scouted yet</span></div>}</div></section>
 
   </AppShell>;
