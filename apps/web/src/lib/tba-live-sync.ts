@@ -121,7 +121,7 @@ export async function syncLiveEvent(eventId: string, organizationId: string): Pr
     match_type: typeFor(match.comp_level),
     red_teams: match.alliances.red.team_keys.map(numberFromKey).map((number) => teamIdByNumber.get(number)!),
     blue_teams: match.alliances.blue.team_keys.map(numberFromKey).map((number) => teamIdByNumber.get(number)!),
-    scheduled_at: (match.time ?? match.predicted_time) ? new Date((match.time ?? match.predicted_time)! * 1000).toISOString() : null,
+    scheduled_at: (match.predicted_time ?? match.time) ? new Date((match.predicted_time ?? match.time)! * 1000).toISOString() : null,
     actual_at: match.actual_time ? new Date(match.actual_time * 1000).toISOString() : null,
     status: match.actual_time || match.post_result_time ? "played" : "scheduled",
     red_score: scoreFor(match.alliances.red.score),

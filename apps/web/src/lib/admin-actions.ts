@@ -644,7 +644,7 @@ export async function setMemberRole(_: ActionState, formData: FormData): Promise
 const tbaEventSchema = z.object({ name: z.string().min(1), start_date: z.string().min(1), end_date: z.string().min(1) });
 const tbaTeamSchema = z.object({ key: z.string().regex(/^frc\d+$/), team_number: z.number().int().positive(), nickname: z.string().nullable() });
 const tbaMatchSchema = z.object({
-  key: z.string().min(1), comp_level: z.string(), match_number: z.number().int().positive(), time: z.number().nullable().optional(), actual_time: z.number().nullable().optional(),
+  key: z.string().min(1), comp_level: z.string(), match_number: z.number().int().positive(), time: z.number().nullable().optional(), predicted_time: z.number().nullable().optional(), actual_time: z.number().nullable().optional(),
   alliances: z.object({ red: z.object({ team_keys: z.array(z.string().regex(/^frc\d+$/)) }), blue: z.object({ team_keys: z.array(z.string().regex(/^frc\d+$/)) }) }),
 });
 
@@ -757,7 +757,7 @@ export async function importTbaEvent(_: ActionState, formData: FormData): Promis
           match_type: match.comp_level === "qm" ? "qualification" : match.comp_level === "pr" ? "practice" : "playoff",
           red_teams: match.alliances.red.team_keys.map(teamNumberFromKey).map((number) => teamIdByNumber.get(number)!),
           blue_teams: match.alliances.blue.team_keys.map(teamNumberFromKey).map((number) => teamIdByNumber.get(number)!),
-          scheduled_at: match.time ? new Date(match.time * 1000).toISOString() : null,
+          scheduled_at: (match.predicted_time ?? match.time) ? new Date((match.predicted_time ?? match.time)! * 1000).toISOString() : null,
           status: match.actual_time ? "played" : "scheduled",
         })), { onConflict: "event_id,tba_match_key" });
         if (error) return importDatabaseError("the match schedule", error);
