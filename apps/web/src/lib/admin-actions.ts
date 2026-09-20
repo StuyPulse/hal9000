@@ -591,6 +591,31 @@ export async function setObjectiveAssignment(_: ActionState, formData: FormData)
   }
 }
 
+export async function removeObjectiveAssignment(_: ActionState, formData: FormData): Promise<ActionState> {
+  try {
+    const input = z.object({ matchId: z.string().uuid(), teamId: z.string().uuid(), scoutUserId: z.string().uuid() }).safeParse({ matchId: formData.get("matchId"), teamId: formData.get("teamId"), scoutUserId: formData.get("scoutUserId") });
+    if (!input.success) return { error: "This assignment could not be identified." };
+    const { organizationId } = await adminContext();
+    const database = createAdminClient();
+    const { data: match } = await database.from("matches").select("id,event_id,red_teams,blue_teams").eq("id", input.data.matchId).maybeSingle();
+    if (!match || ![...match.red_teams, ...match.blue_teams].includes(input.data.teamId)) return { error: "That team is not scheduled for this match." };
+    const { data: event } = await database.from("events").select("id,event_key").eq("id", match.event_id).eq("organization_id", organizationId).maybeSingle();
+    if (!event) return { error: "This event is unavailable." };
+    const { data: assignment, error: assignmentError } = await database.from("scouting_assignments").select("id,status").eq("match_id", match.id).eq("team_id", input.data.teamId).eq("scout_user_id", input.data.scoutUserId).eq("assignment_type", "objective").maybeSingle();
+    if (assignmentError || !assignment) return { error: "That scout is no longer assigned to this team." };
+    if (assignment.status === "complete") return { error: "Submitted assignments stay assigned." };
+    const [{ data: submitted }, { data: submittedEntry }] = await Promise.all([
+      database.from("match_submissions").select("id").eq("assignment_id", assignment.id).limit(1),
+      database.from("scouting_entries").select("id").eq("assignment_id", assignment.id).eq("status", "submitted").limit(1),
+    ]);
+    if (submitted?.length || submittedEntry?.length) return { error: "Submitted assignments stay assigned." };
+    const { error } = await database.from("scouting_assignments").delete().eq("id", assignment.id);
+    if (error) return importDatabaseError("the assignment", error);
+    revalidatePath("/admin/assignments"); revalidatePath(`/events/${event.event_key}/matches`); revalidatePath("/scout/assignments"); revalidatePath("/dashboard");
+    return { success: "Scout removed from this team." };
+  } catch { return { error: "Admin access is required to remove an assignment." }; }
+}
+
 export async function setPrescoutAssignment(_: ActionState, formData: FormData): Promise<ActionState> {
   try {
     const input = z.object({
@@ -621,6 +646,23 @@ export async function setPrescoutAssignment(_: ActionState, formData: FormData):
   } catch {
     return { error: "Admin access is required to manage prescout assignments." };
   }
+}
+
+export async function removePrescoutAssignment(_: ActionState, formData: FormData): Promise<ActionState> {
+  try {
+    const input = z.object({ eventId: z.string().uuid(), teamId: z.string().uuid(), scoutUserId: z.string().uuid() }).safeParse({ eventId: formData.get("eventId"), teamId: formData.get("teamId"), scoutUserId: formData.get("scoutUserId") });
+    if (!input.success) return { error: "This prescout assignment could not be identified." };
+    const { organizationId } = await adminContext();
+    const database: any = createAdminClient();
+    const { data: event } = await database.from("events").select("id,event_key").eq("id", input.data.eventId).eq("organization_id", organizationId).maybeSingle();
+    if (!event) return { error: "This event is unavailable." };
+    const { data: submitted } = await database.from("scouting_entries").select("id").eq("event_id", event.id).eq("team_id", input.data.teamId).eq("scout_user_id", input.data.scoutUserId).eq("entry_type", "pre_scout").eq("status", "submitted").limit(1);
+    if (submitted?.length) return { error: "Submitted prescout assignments stay assigned." };
+    const { error } = await database.from("prescout_assignments").delete().eq("event_id", event.id).eq("team_id", input.data.teamId).eq("scout_user_id", input.data.scoutUserId);
+    if (error) return { error: "Couldn’t remove that prescout assignment." };
+    revalidatePath("/admin/assignments"); revalidatePath("/scout/pre-scout"); revalidatePath(`/events/${event.event_key}/teams`);
+    return { success: "Scout removed from this prescout team." };
+  } catch { return { error: "Admin access is required to remove a prescout assignment." }; }
 }
 
 export async function publishDefaultForm(_: ActionState): Promise<ActionState> { try { const {supabase,organizationId}=await adminContext(); const {data:latest}=await supabase.from("form_definitions").select("version").eq("organization_id",organizationId).eq("name",DEFAULT_2026_FORM.title).order("version",{ascending:false}).limit(1).maybeSingle();const {error}=await supabase.from("form_definitions").insert({organization_id:organizationId,name:DEFAULT_2026_FORM.title,version:(latest?.version??0)+1,schema_json:DEFAULT_2026_FORM,is_active:true});return error?{error:"Couldn’t publish the form."}:{success:"New form version published."}; }catch{return{error:"Admin access is required."};} }
