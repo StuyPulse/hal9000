@@ -98,3 +98,16 @@ export function matchRoundOrder({ match_type, tba_match_key }: Pick<MatchLabelIn
   if (/_ef\d+m\d+$/.test(key)) return 5;
   return 2;
 }
+
+/** Orders official rounds and playoff sets chronologically instead of alphabetically. */
+export function compareMatchesChronologically(left: MatchLabelInput, right: MatchLabelInput) {
+  const roundDifference = matchRoundOrder(left) - matchRoundOrder(right);
+  if (roundDifference) return roundDifference;
+  const sequence = (match: MatchLabelInput) => {
+    const playoff = (match.tba_match_key ?? "").match(/_(?:qf|sf|f|ef)(\d+)m(\d+)$/);
+    return playoff ? [Number(playoff[1]), Number(playoff[2])] : [match.match_number ?? 0, 0];
+  };
+  const [leftSet, leftMatch] = sequence(left);
+  const [rightSet, rightMatch] = sequence(right);
+  return leftSet - rightSet || leftMatch - rightMatch || (left.match_number ?? 0) - (right.match_number ?? 0);
+}

@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useId, useMemo, useRef, useState, type FormEvent, type PointerEvent as ReactPointerEvent } from "react";
 import type { ScoutStats } from "@/lib/scouting-stats";
-import { matchLabel as formatMatchLabel } from "@/lib/match-label";
+import { compareMatchesChronologically, matchLabel as formatMatchLabel } from "@/lib/match-label";
 import { createClient } from "@/lib/supabase/client";
 
 type Team = { id: string; number: number; name: string; stats: ScoutStats };
@@ -169,7 +169,7 @@ export function MatchStrategyPanel({ matches, teams, eventId, eventKey, organiza
     const leftPlayed = hasPlayedDelayElapsed(left);
     const rightPlayed = hasPlayedDelayElapsed(right);
     if (leftPlayed !== rightPlayed) return leftPlayed ? 1 : -1;
-    return left.number - right.number || matchLabel(left).localeCompare(matchLabel(right));
+    return compareMatchesChronologically({ match_number: left.number, match_type: left.type, tba_match_key: left.key }, { match_number: right.number, match_type: right.type, tba_match_key: right.key }) || matchLabel(left).localeCompare(matchLabel(right));
   }), [matches, now, playedObservedAt]);
 
   function chooseMatch(nextMatchId: string) {

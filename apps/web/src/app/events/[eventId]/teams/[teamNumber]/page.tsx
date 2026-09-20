@@ -9,7 +9,7 @@ import { PayloadGrid } from "@/components/scouting-payload";
 import { TeamMatchTimeline, type TimelineMatch } from "./team-match-timeline";
 import { TeamPhotoCarousel } from "./team-photo-carousel";
 import { TeamRobotProfile } from "./team-robot-profile";
-import { compactManualMatchLabel, compactMatchLabel, manualMatchLabel, matchLabel, matchRoundOrder } from "@/lib/match-label";
+import { compareMatchesChronologically, compactManualMatchLabel, compactMatchLabel, manualMatchLabel, matchLabel, matchRoundOrder } from "@/lib/match-label";
 import { getViewerContext } from "@/lib/viewer-context";
 
 type TbaMatch = { key: string; match_number: number; comp_level?: string; actual_time?: number; alliances?: { red?: { team_keys?: string[]; score?: number }; blue?: { team_keys?: string[]; score?: number } } };
@@ -86,7 +86,7 @@ export default async function TeamDetail({ params }: { params: Promise<{ eventId
     if (matchesResponse.ok && Array.isArray(matchesJson)) tbaMatches = matchesJson.filter((match: TbaMatch) => [
       ...(match.alliances?.red?.team_keys ?? []),
       ...(match.alliances?.blue?.team_keys ?? []),
-    ].includes(`frc${team.team_number}`)).sort((a: TbaMatch, b: TbaMatch) => matchRoundOrder({ match_type: tbaMatchType(a), tba_match_key: a.key }) - matchRoundOrder({ match_type: tbaMatchType(b), tba_match_key: b.key }) || a.key.localeCompare(b.key, undefined, { numeric: true }));
+    ].includes(`frc${team.team_number}`)).sort((a: TbaMatch, b: TbaMatch) => compareMatchesChronologically({ match_number: a.match_number, match_type: tbaMatchType(a), tba_match_key: a.key }, { match_number: b.match_number, match_type: tbaMatchType(b), tba_match_key: b.key }) || a.key.localeCompare(b.key, undefined, { numeric: true }));
     if (rankingsResponse.ok && Array.isArray(rankingsJson?.rankings)) tba = rankingsJson.rankings.find((ranking: any) => ranking.team_key === `frc${team.team_number}`);
     opr = Number(oprsJson?.oprs?.[`frc${team.team_number}`] ?? 0);
   } catch {}
