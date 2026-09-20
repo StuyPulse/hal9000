@@ -674,7 +674,7 @@
   .picklist-tier-head p { @apply mb-0 mt-0.5 text-xs; }
   .picklist-tier-label { @apply text-base font-extrabold; color:var(--tier); }
   .picklist-tier-list { @apply grid gap-px bg-stuypulse-border; }
-  .picklist-team-row { @apply grid grid-cols-[minmax(160px,.7fr)_minmax(390px,1fr)_auto_minmax(190px,1.2fr)_auto_auto] items-center gap-2 bg-stuypulse-surface p-3 transition-colors; }
+  .picklist-team-row { @apply grid grid-cols-[minmax(190px,280px)_minmax(500px,660px)_auto_minmax(190px,1fr)_auto_auto] items-center gap-2 bg-stuypulse-surface p-3 transition-colors; }
   .picklist-team-row.dragging { @apply opacity-45; }
   .picklist-team-row.drop-target { @apply bg-stuypulse-elevated; }
   .picklist-team-row.is-selected { @apply bg-stuypulse-bg/70; opacity:.62; filter:grayscale(.4); }
@@ -715,6 +715,9 @@
   .picklist-order-buttons { @apply inline-flex overflow-hidden rounded-md border border-stuypulse-border; }
   .picklist-order-buttons button { @apply grid min-h-9 min-w-9 place-items-center border-r border-stuypulse-border text-stuypulse-text hover:bg-stuypulse-elevated last:border-r-0 disabled:cursor-not-allowed disabled:opacity-35; }
   .picklist-note { @apply min-w-0; }
+  @media (min-width: 1501px) {
+    .picklist-team-row.has-empty-note { grid-template-columns:minmax(190px,280px) minmax(500px,660px) auto minmax(190px,260px) auto auto; }
+  }
   .picklist-note textarea { @apply block min-h-9 w-full resize-y rounded-md border border-stuypulse-border bg-stuypulse-bg px-2 py-1.5 text-xs text-stuypulse-text outline-none placeholder:text-stuypulse-textMuted focus:border-stuypulse-red; }
   .picklist-read-tier { @apply rounded-full px-2 py-1 text-xs font-bold; background-color:color-mix(in srgb, var(--tier) 14%, transparent); color:var(--tier); }
   .picklist-read-note { @apply min-w-0 whitespace-pre-wrap text-xs text-stuypulse-textMuted; }
