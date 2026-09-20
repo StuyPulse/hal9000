@@ -13,13 +13,15 @@ with candidates as (
     on scheduled_match.event_id = entry.event_id
    and (entry.team_id = any(scheduled_match.red_teams) or entry.team_id = any(scheduled_match.blue_teams))
    and scheduled_match.match_number = (entry.payload #>> '{manual_match,label}')::integer
-   and scheduled_match.match_type = case lower(trim(entry.payload #>> '{manual_match,stage}'))
-     when 'qualification' then 'qualification'
-     when 'practice' then 'practice'
-     when 'quarterfinal' then 'playoff'
-     when 'semifinal' then 'playoff'
-     when 'final' then 'playoff'
-   end
+   and scheduled_match.match_type = (
+     case lower(trim(entry.payload #>> '{manual_match,stage}'))
+       when 'qualification' then 'qualification'
+       when 'practice' then 'practice'
+       when 'quarterfinal' then 'playoff'
+       when 'semifinal' then 'playoff'
+       when 'final' then 'playoff'
+     end
+   )::public.match_type
   where entry.entry_type = 'match'
     and entry.match_id is null
     and jsonb_typeof(entry.payload -> 'manual_match') = 'object'
