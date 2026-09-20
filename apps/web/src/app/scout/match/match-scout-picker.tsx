@@ -1,20 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useId, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { matchLabel } from "@/lib/match-label";
 
-type Match = { id: string; key: string; number: number; type: string; status: string; updatedAt: string | null; red: string[]; blue: string[] };
+type Match = { id: string; key: string; number: number; type: string; status: string; red: string[]; blue: string[] };
 type Team = { id: string; number: number; name: string };
 
 const playedMatchDelayMs = 5 * 60 * 1_000;
 const label = (match: Match) => matchLabel({ match_number: match.number, match_type: match.type, tba_match_key: match.key });
-
-function hasPlayedDelayElapsed(match: Match, now: number) {
-  if (match.status !== "played" || !match.updatedAt) return false;
-  const playedAt = Date.parse(match.updatedAt);
-  return Number.isFinite(playedAt) && now >= playedAt + playedMatchDelayMs;
-}
 
 function SearchableMatchSelect({ value, onValueChange, matches, teams }: { value: string; onValueChange: (value: string) => void; matches: Match[]; teams: Team[] }) {
   const [query, setQuery] = useState("");
@@ -47,17 +41,31 @@ export function MatchScoutPicker({ matches, teams, initialMatchId = "" }: { matc
   const [matchId, setMatchId] = useState(initialMatchId);
   const [teamId, setTeamId] = useState("");
   const [now, setNow] = useState(() => Date.now());
+  const [playedObservedAt, setPlayedObservedAt] = useState<Record<string, number>>({});
+  const previousStatuses = useRef(new Map(matches.map((match) => [match.id, match.status])));
   useEffect(() => {
     const interval = window.setInterval(() => setNow(Date.now()), 30_000);
     return () => window.clearInterval(interval);
   }, []);
+  useEffect(() => {
+    const currentStatuses = new Map(matches.map((match) => [match.id, match.status]));
+    const newlyPlayed = matches.filter((match) => match.status === "played" && previousStatuses.current.get(match.id) !== "played");
+    if (newlyPlayed.length) setPlayedObservedAt((current) => ({ ...current, ...Object.fromEntries(newlyPlayed.map((match) => [match.id, Date.now()])) }));
+    previousStatuses.current = currentStatuses;
+  }, [matches]);
   const match = useMemo(() => matches.find((item) => item.id === matchId), [matches, matchId]);
+  const hasPlayedDelayElapsed = (item: Match) => {
+    if (item.status !== "played") return false;
+    const observedAt = playedObservedAt[item.id];
+    if (!observedAt) return previousStatuses.current.get(item.id) === "played";
+    return now >= observedAt + playedMatchDelayMs;
+  };
   const orderedMatches = useMemo(() => [...matches].sort((left, right) => {
-    const leftPlayed = hasPlayedDelayElapsed(left, now);
-    const rightPlayed = hasPlayedDelayElapsed(right, now);
+    const leftPlayed = hasPlayedDelayElapsed(left);
+    const rightPlayed = hasPlayedDelayElapsed(right);
     if (leftPlayed !== rightPlayed) return leftPlayed ? 1 : -1;
     return left.number - right.number || label(left).localeCompare(label(right));
-  }), [matches, now]);
+  }), [matches, now, playedObservedAt]);
   const allowedTeams = match ? teams.filter((team) => [...match.red, ...match.blue].includes(team.id)).sort((a, b) => a.number - b.number) : [];
   const redTeams = match ? allowedTeams.filter((team) => match.red.includes(team.id)) : [];
   const blueTeams = match ? allowedTeams.filter((team) => match.blue.includes(team.id)) : [];
