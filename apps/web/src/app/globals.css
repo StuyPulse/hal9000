@@ -923,6 +923,34 @@
   .card-head > .row-actions > * { @apply flex-1; }
   .match-row .button { @apply w-full; }
   .match-time, .match-num { @apply w-auto; }
+
+  /* A flex-basis from the tablet layout was being reset by the mobile
+     flex-1 utility, leaving alliance teams in an unusably narrow column.
+     Give the match metadata, score, and alliances explicit grid positions. */
+  .match-row {
+    @apply grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-3;
+  }
+
+  .match-row .match-time {
+    @apply col-span-2;
+  }
+
+  .match-row .match-num {
+    @apply min-w-0 whitespace-normal;
+  }
+
+  .match-row .match-score,
+  .match-row > .tag {
+    @apply justify-self-end;
+  }
+
+  .match-row .alliances {
+    @apply col-span-2 order-none min-w-0 w-full;
+  }
+
+  .match-row .row-actions {
+    @apply col-span-2 order-none w-full;
+  }
   .form-launcher { @apply grid-cols-1 gap-3; }
   .form-launch { @apply min-h-32 p-4; }
   .scouting-card { @apply gap-4 rounded-none border-x-0 p-4 shadow-none; }
