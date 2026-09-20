@@ -2,8 +2,9 @@
 -- correct their contents. A trigger keeps immutable report identity fields
 -- (including the original scout) from being reassigned through direct writes.
 alter table public.scouting_entries
-  add column last_edited_by uuid references public.profiles(id) on delete set null;
+  add column if not exists last_edited_by uuid references public.profiles(id) on delete set null;
 
+drop policy if exists "members update pit scouting entries" on public.scouting_entries;
 create policy "members update pit scouting entries"
 on public.scouting_entries for update to authenticated
 using (
@@ -40,6 +41,7 @@ $$;
 
 revoke all on function private.preserve_pit_scouting_entry_identity() from public, anon, authenticated;
 
+drop trigger if exists preserve_pit_scouting_entry_identity_before_update on public.scouting_entries;
 create trigger preserve_pit_scouting_entry_identity_before_update
 before update on public.scouting_entries
 for each row
@@ -62,6 +64,7 @@ $$;
 
 revoke all on function private.record_pit_scouting_entry_editor() from public, anon, authenticated;
 
+drop trigger if exists record_pit_scouting_entry_editor_before_update on public.scouting_entries;
 create trigger record_pit_scouting_entry_editor_before_update
 before update on public.scouting_entries
 for each row
