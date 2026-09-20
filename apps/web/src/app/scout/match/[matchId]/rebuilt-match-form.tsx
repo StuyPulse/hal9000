@@ -2,7 +2,9 @@
 
 import { FlipHorizontal2, Plus, Trash2 } from "lucide-react";
 import { useState, type CSSProperties } from "react";
+import { useRouter } from "next/navigation";
 import { AppSelect } from "@/components/app-select";
+import { SearchableTeamSelect, type TeamOption } from "@/components/searchable-team-select";
 import { queueScoutingEntry, removeQueuedScoutingEntry, tryUpsertScoutingEntry } from "@/lib/offline-scouting-queue";
 import { updateMatchScoutingEntry } from "./actions";
 
@@ -16,6 +18,7 @@ type Props = {
   alliance?: "red" | "blue" | "manual";
   otherTeams: { id: string; number: number; alliance: "red" | "blue" | "manual" }[];
   manualMatch?: { stage: string; label?: string; alliance?: "red" | "blue" };
+  manualTeams?: TeamOption[];
   editingEntryId?: string;
   initialPayload?: Record<string, unknown>;
   returnTo?: string;
@@ -76,7 +79,8 @@ function normalizeMatchTimestamp(value: string) {
   return `${minutes || "0"}:${String(Math.min(59, Number(seconds || 0))).padStart(2, "0")}`;
 }
 
-export function RebuiltMatchForm({ eventId, organizationId, scoutUserId, matchId, teamId, assignmentId, alliance = "red", otherTeams, manualMatch, editingEntryId, initialPayload = {}, returnTo }: Props) {
+export function RebuiltMatchForm({ eventId, organizationId, scoutUserId, matchId, teamId, assignmentId, alliance = "red", otherTeams, manualMatch, manualTeams, editingEntryId, initialPayload = {}, returnTo }: Props) {
+  const router = useRouter();
   const [noShow, setNoShow] = useState(() => Boolean(initialPayload.no_show));
   const [spot, setSpot] = useState<string | undefined>(() => typeof initialPayload.starting_spot === "string" ? initialPayload.starting_spot : undefined);
   const [auto, setAuto] = useState(() => { const score = asRecord(initialPayload.auto); return { shoot: asNumber(score.shoot), ferry: asNumber(score.ferry) }; });
@@ -147,7 +151,7 @@ export function RebuiltMatchForm({ eventId, organizationId, scoutUserId, matchId
       status: finalize ? "submitted" as const : "draft" as const, submitted_at: submittedAt,
     };
     const result = editingEntryId
-      ? { error: (await updateMatchScoutingEntry({ entryId: editingEntryId, payload })).error ?? null, shouldQueue: false }
+      ? { error: (await updateMatchScoutingEntry({ entryId: editingEntryId, payload, ...(manualMatch ? { teamId, matchId: matchId ?? null } : {}) })).error ?? null, shouldQueue: false }
       : await tryUpsertScoutingEntry(entry);
     const { error, shouldQueue } = result;
     if (shouldQueue) {
@@ -177,7 +181,7 @@ export function RebuiltMatchForm({ eventId, organizationId, scoutUserId, matchId
   }
 
   return <section className="scouting-card match-form">
-      {manualMatch && <div className="form-section manual-match-details"><div className="section-title">Manual match details</div><div className="form-grid"><div className="field"><label>Match type</label><AppSelect ariaLabel="Manual match type" value={manualStage} onValueChange={setManualStage} disabled={saving || submitted} options={manualStageOptions}/></div><div className="field"><label htmlFor="manual-match-number">Match # {manualStage === "other" ? "(optional)" : ""}</label><input id="manual-match-number" disabled={saving || submitted} value={manualMatchNumber} onChange={(event) => setManualMatchNumber(event.target.value)} placeholder={manualStage === "other" ? "Optional label" : "e.g. 18"}/></div></div></div>}
+      {manualMatch && <div className="form-section manual-match-details"><div className="section-title">Manual match details</div><div className="form-grid"><div className="field"><label>Match type</label><AppSelect ariaLabel="Manual match type" value={manualStage} onValueChange={setManualStage} disabled={saving || submitted} options={manualStageOptions}/></div><div className="field"><label htmlFor="manual-match-number">Match # {manualStage === "other" ? "(optional)" : ""}</label><input id="manual-match-number" disabled={saving || submitted} value={manualMatchNumber} onChange={(event) => setManualMatchNumber(event.target.value)} placeholder={manualStage === "other" ? "Optional label" : "e.g. 18"}/></div>{editingEntryId && manualTeams && <div className="field"><label htmlFor="manual-report-team">Team</label><SearchableTeamSelect id="manual-report-team" value={teamId} teams={manualTeams} emptyLabel="" disabled={saving || submitted} onValueChange={(nextTeamId) => { if (!nextTeamId || nextTeamId === teamId) return; const params = new URLSearchParams({ edit: editingEntryId, team: nextTeamId }); if (returnTo) params.set("returnTo", returnTo); router.replace(`/scout/match/manual?${params.toString()}`); }}/><p className="field-hint">Changing the team recalculates the scheduled match link before saving.</p></div>}</div></div>}
       <div className="form-section"><div className="section-title">Auton starting position</div><div className="form-field-actions"><button type="button" className="button secondary mobile-full" disabled={saving || submitted} aria-pressed={noShow} onClick={() => setNoShow(!noShow)}>{noShow ? "Undo no show" : "Mark no show"}</button><button type="button" className="button secondary mobile-full" disabled={saving || submitted} aria-pressed={mirrored} onClick={() => setMirrored((current) => !current)}><FlipHorizontal2 size={16} aria-hidden="true"/>{mirrored ? "Use alliance view" : "Mirror field"}</button></div><fieldset disabled={disabled}><legend className="sr-only">Autonomous starting position</legend><div className={`field-map ${mapRotated ? "rotated" : ""} ${mapMirrored ? "mirrored" : ""}`}><div className="field-map-art" aria-hidden="true"/>{spots.map((item) => <button type="button" key={item.id} aria-label={`Start at ${item.label}`} aria-pressed={spot === item.id} style={{"--spot-x":positionFor(item).x,"--spot-y":positionFor(item).y} as CSSProperties} className={spot === item.id ? `spot ${alliance}` : "spot"} onClick={() => setSpot((current) => current === item.id ? undefined : item.id)}><span>{item.label}</span></button>)}</div></fieldset>{spot && <div className="spot-choice" aria-live="polite">Starting position: {spots.find((item)=>item.id===spot)?.label}</div>}</div>
     <fieldset disabled={disabled}><legend className="sr-only">Match scouting details</legend>
       <div className="form-section"><div className="section-title">Scoring</div><div className="scoring-table"><div className="scoring-head"><span>Period</span><span>Scored</span><span>Ferried</span></div><ScoreRow label="Autonomous" value={auto} update={(key, value) => setAuto((score) => ({ ...score, [key]: Math.max(0, value) }))} autoRow /><ScoreRow label="Teleop" value={teleop} update={(key, value) => setTeleop((score) => ({ ...score, [key]: Math.max(0, value) }))} /></div></div>

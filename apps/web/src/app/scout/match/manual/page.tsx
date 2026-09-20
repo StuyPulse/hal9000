@@ -27,7 +27,8 @@ export default async function ManualMatchFormPage({ searchParams }: { searchPara
     .select("id,organization_id,event_id,team_id,match_id,scout_user_id,entry_type,payload")
     .eq("id", editingEntryId)
     .maybeSingle() : { data: null };
-  if (editingEntryId && (!editingEntry || !event || editingEntry.organization_id !== viewer?.organizationId || editingEntry.event_id !== event.id || editingEntry.entry_type !== "match" || editingEntry.match_id || (editingEntry.scout_user_id !== viewer?.userId && !viewerCanManage(viewer)))) notFound();
+  const editingManualMatch = editingEntry?.payload?.manual_match && typeof editingEntry.payload.manual_match === "object" && !Array.isArray(editingEntry.payload.manual_match);
+  if (editingEntryId && (!editingEntry || !event || editingEntry.organization_id !== viewer?.organizationId || editingEntry.event_id !== event.id || editingEntry.entry_type !== "match" || !editingManualMatch || (editingEntry.scout_user_id !== viewer?.userId && !viewerCanManage(viewer)))) notFound();
 
   const manualMetadata = editingEntry?.payload?.manual_match && typeof editingEntry.payload.manual_match === "object" && !Array.isArray(editingEntry.payload.manual_match) ? editingEntry.payload.manual_match as Record<string, unknown> : {};
   const stage = editingEntry
@@ -39,7 +40,7 @@ export default async function ManualMatchFormPage({ searchParams }: { searchPara
   const alliance = editingEntry
     ? (manualMetadata.alliance === "red" || manualMetadata.alliance === "blue" ? manualMetadata.alliance : "red")
     : (requestedAlliance === "red" || requestedAlliance === "blue" ? requestedAlliance : null);
-  const teamId = editingEntry?.team_id ?? requestedTeamId;
+  const teamId = requestedTeamId ?? editingEntry?.team_id;
   const { data: selectedEventTeam } = event && teamId ? await supabase.from("event_teams").select("team_id,teams(team_number,name)").eq("event_id", event.id).eq("team_id", teamId).maybeSingle() : { data: null };
 
   if (!event || !selectedEventTeam || !alliance) return <AppShell active="Manual scouting">
@@ -48,13 +49,13 @@ export default async function ManualMatchFormPage({ searchParams }: { searchPara
   </AppShell>;
 
   const team = selectedEventTeam.teams as unknown as { team_number: number; name: string } | null;
-  const { data: eventTeams } = await supabase.from("event_teams").select("team_id,teams(team_number)").eq("event_id", event.id);
+  const { data: eventTeams } = await supabase.from("event_teams").select("team_id,teams(team_number,name)").eq("event_id", event.id);
   const numericLabel = label?.trim() ?? "";
   const normalizedStage = stage.trim().toLowerCase();
   const matchType = normalizedStage === "qualification" || normalizedStage === "practice"
     ? normalizedStage
     : ["quarterfinal", "semifinal", "final"].includes(normalizedStage) ? "playoff" : null;
-  const { data: scheduledCandidates } = !editingEntry && matchType && /^\d+$/.test(numericLabel)
+  const { data: scheduledCandidates } = matchType && /^\d+$/.test(numericLabel)
     ? await supabase.from("matches").select("id,red_teams,blue_teams").eq("event_id", event.id).eq("match_type", matchType).eq("match_number", Number(numericLabel))
     : { data: [] };
   // The fallback form should become a scheduled report only when the entered
@@ -75,6 +76,6 @@ export default async function ManualMatchFormPage({ searchParams }: { searchPara
   if (!viewer?.organizationId) notFound();
   return <AppShell active="Manual scouting">
     <PageHeader eyebrow={`${manualMatchLabel({ stage, label })} · ${alliance} alliance`} title={`${team?.team_number} · ${team?.name}`} />
-    <RebuiltMatchForm eventId={event.id} organizationId={viewer.organizationId} scoutUserId={viewer.userId} matchId={scheduledMatch?.id} teamId={selectedEventTeam.team_id} alliance={alliance} otherTeams={otherTeams} manualMatch={{ stage, label, alliance }} editingEntryId={editingEntry?.id} initialPayload={editingEntry?.payload ?? {}} returnTo={returnTo}/>
+    <RebuiltMatchForm eventId={event.id} organizationId={viewer.organizationId} scoutUserId={viewer.userId} matchId={scheduledMatch?.id} teamId={selectedEventTeam.team_id} alliance={alliance} otherTeams={otherTeams} manualMatch={{ stage, label, alliance }} manualTeams={(eventTeams ?? []).map((row: any) => ({ id: row.team_id, number: row.teams?.team_number ?? 0, name: row.teams?.name ?? "Unknown team" })).filter((team) => team.number > 0)} editingEntryId={editingEntry?.id} initialPayload={editingEntry?.payload ?? {}} returnTo={returnTo}/>
   </AppShell>;
 }

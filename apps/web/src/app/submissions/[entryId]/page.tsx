@@ -8,9 +8,9 @@ import { getViewerContext, viewerCanManage } from "@/lib/viewer-context";
 import { DeleteSubmissionForm } from "@/components/delete-submission-form";
 import { scoutingEntryLabel, scoutingEntryTypeLabel } from "@/lib/scouting-entry-label";
 
-function reportEditHref(entry: { id: string; entry_type: string; match_id: string | null }) {
+function reportEditHref(entry: { id: string; entry_type: string; match_id: string | null; payload?: Record<string, unknown> }) {
   const params = `edit=${entry.id}&returnTo=${encodeURIComponent(`/submissions/${entry.id}`)}`;
-  if (entry.entry_type === "match") return entry.match_id ? `/scout/match/${entry.match_id}?${params}` : `/scout/match/manual?${params}`;
+  if (entry.entry_type === "match") return entry.payload?.manual_match ? `/scout/match/manual?${params}` : entry.match_id ? `/scout/match/${entry.match_id}?${params}` : `/scout/match/manual?${params}`;
   if (entry.entry_type === "pit") return `/scout/pit?${params}`;
   if (entry.entry_type === "pre_scout") return `/scout/pre-scout?${params}`;
   return null;

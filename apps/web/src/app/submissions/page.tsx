@@ -20,9 +20,9 @@ const reportTabs: { value: ReportType; label: string }[] = [
   { value: "pre_scout", label: "Pre scouting" },
 ];
 
-function reportEditHref(entry: { id: string; entry_type: string; match_id: string | null }, returnTo: string) {
+function reportEditHref(entry: { id: string; entry_type: string; match_id: string | null; payload?: Record<string, unknown> }, returnTo: string) {
   const params = `edit=${entry.id}&returnTo=${encodeURIComponent(returnTo)}`;
-  if (entry.entry_type === "match") return entry.match_id ? `/scout/match/${entry.match_id}?${params}` : `/scout/match/manual?${params}`;
+  if (entry.entry_type === "match") return entry.payload?.manual_match ? `/scout/match/manual?${params}` : entry.match_id ? `/scout/match/${entry.match_id}?${params}` : `/scout/match/manual?${params}`;
   if (entry.entry_type === "pit") return `/scout/pit?${params}`;
   if (entry.entry_type === "pre_scout") return `/scout/pre-scout?${params}`;
   return null;
