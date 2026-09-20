@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { averageReportsByMatch, calculateScoutStats } from "./scouting-stats";
+import { averageReportsByMatch, calculateScoutStats, selectedMatchReportEntries } from "./scouting-stats";
 
 const report = (id: string, matchId: string, autoScored: number, fouls: number, broken = false) => ({
   id,
@@ -43,4 +43,19 @@ test("uses manual match stage and label when a scheduled match ID is unavailable
 
   assert.equal(stats.matches, 2);
   assert.equal(stats.autoAvgScored, 21);
+});
+
+test("uses the selected report for one match while keeping other matches combined", () => {
+  const entries = [
+    { ...report("q2-a", "match-2", 10, 0), team_id: "team-a" },
+    { ...report("q2-b", "match-2", 20, 0), team_id: "team-a" },
+    { ...report("q5-a", "match-5", 30, 0), team_id: "team-a" },
+    { ...report("q5-b", "match-5", 50, 0), team_id: "team-a" },
+  ];
+
+  const selected = selectedMatchReportEntries(entries, [{ team_id: "team-a", match_key: "scheduled:match-2", selected_entry_id: "q2-b" }]);
+  const stats = calculateScoutStats(selected);
+
+  assert.equal(stats.matches, 2);
+  assert.equal(stats.autoAvgScored, 30);
 });

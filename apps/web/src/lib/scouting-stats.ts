@@ -21,6 +21,8 @@ type MatchValues = {
   autoFuel: number; teleopFuel: number; fouls: number; defense: number; broken: number;
 };
 
+export type MatchReportSource = { team_id: string; match_key: string; selected_entry_id: string | null };
+
 const reportValues = (entry: any): MatchValues => {
   const autoScored = number(entry.payload?.auto?.shoot);
   const autoFerried = number(entry.payload?.auto?.ferry);
@@ -44,7 +46,7 @@ const reportValues = (entry: any): MatchValues => {
  * reports for the same scheduled or manual match before calculating team stats,
  * so a heavily scouted match cannot outweigh another match.
  */
-function matchKey(entry: any, index: number) {
+export function matchReportKey(entry: any, index = 0) {
   const match = Array.isArray(entry?.matches) ? entry.matches[0] : entry?.matches;
   const scheduledMatchId = entry?.match_id ?? match?.id;
   if (typeof scheduledMatchId === "string" && scheduledMatchId) return `scheduled:${scheduledMatchId}`;
@@ -58,10 +60,19 @@ function matchKey(entry: any, index: number) {
   return `report:${typeof entry?.id === "string" ? entry.id : index}`;
 }
 
+/** Keep the combined observations unless the team explicitly selected one report for this match. */
+export function selectedMatchReportEntries(entries: any[], sources: MatchReportSource[]) {
+  const sourceByTeamAndMatch = new Map(sources.filter((source) => source.selected_entry_id).map((source) => [`${source.team_id}:${source.match_key}`, source.selected_entry_id]));
+  return entries.filter((entry, index) => {
+    const selectedEntryId = sourceByTeamAndMatch.get(`${entry.team_id}:${matchReportKey(entry, index)}`);
+    return !selectedEntryId || selectedEntryId === entry.id;
+  });
+}
+
 export function averageReportsByMatch(entries: any[]): MatchValues[] {
   const reportsByMatch = new Map<string, any[]>();
   entries.forEach((entry, index) => {
-    const key = matchKey(entry, index);
+    const key = matchReportKey(entry, index);
     reportsByMatch.set(key, [...(reportsByMatch.get(key) ?? []), entry]);
   });
 

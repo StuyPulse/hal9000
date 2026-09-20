@@ -1,0 +1,3 @@
+create index match_report_sources_organization_idx on public.match_report_sources(organization_id);
+create index match_report_sources_team_idx on public.match_report_sources(team_id);
+create index match_report_sources_selected_entry_idx on public.match_report_sources(selected_entry_id);
