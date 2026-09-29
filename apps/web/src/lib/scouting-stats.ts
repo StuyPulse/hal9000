@@ -14,7 +14,7 @@ export const SCOUT_STAT_LABELS: Record<keyof Omit<ScoutStats, "entries" | "match
 };
 const number = (value: unknown) => Number.isFinite(Number(value)) ? Number(value) : 0;
 const average = (values: number[]) => values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : 0;
-const maximum = (values: number[]) => values.length ? Math.max(...values) : 0;
+const maximum = (values: number[]) => values.reduce((best, value) => value > best ? value : best, values.length ? values[0] : 0);
 
 type MatchValues = {
   autoScored: number; autoFerried: number; teleopScored: number; teleopFerried: number;
@@ -69,11 +69,22 @@ export function selectedMatchReportEntries(entries: any[], sources: MatchReportS
   });
 }
 
+/** Bucket rows by team_id once so per-team stats do not rescan every entry. */
+export function groupByTeam<T extends { team_id: string }>(rows: T[] | null | undefined) {
+  const byTeam = new Map<string, T[]>();
+  for (const row of rows ?? []) {
+    const bucket = byTeam.get(row.team_id);
+    if (bucket) bucket.push(row); else byTeam.set(row.team_id, [row]);
+  }
+  return byTeam;
+}
+
 export function averageReportsByMatch(entries: any[]): MatchValues[] {
   const reportsByMatch = new Map<string, any[]>();
   entries.forEach((entry, index) => {
     const key = matchReportKey(entry, index);
-    reportsByMatch.set(key, [...(reportsByMatch.get(key) ?? []), entry]);
+    const bucket = reportsByMatch.get(key);
+    if (bucket) bucket.push(entry); else reportsByMatch.set(key, [entry]);
   });
 
   return [...reportsByMatch.values()].map((reports) => {

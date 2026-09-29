@@ -1,7 +1,7 @@
 import { AppShell, PageHeader } from "@/components/app-shell";
 import { createClient } from "@/lib/supabase/server";
 import { LiveRefresh } from "@/components/live-refresh";
-import { calculateScoutStats, competitiveMatchEntries, selectedMatchReportEntries } from "@/lib/scouting-stats";
+import { calculateScoutStats, competitiveMatchEntries, groupByTeam, selectedMatchReportEntries } from "@/lib/scouting-stats";
 import { officialFuelAverages } from "@/lib/official-fuel-stats";
 import { CompareMetrics } from "./compare-metrics";
 import { CompareTeamPicker } from "./compare-team-picker";
@@ -36,23 +36,30 @@ export default async function ComparePage({ params, searchParams }: { params: Pr
     event && selectedTeamIds.length ? (supabase as any).from("matches").select("red_teams,blue_teams,tba_score_breakdown").eq("event_id", event.id).eq("status", "played") : Promise.resolve({ data: [] }),
     event && selectedTeamIds.length ? (supabase as any).from("pit_photos").select("team_id,storage_path,created_at").eq("event_id", event.id).in("team_id", selectedTeamIds).order("created_at", { ascending: false }) : Promise.resolve({ data: [] }),
   ]);
-  const newestPhotos = new Map<string, string>();
-  for (const photo of photos ?? []) if (!newestPhotos.has(photo.team_id)) newestPhotos.set(photo.team_id, photo.storage_path);
-  const photoUrlByTeam = new Map((await Promise.all([...newestPhotos.entries()].map(async ([teamId, storagePath]) => {
-    const { data } = await supabase.storage.from("pit-photos").createSignedUrl(storagePath, 3600);
-    return [teamId, data?.signedUrl] as const;
-  }))).filter((item): item is readonly [string, string] => Boolean(item[1])));
-
-  let rankings: any[] = []; let sortInfo: any[] = []; let oprs: Record<string, number> = {};
-  if (event && !event.is_manual && selectedTeamIds.length && process.env.TBA_AUTH_KEY) try {
-    const headers = { "X-TBA-Auth-Key": process.env.TBA_AUTH_KEY };
-    const [rankingsResponse, oprsResponse] = await Promise.all([fetch(`https://www.thebluealliance.com/api/v3/event/${event.event_key}/rankings`, { headers, next: { revalidate: 20 } }), fetch(`https://www.thebluealliance.com/api/v3/event/${event.event_key}/oprs`, { headers, next: { revalidate: 20 } })]);
-    const [rankingPayload, oprPayload] = await Promise.all([rankingsResponse.json(), oprsResponse.json()]);
-    if (rankingsResponse.ok && Array.isArray(rankingPayload?.rankings)) { rankings = rankingPayload.rankings; sortInfo = rankingPayload.sort_order_info ?? []; oprs = oprPayload?.oprs ?? {}; }
-  } catch {}
+  const loadPhotoUrls = async () => {
+    const newestPhotos = new Map<string, string>();
+    for (const photo of photos ?? []) if (!newestPhotos.has(photo.team_id)) newestPhotos.set(photo.team_id, photo.storage_path);
+    const photoUrlByTeam = new Map((await Promise.all([...newestPhotos.entries()].map(async ([teamId, storagePath]) => {
+      const { data } = await supabase.storage.from("pit-photos").createSignedUrl(storagePath, 3600);
+      return [teamId, data?.signedUrl] as const;
+    }))).filter((item): item is readonly [string, string] => Boolean(item[1])));
+    return photoUrlByTeam;
+  };
+  const loadTba = async () => {
+    let rankings: any[] = []; let sortInfo: any[] = []; let oprs: Record<string, number> = {};
+    if (event && !event.is_manual && selectedTeamIds.length && process.env.TBA_AUTH_KEY) try {
+      const headers = { "X-TBA-Auth-Key": process.env.TBA_AUTH_KEY };
+      const [rankingsResponse, oprsResponse] = await Promise.all([fetch(`https://www.thebluealliance.com/api/v3/event/${event.event_key}/rankings`, { headers, next: { revalidate: 20 } }), fetch(`https://www.thebluealliance.com/api/v3/event/${event.event_key}/oprs`, { headers, next: { revalidate: 20 } })]);
+      const [rankingPayload, oprPayload] = await Promise.all([rankingsResponse.json(), oprsResponse.json()]);
+      if (rankingsResponse.ok && Array.isArray(rankingPayload?.rankings)) { rankings = rankingPayload.rankings; sortInfo = rankingPayload.sort_order_info ?? []; oprs = oprPayload?.oprs ?? {}; }
+    } catch {}
+    return { rankings, sortInfo, oprs };
+  };
+  const [photoUrlByTeam, { rankings, sortInfo, oprs }] = await Promise.all([loadPhotoUrls(), loadTba()]);
   const tbaByTeam = new Map(rankings.map((ranking) => [Number(String(ranking.team_key ?? "").replace("frc", "")), ranking]));
+  const entriesByTeam = groupByTeam<any>(entries);
   const formatTeam = (row: any, color: string) => {
-    const reports = selectedMatchReportEntries(competitiveMatchEntries((entries ?? []).filter((entry: any) => entry.team_id === row.team_id)), reportSources ?? []);
+    const reports = selectedMatchReportEntries(competitiveMatchEntries(entriesByTeam.get(row.team_id) ?? []), reportSources ?? []);
     const stats = calculateScoutStats(reports);
     const tba = tbaByTeam.get(row.teams?.team_number);
     const officialFuel = officialFuelAverages(officialMatches ?? [], row.team_id);

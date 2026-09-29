@@ -3,7 +3,7 @@ import { AppShell, PageHeader } from "@/components/app-shell";
 import { LiveRefresh } from "@/components/live-refresh";
 import { createClient } from "@/lib/supabase/server";
 import { getViewerContext, viewerCanManage } from "@/lib/viewer-context";
-import { calculateScoutStats, competitiveMatchEntries, selectedMatchReportEntries } from "@/lib/scouting-stats";
+import { calculateScoutStats, competitiveMatchEntries, groupByTeam, selectedMatchReportEntries } from "@/lib/scouting-stats";
 import { PicklistBoard } from "./picklist-board";
 
 async function getCompletePicklistHistory(supabase: any, eventId: string) {
@@ -42,20 +42,23 @@ export default async function PicklistPage({ params }: { params: Promise<{ event
   const canEdit = viewer.role === "global_scout" || viewer.role === "strategist" || viewer.role === "master" || viewerCanManage(viewer);
   const { data: event } = await supabase.from("events").select("id,name,event_key,is_manual").eq("event_key", eventKey).eq("organization_id", viewer.organizationId).maybeSingle();
   if (!event) notFound();
-  let oprs: Record<string, number> = {}; const eventRanks = new Map<number, number>();
-  if (!event.is_manual && process.env.TBA_AUTH_KEY) try {
-    const headers = { "X-TBA-Auth-Key": process.env.TBA_AUTH_KEY };
-    const [oprsResponse, rankingsResponse] = await Promise.all([
-      fetch(`https://www.thebluealliance.com/api/v3/event/${event.event_key}/oprs`, { headers, next: { revalidate: 20 } }),
-      fetch(`https://www.thebluealliance.com/api/v3/event/${event.event_key}/rankings`, { headers, next: { revalidate: 20 } }),
-    ]);
-    if (oprsResponse.ok) oprs = (await oprsResponse.json())?.oprs ?? {};
-    if (rankingsResponse.ok) for (const ranking of (await rankingsResponse.json())?.rankings ?? []) {
-      const teamNumber = Number(String(ranking.team_key ?? "").replace("frc", ""));
-      if (Number.isFinite(teamNumber) && typeof ranking.rank === "number") eventRanks.set(teamNumber, ranking.rank);
-    }
-  } catch { /* Team number is a safe fallback while TBA is unavailable. */ }
-  const [{ data: categoryRows }, { data: tagRows }, { data: eventTeamRows }, { data: rankingRows }, { data: reportSources }, matchReports, changeRows] = await Promise.all([
+  const loadTba = async () => {
+    let oprs: Record<string, number> = {}; const eventRanks = new Map<number, number>();
+    if (!event.is_manual && process.env.TBA_AUTH_KEY) try {
+      const headers = { "X-TBA-Auth-Key": process.env.TBA_AUTH_KEY };
+      const [oprsResponse, rankingsResponse] = await Promise.all([
+        fetch(`https://www.thebluealliance.com/api/v3/event/${event.event_key}/oprs`, { headers, next: { revalidate: 20 } }),
+        fetch(`https://www.thebluealliance.com/api/v3/event/${event.event_key}/rankings`, { headers, next: { revalidate: 20 } }),
+      ]);
+      if (oprsResponse.ok) oprs = (await oprsResponse.json())?.oprs ?? {};
+      if (rankingsResponse.ok) for (const ranking of (await rankingsResponse.json())?.rankings ?? []) {
+        const teamNumber = Number(String(ranking.team_key ?? "").replace("frc", ""));
+        if (Number.isFinite(teamNumber) && typeof ranking.rank === "number") eventRanks.set(teamNumber, ranking.rank);
+      }
+    } catch { /* Team number is a safe fallback while TBA is unavailable. */ }
+    return { oprs, eventRanks };
+  };
+  const [{ data: categoryRows }, { data: tagRows }, { data: eventTeamRows }, { data: rankingRows }, { data: reportSources }, matchReports, changeRows, { oprs, eventRanks }] = await Promise.all([
     (supabase as any).from("picklist_categories").select("id,name,color,sort_order").eq("organization_id", viewer.organizationId).order("sort_order").order("name"),
     (supabase as any).from("picklist_tags").select("id,name,color,sort_order").eq("organization_id", viewer.organizationId).order("sort_order").order("name"),
     supabase.from("event_teams").select("team_id,teams(id,team_number,name)").eq("event_id", event.id),
@@ -65,10 +68,12 @@ export default async function PicklistPage({ params }: { params: Promise<{ event
     // Revision history is intentionally complete. A picklist is a shared strategy
     // document, so an older decision must remain reachable and restorable.
     getCompletePicklistHistory(supabase, event.id),
+    loadTba(),
   ]);
   const statsByTeam = new Map<string, ReturnType<typeof calculateScoutStats>>();
+  const reportsByTeam = groupByTeam<any>(matchReports);
   for (const row of eventTeamRows ?? []) {
-    const reports = (matchReports ?? []).filter((report: any) => report.team_id === row.team_id);
+    const reports = reportsByTeam.get(row.team_id) ?? [];
     statsByTeam.set(row.team_id, calculateScoutStats(selectedMatchReportEntries(competitiveMatchEntries(reports), reportSources ?? [])));
   }
   const teams = (eventTeamRows ?? []).map((row: any) => row.teams ? { ...row.teams, opr: Number(oprs[`frc${row.teams.team_number}`] ?? 0), eventRank: eventRanks.get(row.teams.team_number) ?? null, scouting: statsByTeam.get(row.team_id) ?? null } : null).filter(Boolean).sort((a: any, b: any) => b.opr - a.opr || a.team_number - b.team_number);
