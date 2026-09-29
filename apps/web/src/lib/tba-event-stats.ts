@@ -1,18 +1,22 @@
+export type TbaRanking = { team_key?: string; rank?: number; record?: { wins: number; losses: number; ties: number }; sort_orders?: unknown[] };
+export type TbaSortInfo = { name: string };
+type OfficialMatch = { red_teams?: string[] | null; blue_teams?: string[] | null; tba_score_breakdown?: Record<string, Record<string, unknown> | undefined> | null };
+
 export const asNumber = (value: unknown) => Number.isFinite(Number(value)) ? Number(value) : 0;
 
 /** Reads one of TBA's ranking sort-order metrics by matching its display name. */
-export function tbaMetric(ranking: any, info: any[], pattern: RegExp) {
+export function tbaMetric(ranking: TbaRanking | undefined, info: TbaSortInfo[], pattern: RegExp) {
   const index = info.findIndex((metric) => pattern.test(metric.name));
   return index >= 0 ? asNumber(ranking?.sort_orders?.[index]) : 0;
 }
 
 /** Most common climb result and success rate for a team, from official played-match breakdowns. */
-export function officialClimb(matches: any[], teamId: string) {
+export function officialClimb(matches: OfficialMatch[], teamId: string) {
   const auto: string[] = []; const endgame: string[] = [];
   for (const match of matches) {
     const side = match.red_teams?.includes(teamId) ? "red" : match.blue_teams?.includes(teamId) ? "blue" : null;
     if (!side) continue;
-    const slot = (side === "red" ? match.red_teams : match.blue_teams).indexOf(teamId) + 1;
+    const slot = (side === "red" ? match.red_teams : match.blue_teams)!.indexOf(teamId) + 1;
     const breakdown = match.tba_score_breakdown?.[side];
     if (!breakdown || !slot) continue;
     auto.push(String(breakdown[`autoTowerRobot${slot}`] ?? "None"));
@@ -30,7 +34,7 @@ export function officialClimb(matches: any[], teamId: string) {
 
 /** TBA rankings + OPRs for an event, fetched together. `apiError` is empty on success. */
 export async function fetchTbaRankings(eventKey: string) {
-  let rankings: any[] = []; let sortInfo: any[] = []; let oprs: Record<string, number> = {}; let apiError = "";
+  let rankings: TbaRanking[] = []; let sortInfo: TbaSortInfo[] = []; let oprs: Record<string, number> = {}; let apiError = "";
   if (!process.env.TBA_AUTH_KEY) return { rankings, sortInfo, oprs, apiError: "TBA_AUTH_KEY is unavailable to this deployment." };
   try {
     const headers = { "X-TBA-Auth-Key": process.env.TBA_AUTH_KEY };

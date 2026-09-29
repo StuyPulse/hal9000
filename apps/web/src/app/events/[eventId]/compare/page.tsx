@@ -1,11 +1,11 @@
 import { AppShell, PageHeader } from "@/components/app-shell";
 import { createClient } from "@/lib/supabase/server";
 import { LiveRefresh } from "@/components/live-refresh";
-import { calculateScoutStats, competitiveMatchEntries, groupByTeam, selectedMatchReportEntries } from "@/lib/scouting-stats";
+import { type TeamScoutEntry, calculateScoutStats, competitiveMatchEntries, groupByTeam, selectedMatchReportEntries } from "@/lib/scouting-stats";
 import { officialFuelAverages } from "@/lib/official-fuel-stats";
 import { CompareMetrics } from "./compare-metrics";
 import { CompareTeamPicker } from "./compare-team-picker";
-import { asNumber, fetchTbaRankings, officialClimb, tbaMetric } from "@/lib/tba-event-stats";
+import { type TbaRanking, type TbaSortInfo, asNumber, fetchTbaRankings, officialClimb, tbaMetric } from "@/lib/tba-event-stats";
 
 export default async function ComparePage({ params, searchParams }: { params: Promise<{ eventId: string }>; searchParams: Promise<{ a?: string; b?: string }> }) {
   const { eventId: eventKey } = await params; const { a, b } = await searchParams; const supabase = await createClient();
@@ -29,10 +29,10 @@ export default async function ComparePage({ params, searchParams }: { params: Pr
     }))).filter((item): item is readonly [string, string] => Boolean(item[1])));
     return photoUrlByTeam;
   };
-  const loadTba = async () => event && !event.is_manual && selectedTeamIds.length ? fetchTbaRankings(event.event_key) : { rankings: [] as any[], sortInfo: [] as any[], oprs: {} as Record<string, number> };
+  const loadTba = async () => event && !event.is_manual && selectedTeamIds.length ? fetchTbaRankings(event.event_key) : { rankings: [] as TbaRanking[], sortInfo: [] as TbaSortInfo[], oprs: {} as Record<string, number> };
   const [photoUrlByTeam, { rankings, sortInfo, oprs }] = await Promise.all([loadPhotoUrls(), loadTba()]);
   const tbaByTeam = new Map(rankings.map((ranking) => [Number(String(ranking.team_key ?? "").replace("frc", "")), ranking]));
-  const entriesByTeam = groupByTeam<any>(entries);
+  const entriesByTeam = groupByTeam<TeamScoutEntry>(entries);
   const formatTeam = (row: any, color: string) => {
     const reports = selectedMatchReportEntries(competitiveMatchEntries(entriesByTeam.get(row.team_id) ?? []), reportSources ?? []);
     const stats = calculateScoutStats(reports);

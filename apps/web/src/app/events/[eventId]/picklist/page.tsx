@@ -3,7 +3,7 @@ import { AppShell, PageHeader } from "@/components/app-shell";
 import { LiveRefresh } from "@/components/live-refresh";
 import { createClient } from "@/lib/supabase/server";
 import { getViewerContext, viewerCanManage } from "@/lib/viewer-context";
-import { calculateScoutStats, competitiveMatchEntries, groupByTeam, selectedMatchReportEntries } from "@/lib/scouting-stats";
+import { type TeamScoutEntry, calculateScoutStats, competitiveMatchEntries, groupByTeam, selectedMatchReportEntries } from "@/lib/scouting-stats";
 import { PicklistBoard } from "./picklist-board";
 
 async function getCompletePicklistHistory(supabase: any, eventId: string) {
@@ -71,7 +71,7 @@ export default async function PicklistPage({ params }: { params: Promise<{ event
     loadTba(),
   ]);
   const statsByTeam = new Map<string, ReturnType<typeof calculateScoutStats>>();
-  const reportsByTeam = groupByTeam<any>(matchReports);
+  const reportsByTeam = groupByTeam<TeamScoutEntry>(matchReports);
   for (const row of eventTeamRows ?? []) {
     const reports = reportsByTeam.get(row.team_id) ?? [];
     statsByTeam.set(row.team_id, calculateScoutStats(selectedMatchReportEntries(competitiveMatchEntries(reports), reportSources ?? [])));

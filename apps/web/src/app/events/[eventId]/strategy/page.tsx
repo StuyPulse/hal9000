@@ -1,6 +1,6 @@
 import { AppShell, PageHeader } from "@/components/app-shell";
 import { LiveRefresh } from "@/components/live-refresh";
-import { calculateScoutStats, competitiveMatchEntries, groupByTeam, practiceMatchEntries, selectedMatchReportEntries } from "@/lib/scouting-stats";
+import { type TeamScoutEntry, calculateScoutStats, competitiveMatchEntries, groupByTeam, practiceMatchEntries, selectedMatchReportEntries } from "@/lib/scouting-stats";
 import { createClient } from "@/lib/supabase/server";
 import { getViewerContext } from "@/lib/viewer-context";
 import { MatchStrategyPanel } from "./match-strategy-panel";
@@ -19,7 +19,7 @@ export default async function MatchStrategyPage({ params }: { params: Promise<{ 
   ]);
   const playedQualificationTeams = new Set<string>();
   for (const match of matches ?? []) if (match.match_type === "qualification" && match.status === "played") for (const teamId of [...(match.red_teams ?? []), ...(match.blue_teams ?? [])]) playedQualificationTeams.add(teamId);
-  const entriesByTeam = groupByTeam<any>(entries);
+  const entriesByTeam = groupByTeam<TeamScoutEntry>(entries);
   const teams = (eventTeams ?? []).map((link: any) => {
     const teamEntries = entriesByTeam.get(link.team_id) ?? [];
     const statEntries = selectedMatchReportEntries(playedQualificationTeams.has(link.team_id) ? competitiveMatchEntries(teamEntries) : practiceMatchEntries(teamEntries), reportSources ?? []);

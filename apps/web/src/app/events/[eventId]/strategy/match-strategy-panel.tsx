@@ -141,6 +141,8 @@ export function MatchStrategyPanel({ matches, teams, eventId, eventKey, organiza
   const [now, setNow] = useState(() => Date.now());
   const [playedObservedAt, setPlayedObservedAt] = useState<Record<string, number>>({});
   const previousStatuses = useRef(new Map(matches.map((match) => [match.id, match.status])));
+  // Mirrors the ref for rendering: ids that were already played before the current render.
+  const [previouslyPlayed, setPreviouslyPlayed] = useState(() => new Set(matches.filter((match) => match.status === "played").map((match) => match.id)));
   const selectedMatch = matches.find((match) => match.id === matchId);
   const teamIdFor = (slot: Slot) => overrides[slot.id] ?? (slot.alliance === "red" ? selectedMatch?.red[slot.position - 1] : selectedMatch?.blue[slot.position - 1]) ?? "";
   const redAlliance = slots.filter((slot) => slot.alliance === "red").map((slot) => teamById.get(teamIdFor(slot)));
@@ -156,12 +158,13 @@ export function MatchStrategyPanel({ matches, teams, eventId, eventKey, organiza
     const newlyPlayed = matches.filter((match) => match.status === "played" && previousStatuses.current.get(match.id) !== "played");
     if (newlyPlayed.length) setPlayedObservedAt((current) => ({ ...current, ...Object.fromEntries(newlyPlayed.map((match) => [match.id, Date.now()])) }));
     previousStatuses.current = currentStatuses;
+    setPreviouslyPlayed(new Set(matches.filter((match) => match.status === "played").map((match) => match.id)));
   }, [matches]);
 
   const hasPlayedDelayElapsed = (match: Match) => {
     if (match.status !== "played") return false;
     const observedAt = playedObservedAt[match.id];
-    if (!observedAt) return previousStatuses.current.get(match.id) === "played";
+    if (!observedAt) return previouslyPlayed.has(match.id);
     return now >= observedAt + playedMatchDelayMs;
   };
 
@@ -170,7 +173,7 @@ export function MatchStrategyPanel({ matches, teams, eventId, eventKey, organiza
     const rightPlayed = hasPlayedDelayElapsed(right);
     if (leftPlayed !== rightPlayed) return leftPlayed ? 1 : -1;
     return compareMatchesChronologically({ match_number: left.number, match_type: left.type, tba_match_key: left.key }, { match_number: right.number, match_type: right.type, tba_match_key: right.key }) || matchLabel(left).localeCompare(matchLabel(right));
-  }), [matches, now, playedObservedAt]);
+  }), [matches, now, playedObservedAt, previouslyPlayed]);
 
   function chooseMatch(nextMatchId: string) {
     const next = matches.find((match) => match.id === nextMatchId);

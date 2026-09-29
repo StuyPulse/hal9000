@@ -27,7 +27,7 @@ type ManualMatch = { stage?: unknown; label?: unknown };
 export type ScoutEntry = {
   id?: string;
   match_id?: string | null;
-  team_id?: string;
+  team_id: string;
   matches?: MatchRef | MatchRef[] | null;
   payload?: {
     auto?: { shoot?: unknown; ferry?: unknown };
@@ -36,7 +36,6 @@ export type ScoutEntry = {
     manual_match?: ManualMatch;
   } | null;
 };
-export type TeamScoutEntry = ScoutEntry & { team_id: string };
 const matchOf = (entry: ScoutEntry | null | undefined) => Array.isArray(entry?.matches) ? entry.matches[0] : entry?.matches;
 
 export type MatchReportSource = { team_id: string; match_key: string; selected_entry_id: string | null };
