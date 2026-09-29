@@ -1,6 +1,10 @@
 "use client";
 import { useActionState, useState } from "react";
-import { addScoutAssignmentRosterMember, clearEventAssignments, createEvent, createScoutAssignmentRoster, deleteEvent, deleteScoutAssignmentRoster, generateObjectiveAssignments, importTbaEvent, inviteMember, publishFormDefinition, removeObjectiveAssignment, removePrescoutAssignment, removeScoutAssignmentRosterMember, restoreEventAssignments, setActiveEvent, setMemberRole, setObjectiveAssignment, setPrescoutAssignment, type ActionState } from "@/lib/admin-actions";
+import { addScoutAssignmentRosterMember, clearEventAssignments, createScoutAssignmentRoster, deleteScoutAssignmentRoster, generateObjectiveAssignments, removeObjectiveAssignment, removePrescoutAssignment, removeScoutAssignmentRosterMember, restoreEventAssignments, setObjectiveAssignment, setPrescoutAssignment } from "@/lib/admin/assignments";
+import { createEvent, deleteEvent, setActiveEvent } from "@/lib/admin/events-matches";
+import { importTbaEvent } from "@/lib/admin/tba-import";
+import { inviteMember, publishFormDefinition, setMemberRole } from "@/lib/admin/members-forms";
+import { type ActionState } from "@/lib/admin/shared";
 import { DEFAULT_2026_FORM } from "@wildcard/shared";
 import { AppSelect } from "@/components/app-select";
 import { SearchableMemberSelect } from "@/components/searchable-member-select";

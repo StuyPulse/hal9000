@@ -2,7 +2,8 @@
 
 import { useActionState } from "react";
 import { Trash2 } from "lucide-react";
-import { deleteScoutingEntry, type ActionState } from "@/lib/admin-actions";
+import { deleteScoutingEntry } from "@/lib/admin/submissions";
+import { type ActionState } from "@/lib/admin/shared";
 
 const initial: ActionState = {};
 
