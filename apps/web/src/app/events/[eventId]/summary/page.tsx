@@ -6,36 +6,14 @@ import { calculateScoutStats, competitiveMatchEntries, groupByTeam, selectedMatc
 import { PreScoutTable } from "./pre-scout-table";
 import { officialFuelAverages } from "@/lib/official-fuel-stats";
 import { SummaryTable } from "./summary-table";
+import { asNumber, fetchTbaRankings, officialClimb, tbaMetric } from "@/lib/tba-event-stats";
 
 type PageProps = { params: Promise<{ eventId: string }>; searchParams: Promise<{ sort?: string; dir?: string }> };
-const asNumber = (value: unknown) => Number.isFinite(Number(value)) ? Number(value) : 0;
-function tbaMetric(ranking: any, info: any[], pattern: RegExp) { const index = info.findIndex((metric) => pattern.test(metric.name)); return index >= 0 ? asNumber(ranking?.sort_orders?.[index]) : 0; }
-function officialClimb(matches: any[], teamId: string) {
-  const auto: string[] = []; const endgame: string[] = [];
-  for (const match of matches) {
-    const side = match.red_teams?.includes(teamId) ? "red" : match.blue_teams?.includes(teamId) ? "blue" : null;
-    if (!side) continue;
-    const slot = (side === "red" ? match.red_teams : match.blue_teams).indexOf(teamId) + 1;
-    const breakdown = match.tba_score_breakdown?.[side];
-    if (!breakdown || !slot) continue;
-    auto.push(String(breakdown[`autoTowerRobot${slot}`] ?? "None"));
-    endgame.push(String(breakdown[`endGameTowerRobot${slot}`] ?? "None"));
-  }
-  const typical = (values: string[]) => values.length ? [...new Set(values)].sort((left, right) => values.filter((value) => value === right).length - values.filter((value) => value === left).length)[0] : "—";
-  const success = (values: string[]) => values.length ? values.filter((value) => value !== "None" && value !== "").length / values.length * 100 : 0;
-  return { autoClimb: typical(auto), autoClimbRate: success(auto), endgameClimb: typical(endgame), endgameClimbRate: success(endgame) };
-}
-
 export default async function SummaryPage({ params, searchParams }: PageProps) {
   const { eventId: eventKey } = await params; const query = await searchParams; const supabase = await createClient();
   const { data: event } = await supabase.from("events").select("id,name,event_key,is_manual").eq("event_key", eventKey).maybeSingle();
   if (!event) return <AppShell active="Summary"><PageHeader eyebrow="Event summary" title="Event unavailable."/><section className="card"><p className="muted">This event could not be found.</p></section></AppShell>;
-  const loadTba = async () => {
-    let rankings: any[] = []; let sortInfo: any[] = []; let oprs: Record<string, number> = {}; let apiError = "";
-    if (!event.is_manual) { if (!process.env.TBA_AUTH_KEY) apiError = "TBA_AUTH_KEY is unavailable to this deployment."; else try { const headers = { "X-TBA-Auth-Key": process.env.TBA_AUTH_KEY }; const [rankingsResponse, oprsResponse] = await Promise.all([fetch(`https://www.thebluealliance.com/api/v3/event/${event.event_key}/rankings`, { headers, next: { revalidate: 20 } }), fetch(`https://www.thebluealliance.com/api/v3/event/${event.event_key}/oprs`, { headers, next: { revalidate: 20 } })]); const [rankingPayload, oprPayload] = await Promise.all([rankingsResponse.json(), oprsResponse.json()]); if (rankingsResponse.ok && Array.isArray(rankingPayload?.rankings)) { rankings = rankingPayload.rankings; sortInfo = rankingPayload.sort_order_info ?? []; oprs = oprPayload?.oprs ?? {}; } else apiError = `TBA returned HTTP ${rankingsResponse.status}.`; } catch { apiError = "Could not reach TBA right now."; } }
-    return { rankings, sortInfo, oprs, apiError };
-  };
-  const [{ data: eventTeams }, { data: entries }, { data: reportSources }, { data: preScoutEntries }, { data: officialMatches }, { rankings, sortInfo, oprs, apiError }] = await Promise.all([supabase.from("event_teams").select("team_id,teams(team_number,name)").eq("event_id", event.id), (supabase as any).from("scouting_entries").select("id,match_id,team_id,payload,matches(id,match_type)").eq("event_id", event.id).eq("entry_type", "match").eq("status", "submitted"), (supabase as any).from("match_report_sources").select("team_id,match_key,selected_entry_id").eq("event_id", event.id), (supabase as any).from("scouting_entries").select("team_id,payload,created_at").eq("event_id", event.id).eq("entry_type", "pre_scout").eq("status", "submitted").order("created_at", { ascending: false }), (supabase as any).from("matches").select("red_teams,blue_teams,tba_score_breakdown").eq("event_id", event.id).eq("status", "played"), loadTba()]);
+  const [{ data: eventTeams }, { data: entries }, { data: reportSources }, { data: preScoutEntries }, { data: officialMatches }, { rankings, sortInfo, oprs, apiError }] = await Promise.all([supabase.from("event_teams").select("team_id,teams(team_number,name)").eq("event_id", event.id), (supabase as any).from("scouting_entries").select("id,match_id,team_id,payload,matches(id,match_type)").eq("event_id", event.id).eq("entry_type", "match").eq("status", "submitted"), (supabase as any).from("match_report_sources").select("team_id,match_key,selected_entry_id").eq("event_id", event.id), (supabase as any).from("scouting_entries").select("team_id,payload,created_at").eq("event_id", event.id).eq("entry_type", "pre_scout").eq("status", "submitted").order("created_at", { ascending: false }), (supabase as any).from("matches").select("red_teams,blue_teams,tba_score_breakdown").eq("event_id", event.id).eq("status", "played"), event.is_manual ? Promise.resolve({ rankings: [] as any[], sortInfo: [] as any[], oprs: {} as Record<string, number>, apiError: "" }) : fetchTbaRankings(event.event_key)]);
   const entriesByTeam = groupByTeam(entries);
   const tbaByTeam = new Map(rankings.map((ranking) => [Number(String(ranking.team_key ?? "").replace("frc", "")), ranking]));
   const rows = (eventTeams ?? []).map((link: any) => { const reports = selectedMatchReportEntries(competitiveMatchEntries(entriesByTeam.get(link.team_id) ?? []), reportSources ?? []); const stats = calculateScoutStats(reports); const tba = tbaByTeam.get(link.teams?.team_number); const officialFuel = officialFuelAverages(officialMatches ?? [], link.team_id); return { team: link.teams, teamId: link.team_id, tba, opr: asNumber(oprs[`frc${link.teams?.team_number}`]), stats, maxFuel: stats.peakFuel, ...officialClimb(officialMatches ?? [], link.team_id), tbaTotalFuel: officialFuel?.totalFuel ?? tbaMetric(tba, sortInfo, /total.*fuel|avg.*match/i), tbaAutoFuel: officialFuel?.autoFuel ?? tbaMetric(tba, sortInfo, /auto.*fuel/i), tbaTransitionFuel: tbaMetric(tba, sortInfo, /transition.*fuel/i), tbaTeleopFuel: officialFuel?.teleopFuel ?? tbaMetric(tba, sortInfo, /teleop.*fuel/i), tbaEndgameFuel: tbaMetric(tba, sortInfo, /endgame.*fuel/i) }; });

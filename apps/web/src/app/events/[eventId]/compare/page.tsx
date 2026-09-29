@@ -5,24 +5,8 @@ import { calculateScoutStats, competitiveMatchEntries, groupByTeam, selectedMatc
 import { officialFuelAverages } from "@/lib/official-fuel-stats";
 import { CompareMetrics } from "./compare-metrics";
 import { CompareTeamPicker } from "./compare-team-picker";
+import { asNumber, fetchTbaRankings, officialClimb, tbaMetric } from "@/lib/tba-event-stats";
 
-const asNumber = (value: unknown) => Number.isFinite(Number(value)) ? Number(value) : 0;
-function tbaMetric(ranking: any, info: any[], pattern: RegExp) { const index = info.findIndex((metric) => pattern.test(metric.name)); return index >= 0 ? asNumber(ranking?.sort_orders?.[index]) : 0; }
-function officialClimb(matches: any[], teamId: string) {
-  const auto: string[] = []; const endgame: string[] = [];
-  for (const match of matches) {
-    const side = match.red_teams?.includes(teamId) ? "red" : match.blue_teams?.includes(teamId) ? "blue" : null;
-    if (!side) continue;
-    const slot = (side === "red" ? match.red_teams : match.blue_teams).indexOf(teamId) + 1;
-    const breakdown = match.tba_score_breakdown?.[side];
-    if (!breakdown || !slot) continue;
-    auto.push(String(breakdown[`autoTowerRobot${slot}`] ?? "None"));
-    endgame.push(String(breakdown[`endGameTowerRobot${slot}`] ?? "None"));
-  }
-  const typical = (values: string[]) => values.length ? [...new Set(values)].sort((left, right) => values.filter((value) => value === right).length - values.filter((value) => value === left).length)[0] : "—";
-  const success = (values: string[]) => values.length ? values.filter((value) => value !== "None" && value !== "").length / values.length * 100 : 0;
-  return { autoClimb: typical(auto), autoClimbRate: success(auto), endgameClimb: typical(endgame), endgameClimbRate: success(endgame) };
-}
 export default async function ComparePage({ params, searchParams }: { params: Promise<{ eventId: string }>; searchParams: Promise<{ a?: string; b?: string }> }) {
   const { eventId: eventKey } = await params; const { a, b } = await searchParams; const supabase = await createClient();
   const { data: event } = await supabase.from("events").select("id,name,event_key,is_manual").eq("event_key", eventKey).maybeSingle();
@@ -45,16 +29,7 @@ export default async function ComparePage({ params, searchParams }: { params: Pr
     }))).filter((item): item is readonly [string, string] => Boolean(item[1])));
     return photoUrlByTeam;
   };
-  const loadTba = async () => {
-    let rankings: any[] = []; let sortInfo: any[] = []; let oprs: Record<string, number> = {};
-    if (event && !event.is_manual && selectedTeamIds.length && process.env.TBA_AUTH_KEY) try {
-      const headers = { "X-TBA-Auth-Key": process.env.TBA_AUTH_KEY };
-      const [rankingsResponse, oprsResponse] = await Promise.all([fetch(`https://www.thebluealliance.com/api/v3/event/${event.event_key}/rankings`, { headers, next: { revalidate: 20 } }), fetch(`https://www.thebluealliance.com/api/v3/event/${event.event_key}/oprs`, { headers, next: { revalidate: 20 } })]);
-      const [rankingPayload, oprPayload] = await Promise.all([rankingsResponse.json(), oprsResponse.json()]);
-      if (rankingsResponse.ok && Array.isArray(rankingPayload?.rankings)) { rankings = rankingPayload.rankings; sortInfo = rankingPayload.sort_order_info ?? []; oprs = oprPayload?.oprs ?? {}; }
-    } catch {}
-    return { rankings, sortInfo, oprs };
-  };
+  const loadTba = async () => event && !event.is_manual && selectedTeamIds.length ? fetchTbaRankings(event.event_key) : { rankings: [] as any[], sortInfo: [] as any[], oprs: {} as Record<string, number> };
   const [photoUrlByTeam, { rankings, sortInfo, oprs }] = await Promise.all([loadPhotoUrls(), loadTba()]);
   const tbaByTeam = new Map(rankings.map((ranking) => [Number(String(ranking.team_key ?? "").replace("frc", "")), ranking]));
   const entriesByTeam = groupByTeam<any>(entries);
