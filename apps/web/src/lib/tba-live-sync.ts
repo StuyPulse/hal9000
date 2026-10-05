@@ -31,6 +31,12 @@ async function ensureLiveEventRoster(database: any, event: { id: string }, organ
   let teamIdByNumber = new Map<number, string>((storedTeams ?? []).map((team: { id: string; team_number: number }) => [team.team_number, team.id]));
   const missingNumbers = teamNumbers.filter((number) => !teamIdByNumber.has(number));
 
+  const namedOfficialTeams = officialTeams.filter((team) => Boolean(team.nickname?.trim()));
+  if (namedOfficialTeams.length) {
+    const { error: saveOfficialNamesError } = await database.from("teams").upsert(namedOfficialTeams.map((team) => ({ organization_id: organizationId, team_number: team.team_number, name: team.nickname!.trim() })), { onConflict: "organization_id,team_number" });
+    if (saveOfficialNamesError) throw new Error("Could not refresh official team names.");
+  }
+
   if (missingNumbers.length) {
     const namesByNumber = new Map(officialTeams.map((team) => [team.team_number, team.nickname || `FRC Team ${team.team_number}`]));
     const { error: saveTeamsError } = await database.from("teams").upsert(missingNumbers.map((team_number) => ({ organization_id: organizationId, team_number, name: namesByNumber.get(team_number) ?? `FRC Team ${team_number}` })), { onConflict: "organization_id,team_number" });
@@ -43,15 +49,13 @@ async function ensureLiveEventRoster(database: any, event: { id: string }, organ
   const unresolvedTeam = teamNumbers.find((number) => !teamIdByNumber.has(number));
   if (unresolvedTeam) throw new Error(`Could not prepare team ${unresolvedTeam} for the live event.`);
   const rosterTeamIds = teamNumbers.map((team_number) => teamIdByNumber.get(team_number)!);
-  const { data: existingLinks, error: existingLinksError } = await database.from("event_teams").select("team_id").eq("event_id", event.id);
+  const { data: existingLinks, error: existingLinksError } = await database.from("event_teams").select("team_id,is_manual").eq("event_id", event.id);
   if (existingLinksError) throw new Error("Could not load the current event roster.");
   const existingTeamIds = new Set<string>((existingLinks ?? []).map((link: { team_id: string }) => link.team_id));
   const newTeamIds = rosterTeamIds.filter((teamId) => !existingTeamIds.has(teamId));
-  if (newTeamIds.length) {
-    const { error: linkError } = await database.from("event_teams").upsert(newTeamIds.map((team_id) => ({ event_id: event.id, team_id })), { onConflict: "event_id,team_id" });
-    if (linkError) throw new Error("Could not link the official team roster to the live event.");
-  }
-  const staleTeamIds = reconcile ? [...existingTeamIds].filter((teamId) => !rosterTeamIds.includes(teamId)) : [];
+  const { error: linkError } = await database.from("event_teams").upsert(rosterTeamIds.map((team_id) => ({ event_id: event.id, team_id, is_manual: false })), { onConflict: "event_id,team_id" });
+  if (linkError) throw new Error("Could not link the official team roster to the live event.");
+  const staleTeamIds = reconcile ? (existingLinks ?? []).filter((link: { team_id: string; is_manual: boolean }) => !link.is_manual && !rosterTeamIds.includes(link.team_id)).map((link: { team_id: string }) => link.team_id) : [];
   if (staleTeamIds.length) {
     const { error: unlinkError } = await database.from("event_teams").delete().eq("event_id", event.id).in("team_id", staleTeamIds);
     if (unlinkError) throw new Error("Could not remove withdrawn teams from the event roster.");

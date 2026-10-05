@@ -459,7 +459,7 @@
   .practice-match-list button.active { @apply border-stuypulse-red/60 bg-stuypulse-red/10; }
   .practice-match-list strong { @apply whitespace-nowrap text-stuypulse-text; }
   .practice-match-list span { @apply min-w-0 truncate text-stuypulse-textMuted; }
-  .manual-event-setup { @apply mb-4; }
+  .manual-event-setup, .event-roster-setup { @apply mb-4; }
   .manual-event-section { @apply mt-5 border-t border-stuypulse-border pt-5; }
   .manual-event-section h3 { @apply text-base font-extrabold; }
   .manual-team-form, .manual-match-form { @apply mt-3 grid items-end gap-3; }

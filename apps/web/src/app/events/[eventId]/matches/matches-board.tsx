@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { type FormEvent, useActionState, useMemo, useState } from "react";
-import { addManualEventTeam, completeManualMatch, createLocalMatch, deleteLocalMatch, deleteManualMatch, removeManualEventTeam, saveManualMatch, updateLocalMatch } from "@/lib/admin/events-matches";
+import { addEventTeam, completeManualMatch, createLocalMatch, deleteLocalMatch, deleteManualMatch, removeManualEventTeam, saveManualMatch, updateLocalMatch } from "@/lib/admin/events-matches";
 import { type ActionState } from "@/lib/admin/shared";
 import { formatLocalDateTime } from "@/components/local-date-time";
 import { SearchableTeamSelect } from "@/components/searchable-team-select";
@@ -58,7 +58,7 @@ function LocalMatchRowActions({ eventId, match, onEdit }: { eventId: string; mat
 
 function ManualTeamRow({ eventId, team }: { eventId: string; team: Team }) { const [state, action, pending] = useActionState(removeManualEventTeam, initialActionState); return <div className="manual-team-row"><span><strong>{team.number}</strong> · {team.name}</span><form action={action}><input type="hidden" name="eventId" value={eventId}/><input type="hidden" name="teamId" value={team.id}/><button type="submit" className="button secondary" disabled={pending}>Remove</button></form>{state.error && <span className="error">{state.error}</span>}</div>; }
 
-function ManualRoster({ eventId, teams }: { eventId: string; teams: Team[] }) { const [state, action, pending] = useActionState(addManualEventTeam, initialActionState); return <section className="manual-event-section"><div><h3>Event teams</h3><p className="muted">Add a team to this event, or enter an existing team number to update its name.</p></div><form action={action} className="manual-team-form"><input type="hidden" name="eventId" value={eventId}/><label><span>Team #</span><input name="teamNumber" type="text" inputMode="numeric" pattern="[0-9]*" required placeholder="694"/></label><label><span>Name</span><input name="name" required maxLength={160} placeholder="Stuy Fission"/></label><button className="button secondary" disabled={pending}>{pending ? "Saving…" : "Save team"}</button></form><Message state={state}/><div className="manual-team-list">{teams.length ? teams.map((team) => <ManualTeamRow key={team.id} eventId={eventId} team={team}/>) : <p className="muted">No teams added yet.</p>}</div></section>; }
+function EventRoster({ eventId, teams, isManual }: { eventId: string; teams: Team[]; isManual: boolean }) { const [state, action, pending] = useActionState(addEventTeam, initialActionState); return <section className="card event-roster-setup"><div className="card-head"><div><h2>Event teams</h2><p className="muted">{isManual ? "Add teams to this locally managed event." : "Add a local team alongside the TBA roster. When TBA lists the same number, it becomes the official roster entry automatically."}</p></div></div><form action={action} className="manual-team-form"><input type="hidden" name="eventId" value={eventId}/><label><span>Team #</span><input name="teamNumber" type="text" inputMode="numeric" pattern="[0-9]*" required placeholder="694"/></label><label><span>Name (optional)</span><input name="name" maxLength={160} placeholder="Stuy Fission"/></label><button className="button secondary" disabled={pending}>{pending ? "Adding…" : "Add team"}</button></form><Message state={state}/>{isManual && <div className="manual-team-list">{teams.length ? teams.map((team) => <ManualTeamRow key={team.id} eventId={eventId} team={team}/>) : <p className="muted">No teams added yet.</p>}</div>}</section>; }
 
 function nextManualMatchNumber(matches: Match[], matchType: string) {
   return Math.max(0, ...matches.filter((match) => match.type === matchType).map((match) => match.number)) + 1;
@@ -86,7 +86,7 @@ function ManualMatchSetup({ eventId, teams, matches }: { eventId: string; teams:
   </section>;
 }
 
-function ManualEventSetup({ eventId, teams, matches }: { eventId: string; teams: Team[]; matches: Match[] }) { return <section className="card manual-event-setup"><div className="card-head"><div><h2>Manual event setup</h2><p className="muted">This event stays fully local to HAL9000. It will not sync with The Blue Alliance.</p></div></div><ManualRoster eventId={eventId} teams={teams}/><ManualMatchSetup eventId={eventId} teams={teams} matches={matches}/></section>; }
+function ManualEventSetup({ eventId, teams, matches }: { eventId: string; teams: Team[]; matches: Match[] }) { return <><EventRoster eventId={eventId} teams={teams} isManual/><section className="card manual-event-setup"><div className="card-head"><div><h2>Manual event setup</h2><p className="muted">This event stays fully local to HAL9000. It will not sync with The Blue Alliance.</p></div></div><ManualMatchSetup eventId={eventId} teams={teams} matches={matches}/></section></>; }
 
 const manualMatchTypeOrder: Record<string, number> = { qualification: 0, playoff: 1, practice: 2 };
 const compareManualMatches = (left: Match, right: Match) => manualMatchTypeOrder[left.type] - manualMatchTypeOrder[right.type] || left.number - right.number;
@@ -99,7 +99,7 @@ export function MatchesBoard({ matches, teams, eventId, isManual, canManage }: {
   const completed = matches.filter((match) => match.status === "played").length;
   const upcoming = matches.filter((match) => match.status !== "played" && match.status !== "cancelled").length;
   return <>
-    {canManage && isManual && <ManualEventSetup eventId={eventId} teams={teams} matches={orderedMatches}/>}
+    {canManage && (isManual ? <ManualEventSetup eventId={eventId} teams={teams} matches={orderedMatches}/> : <EventRoster eventId={eventId} teams={teams} isManual={false}/>)}
     <section className="card">
       <div className="card-head"><div><h2>Match schedule</h2><p className="muted">{isManual ? "Locally managed schedule and scores." : "Official schedule and final scores refresh automatically while the active event is open."}</p></div><span className="muted">{upcoming} left · {completed} complete</span></div>
       {canManage && !isManual && <LocalMatchSetup eventId={eventId} teams={teams} matches={matches} editing={localEditing} onEditingChange={setLocalEditing}/>}

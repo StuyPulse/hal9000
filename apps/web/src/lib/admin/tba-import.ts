@@ -94,7 +94,7 @@ export async function importTbaEvent(_: ActionState, formData: FormData): Promis
     const teamNumberFromKey = (teamKey: string) => Number(teamKey.slice(3));
 
     if (importedTeams?.length) {
-      const teamLinks = importedTeams.map((team) => ({ event_id: eventId, team_id: teamIdByNumber.get(team.team_number) })).filter((link): link is { event_id: string; team_id: string } => Boolean(link.team_id));
+      const teamLinks = importedTeams.map((team) => ({ event_id: eventId, team_id: teamIdByNumber.get(team.team_number), is_manual: false })).filter((link): link is { event_id: string; team_id: string; is_manual: false } => Boolean(link.team_id));
       if (teamLinks.length !== importedTeams.length) return { error: "TBA returned a participant that was not saved. Retry the import once." };
       const { error } = await database.from("event_teams").upsert(teamLinks, { onConflict: "event_id,team_id" });
       if (error) return importDatabaseError("event team links", error);
@@ -141,4 +141,3 @@ export async function importTbaEvent(_: ActionState, formData: FormData): Promis
     return { error: "The import failed before it could finish. Check the server logs for the exact failure, then try again." };
   }
 }
-
