@@ -26,18 +26,24 @@ export function ScoutForm({ eventId, matchId, teamId, assignmentId, formVersion,
   const [isLocked, setIsLocked] = useState(Boolean(submission && submission.status !== "draft"));
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string>();
+  const [messageIsError, setMessageIsError] = useState(false);
   const missing = useMemo(() => form.fields.filter((field) => field.required && (payload[field.id] === undefined || payload[field.id] === "")).map((field) => field.label), [form, payload]);
   const set = (id: string, value: unknown) => setPayload((current) => ({ ...current, [id]: value }));
 
   async function submit(status: "draft" | "submitted") {
     if (!submissionId || saving || isLocked) return;
-    if (status === "submitted" && missing.length) return setMessage(`Complete: ${missing.join(", ")}.`);
+    if (status === "submitted" && missing.length) {
+      setMessageIsError(true);
+      return setMessage(`Complete: ${missing.join(", ")}.`);
+    }
     setSaving(true);
     setMessage(undefined);
+    setMessageIsError(false);
     const supabase = createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
       setMessage("Your session expired. Please sign in again.");
+      setMessageIsError(true);
       setSaving(false);
       return;
     }
@@ -57,12 +63,14 @@ export function ScoutForm({ eventId, matchId, teamId, assignmentId, formVersion,
     }, { onConflict: "id" });
     if (error) {
       setMessage("Couldn’t save your entry. Check your connection and try again.");
+      setMessageIsError(true);
       setSaving(false);
       return;
     }
     if (status === "submitted") {
       const { error: assignmentError } = await supabase.from("scouting_assignments").update({ status: "complete", completed_at: submittedAt }).eq("id", assignmentId);
       setIsLocked(true);
+      setMessageIsError(Boolean(assignmentError));
       setMessage(assignmentError ? "Submission received. Refresh your assignments if its status has not updated." : "Submission received — thank you.");
     } else {
       setRevision((current) => current + 1);
@@ -81,6 +89,6 @@ export function ScoutForm({ eventId, matchId, teamId, assignmentId, formVersion,
       })}
     </div>
     <div className="form-actions"><button className="button secondary" onClick={() => submit("draft")} disabled={saving || isLocked || !submissionId}>Save draft</button><button className="button" onClick={() => submit("submitted")} disabled={saving || isLocked || !submissionId}>{saving ? "Saving…" : isLocked ? "Submitted" : "Submit match"}</button></div>
-    {message && <p aria-live="polite" className={message.includes("received") || message.includes("saved") ? "trend" : "error"}>{message}</p>}
+    {message && <p role={messageIsError ? "alert" : "status"} className={messageIsError ? "error" : "trend"}>{message}</p>}
   </>;
 }

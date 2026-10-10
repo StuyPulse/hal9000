@@ -95,6 +95,7 @@ export function RebuiltMatchForm({ eventId, organizationId, scoutUserId, matchId
   const [manualStage, setManualStage] = useState<string>(() => manualStageValue(manualMatch?.stage));
   const [manualMatchNumber, setManualMatchNumber] = useState<string>(() => manualMatch?.label ?? "");
   const [message, setMessage] = useState("");
+  const [messageIsError, setMessageIsError] = useState(false);
   const [saving, setSaving] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [mirrored, setMirrored] = useState(false);
@@ -120,13 +121,16 @@ export function RebuiltMatchForm({ eventId, organizationId, scoutUserId, matchId
     if (saving || !entryId) return;
     setSaving(true);
     setMessage("");
+    setMessageIsError(false);
     if (!organizationId || !scoutUserId) {
       setMessage("Sign in again before saving.");
+      setMessageIsError(true);
       setSaving(false);
       return;
     }
     if (manualMatch && manualStage !== "other" && !manualMatchNumber.trim()) {
       setMessage("Enter a match # for this manual report.");
+      setMessageIsError(true);
       setSaving(false);
       return;
     }
@@ -165,6 +169,7 @@ export function RebuiltMatchForm({ eventId, organizationId, scoutUserId, matchId
     if (!error) await removeQueuedScoutingEntry(entryId);
     if (!error && finalize) setSubmitted(true);
     setMessage(error ?? (editingEntryId ? "Changes saved." : finalize ? "Scout report submitted and visible in team history." : "Draft saved."));
+    setMessageIsError(Boolean(error));
     setSaving(false);
     if (!error && (editingEntryId || finalize)) {
       // Assignment cards are Server Components. A full navigation here makes
@@ -192,7 +197,7 @@ export function RebuiltMatchForm({ eventId, organizationId, scoutUserId, matchId
     <div className="form-section"><div className="section-title">Comments</div><div className="field"><textarea id="match-comments" aria-label="Comments" disabled={saving || submitted} value={comments} onChange={(event) => setComments(event.target.value)} placeholder="Be succinct and include what the data won't show" /></div></div>
     {noShow && <p className="trend">No show records all scoring as zero; comments remain available.</p>}
     <div className="form-actions">{!editingEntryId && <button type="button" className="button secondary" disabled={saving || submitted} onClick={() => save(false)}>Save draft</button>}<button type="button" className="button" disabled={saving || submitted} onClick={() => save(true)}>{saving ? "Saving…" : submitted ? "Submitted" : editingEntryId ? "Save changes" : "Submit scout report"}</button></div>
-    {message && <p aria-live="polite" className={message.startsWith("Could") ? "error" : "trend"}>{message}</p>}
+    {message && <p role={messageIsError ? "alert" : "status"} className={messageIsError ? "error" : "trend"}>{message}</p>}
   </section>;
 }
 
