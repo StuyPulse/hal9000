@@ -1,5 +1,7 @@
 "use server";
 import { z } from "zod";
+import { tbaTeamRemapsSchema } from "../tba-team-remaps-schema";
+import { eventTeamNumberFromInput, type TbaTeamRemaps } from "../tba-team-identity";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { revalidatePath } from "next/cache";
 import { randomUUID } from "crypto";
@@ -7,17 +9,20 @@ import { revalidateEventTeamNavigation, revalidateOrganizationNavigation } from 
 import { adminContext, importDatabaseError, type ActionState } from "@/lib/admin/shared";
 
 const localMatchSchema = z.object({ eventId: z.string().uuid(), matchId: z.union([z.literal(""), z.string().uuid()]), matchNumber: z.coerce.number().int().positive(), matchType: z.enum(["qualification", "playoff", "practice"]), redTeams: z.string(), blueTeams: z.string() });
-const parseAlliance = (value: string) => [...new Set(value.split(/[\s,]+/).filter(Boolean).map(Number))];
+const parseAlliance = (value: string, remaps: TbaTeamRemaps = {}) => [...new Set(value.split(/[\s,]+/).filter(Boolean).map((input) => eventTeamNumberFromInput(input, remaps)))];
 
 async function localMatchContext(formData: FormData) {
   const parsed = localMatchSchema.safeParse({ eventId: formData.get("eventId"), matchId: formData.get("matchId") || "", matchNumber: formData.get("matchNumber"), matchType: formData.get("matchType"), redTeams: formData.get("redTeams"), blueTeams: formData.get("blueTeams") });
   if (!parsed.success) return { error: "Choose a round and enter a positive match number and the red and blue team numbers." } as const;
-  const redNumbers = parseAlliance(parsed.data.redTeams), blueNumbers = parseAlliance(parsed.data.blueTeams);
-  if (!redNumbers.length || !blueNumbers.length || redNumbers.length > 3 || blueNumbers.length > 3 || [...redNumbers, ...blueNumbers].some((number) => !Number.isInteger(number) || number <= 0) || redNumbers.some((number) => blueNumbers.includes(number))) return { error: "Enter one to three distinct positive team numbers for each alliance." } as const;
   const { organizationId } = await adminContext();
   const database: any = createAdminClient();
-  const { data: event } = await database.from("events").select("id,event_key").eq("id", parsed.data.eventId).eq("organization_id", organizationId).maybeSingle();
+  const { data: event } = await database.from("events").select("id,event_key,tba_team_remaps").eq("id", parsed.data.eventId).eq("organization_id", organizationId).maybeSingle();
   if (!event) return { error: "This event is unavailable." } as const;
+  const remaps = tbaTeamRemapsSchema.parse(event.tba_team_remaps ?? {});
+  let redNumbers: number[], blueNumbers: number[];
+  try { redNumbers = parseAlliance(parsed.data.redTeams, remaps); blueNumbers = parseAlliance(parsed.data.blueTeams, remaps); }
+  catch (error) { return { error: error instanceof Error ? error.message : "Enter valid event team numbers." } as const; }
+  if (!redNumbers.length || !blueNumbers.length || redNumbers.length > 3 || blueNumbers.length > 3 || redNumbers.some((number) => blueNumbers.includes(number))) return { error: "Enter one to three distinct positive team numbers for each alliance." } as const;
   const numbers = [...redNumbers, ...blueNumbers];
   const { data: existingTeams, error: teamsError } = await database.from("teams").select("id,team_number").eq("organization_id", organizationId).in("team_number", numbers);
   if (teamsError) return { error: "Couldn’t load the team directory." } as const;
@@ -180,17 +185,21 @@ export async function createEvent(_: ActionState, formData: FormData): Promise<A
 
 export async function addEventTeam(_: ActionState, formData: FormData): Promise<ActionState> {
   try {
-    const parsed = z.object({ eventId: z.string().uuid(), teamNumber: z.coerce.number().int().positive().max(99999), name: z.string().trim().max(160).optional() }).safeParse({ eventId: formData.get("eventId"), teamNumber: formData.get("teamNumber"), name: formData.get("name") || undefined });
+    const parsed = z.object({ eventId: z.string().uuid(), teamNumber: z.string().trim().regex(/^\d+[A-Za-z]*$/), name: z.string().trim().max(160).optional() }).safeParse({ eventId: formData.get("eventId"), teamNumber: formData.get("teamNumber"), name: formData.get("name") || undefined });
     if (!parsed.success) return { error: "Enter a positive team number." };
     const { organizationId } = await adminContext();
     const database: any = createAdminClient();
-    const { data: event } = await database.from("events").select("id,event_key,is_manual").eq("id", parsed.data.eventId).eq("organization_id", organizationId).maybeSingle();
+    const { data: event } = await database.from("events").select("id,event_key,is_manual,tba_team_remaps").eq("id", parsed.data.eventId).eq("organization_id", organizationId).maybeSingle();
     if (!event) return { error: "This event is unavailable." };
-    const { data: existingTeam, error: lookupError } = await database.from("teams").select("id").eq("organization_id", organizationId).eq("team_number", parsed.data.teamNumber).maybeSingle();
+    let teamNumber: number;
+    try { teamNumber = eventTeamNumberFromInput(parsed.data.teamNumber, tbaTeamRemapsSchema.parse(event.tba_team_remaps ?? {})); }
+    catch (error) { return { error: error instanceof Error ? error.message : "Enter a valid event team number." }; }
+    if (teamNumber > 99999) return { error: "Enter a team number below 100000." };
+    const { data: existingTeam, error: lookupError } = await database.from("teams").select("id").eq("organization_id", organizationId).eq("team_number", teamNumber).maybeSingle();
     if (lookupError) return { error: "Couldn’t load that team." };
     let teamId = existingTeam?.id;
     if (!teamId) {
-      const { data: createdTeam, error: teamError } = await database.from("teams").insert({ organization_id: organizationId, team_number: parsed.data.teamNumber, name: parsed.data.name || `Team ${parsed.data.teamNumber}` }).select("id").single();
+      const { data: createdTeam, error: teamError } = await database.from("teams").insert({ organization_id: organizationId, team_number: teamNumber, name: parsed.data.name || `Team ${parsed.data.teamNumber}` }).select("id").single();
       if (teamError || !createdTeam) return { error: "Couldn’t save that team." };
       teamId = createdTeam.id;
     }

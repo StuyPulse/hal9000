@@ -1,3 +1,5 @@
+import { getEventTeamRemaps } from "@/lib/event-team-remaps";
+import { eventTeamNumber } from "@/lib/tba-team-identity";
 import Link from "next/link";
 import { AppShell, PageHeader } from "@/components/app-shell";
 import { PitPhotoUpload } from "@/components/pit-photo-upload";
@@ -8,7 +10,8 @@ export default async function ManualPage() {
   const event = await getActiveEvent();
   const supabase = await createClient();
   const { data } = event ? await supabase.from("event_teams").select("team_id,teams(id,team_number,name)").eq("event_id", event.id) : { data: [] };
-  const teams = (data ?? []).map((row: any) => ({ id: row.team_id, number: row.teams?.team_number, name: row.teams?.name }));
+  const remaps = await getEventTeamRemaps(event?.id);
+  const teams = (data ?? []).map((row: any) => ({ id: row.team_id, number: row.teams?.team_number, displayNumber: eventTeamNumber(row.teams?.team_number, remaps), name: row.teams?.name }));
 
   return <AppShell active="Manual scouting">
     <PageHeader eyebrow={event?.name ?? "No active event"} title="Scouting forms." />

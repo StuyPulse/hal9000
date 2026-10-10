@@ -1,9 +1,11 @@
 "use client";
 
+import { teamNumberLabel, teamMatchesQuery } from "@/lib/tba-team-identity";
+
 import { useId, useMemo, useState } from "react";
 import { CheckCircle2 } from "lucide-react";
 
-export type TeamOption = { id: string; number: number; name: string };
+export type TeamOption = { id: string; number: number; displayNumber?: string; name: string };
 
 type Props = {
   id: string;
@@ -24,8 +26,8 @@ export function SearchableTeamSelect({ id, value, onValueChange, teams, placehol
   const sorted = useMemo(() => [...teams].sort((left, right) => left.number - right.number), [teams]);
   const selected = sorted.find((team) => team.id === value);
   const marked = new Set(markedTeamIds);
-  const selectedLabel = selected ? `${selected.number} · ${selected.name}` : "";
-  const results = sorted.filter((team) => `${team.number} ${team.name}`.toLowerCase().includes(query.toLowerCase().trim()));
+  const selectedLabel = selected ? `${teamNumberLabel(selected)} · ${selected.name}` : "";
+  const results = sorted.filter((team) => teamMatchesQuery(team, query));
 
   function openMenu() {
     setQuery("");
@@ -86,8 +88,8 @@ export function SearchableTeamSelect({ id, value, onValueChange, teams, placehol
         <div className="searchable-team-results" id={listId} role="listbox">
           {emptyLabel && <button type="button" role="option" aria-selected={!value} onMouseDown={(event) => event.preventDefault()} onClick={() => choose()}>{emptyLabel}</button>}
           {results.length ? results.map((team) => (
-            <button key={team.id} type="button" role="option" aria-selected={team.id === value} aria-label={`${team.number} ${team.name}${marked.has(team.id) ? `, ${markedTeamLabel.toLowerCase()}` : ""}`} className={team.id === value ? "selected" : ""} onMouseDown={(event) => event.preventDefault()} onClick={() => choose(team)}>
-              <strong>{team.number}</strong><span>{team.name}</span>{marked.has(team.id) && <span className="searchable-team-mark" title={markedTeamLabel}><CheckCircle2 size={17} aria-hidden="true"/><span className="sr-only">{markedTeamLabel}</span></span>}
+            <button key={team.id} type="button" role="option" aria-selected={team.id === value} aria-label={`${teamNumberLabel(team)} ${team.name}${marked.has(team.id) ? `, ${markedTeamLabel.toLowerCase()}` : ""}`} className={team.id === value ? "selected" : ""} onMouseDown={(event) => event.preventDefault()} onClick={() => choose(team)}>
+              <strong>{teamNumberLabel(team)}</strong><span>{team.name}</span>{marked.has(team.id) && <span className="searchable-team-mark" title={markedTeamLabel}><CheckCircle2 size={17} aria-hidden="true"/><span className="sr-only">{markedTeamLabel}</span></span>}
             </button>
           )) : <p className="muted">No teams match that search.</p>}
         </div>

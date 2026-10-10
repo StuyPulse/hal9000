@@ -1,5 +1,7 @@
 "use client";
 
+import { teamNumberLabel } from "@/lib/tba-team-identity";
+
 import Link from "next/link";
 import { type FormEvent, useActionState, useMemo, useState } from "react";
 import { addEventTeam, completeManualMatch, createLocalMatch, deleteLocalMatch, deleteManualMatch, removeManualEventTeam, saveManualMatch, updateLocalMatch } from "@/lib/admin/events-matches";
@@ -10,10 +12,10 @@ import { AppSelect } from "@/components/app-select";
 import { matchLabel } from "@/lib/match-label";
 
 type Match = { id: string; key: string; number: number; type: string; red: string[]; blue: string[]; scheduledAt: string | null; status: string; redScore: number | null; blueScore: number | null };
-type Team = { id: string; number: number; name: string };
+type Team = { id: string; number: number; displayNumber?: string; name: string };
 const initialActionState: ActionState = {};
 const label = (match: Match) => matchLabel({ match_number: match.number, match_type: match.type, tba_match_key: match.key });
-const teamNumbers = (ids: string[], teams: Team[]) => ids.map((id) => teams.find((team) => team.id === id)?.number ?? "—").join(", ");
+const teamNumbers = (ids: string[], teams: Team[]) => ids.map((id) => teamNumberLabel(teams.find((team) => team.id === id))).join(", ");
 const localInputValue = (value: string | null) => {
   if (!value) return "";
   const date = new Date(value);
@@ -56,7 +58,7 @@ function LocalMatchRowActions({ eventId, match, onEdit }: { eventId: string; mat
   return <div className="schedule-local-match-actions"><CompleteManualMatchButton eventId={eventId} match={match}/><button type="button" className="button secondary" onClick={onEdit}>Edit</button><form action={action} onSubmit={(event) => { if (!window.confirm(`Delete ${label(match)}? Submitted reports protect a manual match from deletion.`)) event.preventDefault(); }}><input type="hidden" name="eventId" value={eventId}/><input type="hidden" name="matchId" value={match.id}/><button className="button danger" disabled={deleting}>{deleting ? "Deleting…" : "Delete"}</button></form>{state.error && <span className="error" role="alert">{state.error}</span>}</div>;
 }
 
-function ManualTeamRow({ eventId, team }: { eventId: string; team: Team }) { const [state, action, pending] = useActionState(removeManualEventTeam, initialActionState); return <div className="manual-team-row"><span><strong>{team.number}</strong> · {team.name}</span><form action={action}><input type="hidden" name="eventId" value={eventId}/><input type="hidden" name="teamId" value={team.id}/><button type="submit" className="button secondary" disabled={pending}>Remove</button></form>{state.error && <span className="error">{state.error}</span>}</div>; }
+function ManualTeamRow({ eventId, team }: { eventId: string; team: Team }) { const [state, action, pending] = useActionState(removeManualEventTeam, initialActionState); return <div className="manual-team-row"><span><strong>{teamNumberLabel(team)}</strong> · {team.name}</span><form action={action}><input type="hidden" name="eventId" value={eventId}/><input type="hidden" name="teamId" value={team.id}/><button type="submit" className="button secondary" disabled={pending}>Remove</button></form>{state.error && <span className="error">{state.error}</span>}</div>; }
 
 function EventRoster({ eventId, teams, isManual }: { eventId: string; teams: Team[]; isManual: boolean }) { const [state, action, pending] = useActionState(addEventTeam, initialActionState); return <section className="card event-roster-setup"><div className="card-head"><div><h2>Event teams</h2><p className="muted">{isManual ? "Add teams to this locally managed event." : "Add a local team alongside the TBA roster. When TBA lists the same number, it becomes the official roster entry automatically."}</p></div></div><form action={action} className="manual-team-form"><input type="hidden" name="eventId" value={eventId}/><label><span>Team #</span><input name="teamNumber" type="text" inputMode="numeric" pattern="[0-9]*" required placeholder="694"/></label><label><span>Name (optional)</span><input name="name" maxLength={160} placeholder="Stuy Fission"/></label><button className="button secondary" disabled={pending}>{pending ? "Adding…" : "Add team"}</button></form><Message state={state}/>{isManual && <div className="manual-team-list">{teams.length ? teams.map((team) => <ManualTeamRow key={team.id} eventId={eventId} team={team}/>) : <p className="muted">No teams added yet.</p>}</div>}</section>; }
 
@@ -94,7 +96,7 @@ const compareManualMatches = (left: Match, right: Match) => manualMatchTypeOrder
 export function MatchesBoard({ matches, teams, eventId, isManual, canManage }: { matches: Match[]; teams: Team[]; eventId: string; isManual: boolean; canManage: boolean }) {
   const [type, setType] = useState("all"), [teamId, setTeamId] = useState(""), [status, setStatus] = useState("all"), [localEditing, setLocalEditing] = useState<Match | null>(null);
   const orderedMatches = useMemo(() => isManual ? [...matches].sort(compareManualMatches) : matches, [isManual, matches]);
-  const number = new Map(teams.map((team) => [team.id, team.number]));
+  const number = new Map(teams.map((team) => [team.id, teamNumberLabel(team)]));
   const shown = useMemo(() => orderedMatches.filter((match) => (type === "all" || match.type === type) && (!teamId || [...match.red, ...match.blue].includes(teamId)) && (status === "all" || match.status === status)), [orderedMatches, type, teamId, status]);
   const completed = matches.filter((match) => match.status === "played").length;
   const upcoming = matches.filter((match) => match.status !== "played" && match.status !== "cancelled").length;

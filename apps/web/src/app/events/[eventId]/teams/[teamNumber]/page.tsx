@@ -1,3 +1,6 @@
+import { getEventTeamRemaps } from "@/lib/event-team-remaps";
+import { eventTeamNumber, eventTeamNumberFromInput } from "@/lib/tba-team-identity";
+import { fetchTbaRankings } from "@/lib/tba-event-stats";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { AppShell, PageHeader } from "@/components/app-shell";
@@ -9,10 +12,9 @@ import { PayloadGrid } from "@/components/scouting-payload";
 import { TeamMatchTimeline, type TimelineMatch } from "./team-match-timeline";
 import { TeamPhotoCarousel } from "./team-photo-carousel";
 import { TeamRobotProfile } from "./team-robot-profile";
-import { compareMatchesChronologically, compactManualMatchLabel, compactMatchLabel, manualMatchLabel, matchLabel, matchRoundOrder } from "@/lib/match-label";
+import { compactManualMatchLabel, compactMatchLabel, manualMatchLabel, matchLabel, matchRoundOrder } from "@/lib/match-label";
 import { getViewerContext } from "@/lib/viewer-context";
 
-type TbaMatch = { key: string; match_number: number; comp_level?: string; actual_time?: number; alliances?: { red?: { team_keys?: string[]; score?: number }; blue?: { team_keys?: string[]; score?: number } } };
 type LocalMatch = { id: string; tba_match_key: string; match_number: number; match_type: string; scheduled_at: string | null; red_teams: string[]; blue_teams: string[]; red_score: number | null; blue_score: number | null };
 
 function entryBreakdown(payload: Record<string, any> | null | undefined) {
@@ -34,18 +36,18 @@ function averageEntryBreakdown(entries: { payload: Record<string, any> | null | 
   }, { auto: 0, teleop: 0, total: 0, scored: 0, ferried: 0, fouls: 0, defense: 0, broken: 0 });
   return { auto: totals.auto / entries.length, teleop: totals.teleop / entries.length, total: totals.total / entries.length, scored: totals.scored / entries.length, ferried: totals.ferried / entries.length, fouls: totals.fouls / entries.length, defense: totals.defense / entries.length, broken: totals.broken };
 }
-const tbaMatchType = (match: TbaMatch) => match.comp_level === "qm" ? "qualification" : match.comp_level === "pm" ? "practice" : "playoff";
 const localMatchLabel = (match: LocalMatch) => matchLabel({ match_number: match.match_number, match_type: match.match_type, tba_match_key: match.tba_match_key });
 
 export default async function TeamDetail({ params }: { params: Promise<{ eventId: string; teamNumber: string }> }) {
   const { eventId: eventKey, teamNumber } = await params;
-  const number = Number(teamNumber);
-  if (!Number.isSafeInteger(number) || number < 1) notFound();
 
   const supabase = await createClient();
   const viewer = await getViewerContext();
   const { data: event } = await supabase.from("events").select("id,event_key,name,is_manual,organization_id").eq("event_key", eventKey).maybeSingle();
   if (!event) notFound();
+  const remaps = await getEventTeamRemaps(event.id);
+  let number: number;
+  try { number = eventTeamNumberFromInput(teamNumber, remaps); } catch { notFound(); }
 
   const { data: eventTeams } = await supabase.from("event_teams").select("team_id,drivetrain_type,shooter_type,teams(id,team_number,name)").eq("event_id", event.id);
   const teamLink = (eventTeams ?? []).find((row: any) => row.teams?.team_number === number) as any;
@@ -68,43 +70,26 @@ export default async function TeamDetail({ params }: { params: Promise<{ eventId
   const byType = (type: string) => (entries ?? []).filter((entry: any) => entry.entry_type === type);
   const stats = calculateScoutStats(selectedMatchReportEntries(competitiveMatchEntries(submittedEntries), (reportSources ?? []).map((source: any) => ({ ...source, team_id: team.id }))));
   const teamMatches = ((localMatches ?? []) as LocalMatch[]).filter((match) => [...(match.red_teams ?? []), ...(match.blue_teams ?? [])].includes(team.id));
-  const localByTbaKey = new Map(teamMatches.map((match) => [match.tba_match_key, match]));
   const reportsByMatchId = new Map<string, any[]>();
   for (const entry of submittedEntries) if (entry.matches?.id) reportsByMatchId.set(entry.matches.id, [...(reportsByMatchId.get(entry.matches.id) ?? []), entry]);
 
-  let tbaMatches: TbaMatch[] = [];
-  let tba: any = null;
-  let opr = 0;
-  if (!event.is_manual && process.env.TBA_AUTH_KEY) try {
-    const headers = { "X-TBA-Auth-Key": process.env.TBA_AUTH_KEY };
-    const [matchesResponse, rankingsResponse, oprsResponse] = await Promise.all([
-      fetch(`https://www.thebluealliance.com/api/v3/event/${event.event_key}/matches`, { headers, cache: "no-store" }),
-      fetch(`https://www.thebluealliance.com/api/v3/event/${event.event_key}/rankings`, { headers, cache: "no-store" }),
-      fetch(`https://www.thebluealliance.com/api/v3/event/${event.event_key}/oprs`, { headers, cache: "no-store" }),
-    ]);
-    const [matchesJson, rankingsJson, oprsJson] = await Promise.all([matchesResponse.json(), rankingsResponse.json(), oprsResponse.json()]);
-    if (matchesResponse.ok && Array.isArray(matchesJson)) tbaMatches = matchesJson.filter((match: TbaMatch) => [
-      ...(match.alliances?.red?.team_keys ?? []),
-      ...(match.alliances?.blue?.team_keys ?? []),
-    ].includes(`frc${team.team_number}`)).sort((a: TbaMatch, b: TbaMatch) => compareMatchesChronologically({ match_number: a.match_number, match_type: tbaMatchType(a), tba_match_key: a.key }, { match_number: b.match_number, match_type: tbaMatchType(b), tba_match_key: b.key }) || a.key.localeCompare(b.key, undefined, { numeric: true }));
-    if (rankingsResponse.ok && Array.isArray(rankingsJson?.rankings)) tba = rankingsJson.rankings.find((ranking: any) => ranking.team_key === `frc${team.team_number}`);
-    opr = Number(oprsJson?.oprs?.[`frc${team.team_number}`] ?? 0);
-  } catch {}
+  const { rankings, oprs } = event.is_manual ? { rankings: [], oprs: {} as Record<string, number> } : await fetchTbaRankings(event.event_key, remaps);
+  const tba = rankings.find((ranking) => ranking.team_key === `frc${team.team_number}`);
+  const opr = oprs[`frc${team.team_number}`];
 
-  const toTimeline = (match: LocalMatch, official?: TbaMatch): TimelineMatch => {
-    const red = official ? official.alliances?.red?.team_keys?.includes(`frc${team.team_number}`) : match.red_teams.includes(team.id);
-    const ours = official ? (red ? official.alliances?.red?.score : official.alliances?.blue?.score) : (red ? match.red_score : match.blue_score);
-    const theirs = official ? (red ? official.alliances?.blue?.score : official.alliances?.red?.score) : (red ? match.blue_score : match.red_score);
+  const toTimeline = (match: LocalMatch): TimelineMatch => {
+    const red = match.red_teams.includes(team.id);
+    const ours = red ? match.red_score : match.blue_score;
+    const theirs = red ? match.blue_score : match.red_score;
     // TBA represents a match without final scores as -1 / -1. Treat it as
     // pending rather than displaying a misleading tied result.
     const hasFinalScore = typeof ours === "number" && ours >= 0 && typeof theirs === "number" && theirs >= 0;
     const outcome = hasFinalScore ? ours > theirs ? "win" : ours < theirs ? "loss" : "tie" : "pending";
     const reports = reportsByMatchId.get(match.id) ?? []; const selectedReports = selectedMatchReportEntries(reports, (reportSources ?? []).map((source: any) => ({ ...source, team_id: team.id }))); const values = averageEntryBreakdown(selectedReports);
-    const matchType: TimelineMatch["matchType"] = official ? tbaMatchType(official) : match.match_type as TimelineMatch["matchType"];
-    const tbaMatchKey = official?.key ?? match.tba_match_key;
-    return { id: official?.key ?? match.id, sourceKey: `scheduled:${match.id}`, selectedReportId: (reportSources ?? []).find((source: any) => source.match_key === `scheduled:${match.id}`)?.selected_entry_id ?? null, label: official ? matchLabel({ match_number: official.match_number, match_type: matchType, tba_match_key: official.key }) : localMatchLabel(match), axisLabel: official ? compactMatchLabel({ match_number: official.match_number, match_type: matchType, tba_match_key: official.key }) : compactMatchLabel({ match_number: match.match_number, match_type: match.match_type, tba_match_key: match.tba_match_key }), matchType, roundOrder: matchRoundOrder({ match_type: matchType, tba_match_key: tbaMatchKey }), alliance: red ? "red" : "blue", outcome, score: hasFinalScore ? `${ours} – ${theirs}` : "Not played", tbaUrl: official ? `https://www.thebluealliance.com/match/${official.key}` : undefined, reports: reports.map((report) => ({ id: report.id, payload: report.payload ?? {}, scout: report.author?.display_name ?? "Scout" })), hasScout: reports.length > 0, totalFuel: values?.total ?? null, autoFuel: values?.auto ?? null, teleopFuel: values?.teleop ?? null, scored: values?.scored ?? null, ferried: values?.ferried ?? null, fouls: values?.fouls ?? null, defense: values?.defense ?? null, broken: values?.broken ?? null };
+    const matchType = match.match_type as TimelineMatch["matchType"];
+    const tbaMatchKey = match.tba_match_key;
+    return { id: match.id, sourceKey: `scheduled:${match.id}`, selectedReportId: (reportSources ?? []).find((source: any) => source.match_key === `scheduled:${match.id}`)?.selected_entry_id ?? null, label: localMatchLabel(match), axisLabel: compactMatchLabel(match), matchType, roundOrder: matchRoundOrder({ match_type: matchType, tba_match_key: tbaMatchKey }), alliance: red ? "red" : "blue", outcome, score: hasFinalScore ? `${ours} – ${theirs}` : "Not played", tbaUrl: !match.tba_match_key.startsWith("manual_") ? `https://www.thebluealliance.com/match/${match.tba_match_key}` : undefined, reports: reports.map((report) => ({ id: report.id, payload: report.payload ?? {}, scout: report.author?.display_name ?? "Scout" })), hasScout: reports.length > 0, totalFuel: values?.total ?? null, autoFuel: values?.auto ?? null, teleopFuel: values?.teleop ?? null, scored: values?.scored ?? null, ferried: values?.ferried ?? null, fouls: values?.fouls ?? null, defense: values?.defense ?? null, broken: values?.broken ?? null };
   };
-  const officialTimeline = tbaMatches.map((match) => { const local = localByTbaKey.get(match.key); return local ? { local, timeline: toTimeline(local, match) } : null; }).filter(Boolean) as { local: LocalMatch; timeline: TimelineMatch }[];
   const manualReportsByMatchKey = new Map<string, any[]>();
   submittedEntries.filter((entry: any) => !entry.match_id).forEach((entry: any, index: number) => {
     const key = matchReportKey(entry, index);
@@ -119,26 +104,26 @@ export default async function TeamDetail({ params }: { params: Promise<{ eventId
     const values = averageEntryBreakdown(selectedReports);
     return { id: sourceKey, sourceKey, selectedReportId: (reportSources ?? []).find((source: any) => source.match_key === sourceKey)?.selected_entry_id ?? null, label: manualMatchLabel(details), axisLabel: compactManualMatchLabel(details), matchType, roundOrder: matchType === "other" ? 6 : matchRoundOrder({ match_type: matchType, tba_match_key: null }), alliance: details.alliance === "blue" ? "blue" : "red", outcome: "pending", score: "Manual report", reports: reports.map((report) => ({ id: report.id, payload: report.payload ?? {}, scout: report.author?.display_name ?? "Scout" })), hasScout: true, totalFuel: values?.total ?? null, autoFuel: values?.auto ?? null, teleopFuel: values?.teleop ?? null, scored: values?.scored ?? null, ferried: values?.ferried ?? null, fouls: values?.fouls ?? null, defense: values?.defense ?? null, broken: values?.broken ?? null };
   }).filter(Boolean) as TimelineMatch[];
-  const timeline = [...officialTimeline.map(({ timeline }) => timeline), ...teamMatches.filter((match) => !officialTimeline.some(({ local }) => local.id === match.id)).map((match) => toTimeline(match)), ...manualTimeline].sort((first, second) => first.roundOrder - second.roundOrder || first.label.localeCompare(second.label, undefined, { numeric: true }));
+  const timeline = [...teamMatches.map(toTimeline), ...manualTimeline].sort((first, second) => first.roundOrder - second.roundOrder || first.label.localeCompare(second.label, undefined, { numeric: true }));
   const preScoutEntries = byType("pre_scout");
   const preScoutCount = preScoutEntries.length;
   const pitEntries = byType("pit");
   const pitCount = pitEntries.length;
-  const teamNames = Object.fromEntries((eventTeams ?? []).map((row: any) => [row.team_id, `${row.teams?.team_number ?? "Unknown"} · ${row.teams?.name ?? "team"}`]));
+  const teamNames = Object.fromEntries((eventTeams ?? []).map((row: any) => [row.team_id, `${row.teams ? eventTeamNumber(row.teams.team_number, remaps) : "Unknown"} · ${row.teams?.name ?? "team"}`]));
   const overview = [
     { label: "Scouted matches", value: String(stats.matches), detail: stats.entries ? "submitted match data" : "no match data yet" },
     { label: "Auto scouting", value: `Avg scored ${formatStat(stats.autoAvgScored)}`, detail: `Peak scored ${formatStat(stats.autoMaxScored)} · avg ferried ${formatStat(stats.autoAvgFerried)}` },
     { label: "Teleop scouting", value: `Avg scored ${formatStat(stats.teleopAvgScored)}`, detail: `Peak scored ${formatStat(stats.teleopMaxScored)} · avg ferried ${formatStat(stats.teleopAvgFerried)}` },
     { label: "TBA rank", value: tba?.rank ? `#${tba.rank}` : "—", detail: tba?.record ? `${tba.record.wins}-${tba.record.losses}-${tba.record.ties} record` : "not published" },
-    { label: "OPR", value: opr ? formatStat(opr) : "—", detail: "official TBA metric" },
+    { label: "OPR", value: opr != null ? formatStat(opr) : "—", detail: "official TBA metric" },
   ];
 
   return <AppShell active="Teams">
     <LiveRefresh tables={["scouting_entries", "match_report_sources", "pit_photos", "matches", "event_teams"]} eventId={event.id} />
-    <PageHeader eyebrow={event.name} title={`${team.team_number} · ${team.name}`} />
+    <PageHeader eyebrow={event.name} title={`${eventTeamNumber(team.team_number, remaps)} · ${team.name}`} />
 
     <section className="card team-hero">
-      <div className="team-hero-photo"><TeamPhotoCarousel photos={photoUrls} teamNumber={team.team_number}/></div>
+      <div className="team-hero-photo"><TeamPhotoCarousel photos={photoUrls} teamNumber={eventTeamNumber(team.team_number, remaps)}/></div>
       <div className="team-hero-summary">
         <div className="team-hero-head"><h2>Team snapshot</h2>{!event.is_manual && <Link className="link" href={`https://www.thebluealliance.com/team/${team.team_number}`} target="_blank">Open TBA →</Link>}</div>
         <div className="team-overview-metrics">{overview.map((item) => <div key={item.label}><span>{item.label}</span><strong>{item.value}</strong><small>{item.detail}</small></div>)}</div>

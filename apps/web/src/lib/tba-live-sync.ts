@@ -1,3 +1,4 @@
+import { tbaTeamRemapsSchema } from "./tba-team-remaps-schema";
 import { z } from "zod";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { resolveTbaTeamNumbers, saveTbaMatchRows, tbaLiveMatchSchema, tbaMatchRows } from "./tba-matches";
@@ -49,7 +50,7 @@ async function ensureLiveEventRoster(database: any, event: { id: string }, organ
 
 export async function syncLiveEvent(eventId: string, organizationId: string): Promise<LiveSyncResult> {
   const database: any = createAdminClient();
-  const { data: event, error: eventError } = await database.from("events").select("id,event_key,is_manual,tba_live_matches_etag,tba_practice_matches_etag,tba_teams_etag").eq("id", eventId).eq("organization_id", organizationId).eq("status", "active").maybeSingle();
+  const { data: event, error: eventError } = await database.from("events").select("id,event_key,is_manual,tba_live_matches_etag,tba_practice_matches_etag,tba_teams_etag,tba_team_remaps_etag,tba_team_remaps").eq("id", eventId).eq("organization_id", organizationId).eq("status", "active").maybeSingle();
   if (eventError || !event) return { updated: false, skipped: true, message: "No active event is available." };
   if (event.is_manual) return { updated: false, skipped: true, message: "Manual events do not sync with TBA." };
 
@@ -62,10 +63,11 @@ export async function syncLiveEvent(eventId: string, organizationId: string): Pr
   const key = process.env.TBA_AUTH_KEY;
   if (!key) throw new Error("TBA_AUTH_KEY is not configured.");
   const baseUrl = `https://www.thebluealliance.com/api/v3/event/${event.event_key}`;
-  const [response, practiceResponse, rosterResponse] = await Promise.all([
+  const [response, practiceResponse, rosterResponse, eventResponse] = await Promise.all([
     fetch(`https://www.thebluealliance.com/api/v3/event/${event.event_key}/matches`, { headers: { "X-TBA-Auth-Key": key, ...(event.tba_live_matches_etag ? { "If-None-Match": event.tba_live_matches_etag } : {}) }, cache: "no-store" }),
     fetch(`${baseUrl}/matches/practice`, { headers: { "X-TBA-Auth-Key": key, ...(event.tba_practice_matches_etag ? { "If-None-Match": event.tba_practice_matches_etag } : {}) }, cache: "no-store" }),
     fetch(`${baseUrl}/teams/simple`, { headers: { "X-TBA-Auth-Key": key, ...(event.tba_teams_etag ? { "If-None-Match": event.tba_teams_etag } : {}) }, cache: "no-store" }),
+    fetch(baseUrl, { headers: { "X-TBA-Auth-Key": key, ...(event.tba_team_remaps !== null && event.tba_team_remaps_etag ? { "If-None-Match": event.tba_team_remaps_etag } : {}) }, cache: "no-store" }),
   ]);
   if (!response.ok && response.status !== 304) throw new Error(`TBA live match sync returned HTTP ${response.status}.`);
   if (!practiceResponse.ok && practiceResponse.status !== 304) throw new Error(`TBA practice match sync returned HTTP ${practiceResponse.status}.`);
@@ -77,7 +79,11 @@ export async function syncLiveEvent(eventId: string, organizationId: string): Pr
   ]);
   if (!parsed.success) throw new Error("TBA returned an unexpected live match payload.");
 
-  const numberFromKey = await resolveTbaTeamNumbers(baseUrl, key, parsed.data);
+  if (!eventResponse.ok && eventResponse.status !== 304) throw new Error(`TBA event mapping sync returned HTTP ${eventResponse.status}.`);
+  const eventPayload = eventResponse.status === 304 ? { remap_teams: event.tba_team_remaps } : await eventResponse.json();
+  const remaps = tbaTeamRemapsSchema.parse(eventPayload.remap_teams ?? {});
+  const mappingChanged = JSON.stringify(event.tba_team_remaps) !== JSON.stringify(remaps);
+  const numberFromKey = await resolveTbaTeamNumbers(baseUrl, key, parsed.data, eventPayload);
   let teamIdByNumber = new Map<number, string>();
   let addedTeamCount = 0;
   let linkedTeamCount = 0;
@@ -92,12 +98,12 @@ export async function syncLiveEvent(eventId: string, organizationId: string): Pr
     removedTeamCount = roster.removedTeamCount;
   }
   if (response.status === 304 && practiceResponse.status === 304) {
-    const update: Record<string, string> = { tba_last_live_synced_at: now.toISOString() };
+    const update: Record<string, unknown> = { tba_last_live_synced_at: now.toISOString(), tba_team_remaps: remaps, tba_team_remaps_etag: eventResponse.headers.get("etag") ?? event.tba_team_remaps_etag };
     const rosterEtag = rosterResponse.headers.get("etag");
     if (rosterEtag) update.tba_teams_etag = rosterEtag;
     const { error: metadataError } = await database.from("events").update(update).eq("id", event.id);
     if (metadataError) throw new Error("Could not save live sync metadata.");
-    const rosterChange = addedTeamCount || linkedTeamCount || removedTeamCount;
+    const rosterChange = addedTeamCount || linkedTeamCount || removedTeamCount || mappingChanged;
     return { updated: Boolean(rosterChange), message: rosterChange ? `Official roster updated${removedTeamCount ? `; removed ${removedTeamCount} withdrawn team${removedTeamCount === 1 ? "" : "s"}` : ""}.` : "Official match and roster data are unchanged." };
   }
   const teamNumbers = [...new Set(parsed.data.flatMap((match) => [...match.alliances.red.team_keys, ...match.alliances.blue.team_keys]).map(numberFromKey))];
@@ -111,7 +117,7 @@ export async function syncLiveEvent(eventId: string, organizationId: string): Pr
 
   const rows = tbaMatchRows(parsed.data, event.id, teamIdByNumber, numberFromKey);
   await saveTbaMatchRows(database, event.id, rows);
-  const update: Record<string, string> = { tba_last_live_synced_at: now.toISOString() };
+  const update: Record<string, unknown> = { tba_last_live_synced_at: now.toISOString(), tba_team_remaps: remaps, tba_team_remaps_etag: eventResponse.headers.get("etag") ?? event.tba_team_remaps_etag };
   const matchesEtag = response.headers.get("etag");
   const practiceEtag = practiceResponse.headers.get("etag");
   const rosterEtag = rosterResponse.headers.get("etag");

@@ -1,3 +1,5 @@
+import { getEventTeamRemaps } from "@/lib/event-team-remaps";
+import { eventTeamNumber } from "@/lib/tba-team-identity";
 import { AppShell, PageHeader } from "@/components/app-shell";
 import { getActiveEvent } from "@/lib/active-event";
 import { createClient } from "@/lib/supabase/server";
@@ -13,7 +15,8 @@ export default async function MatchScoutPage({ searchParams }: { searchParams: P
     supabase.from("matches").select("id,tba_match_key,match_number,match_type,status,red_teams,blue_teams").eq("event_id", event.id).order("scheduled_at"),
     supabase.from("event_teams").select("team_id,teams(team_number,name)").eq("event_id", event.id),
   ]) : [{ data: [] }, { data: [] }];
-  const teams = (eventTeams ?? []).map((row: any) => ({ id: row.team_id, number: row.teams?.team_number, name: row.teams?.name })).sort((a, b) => a.number - b.number);
+  const remaps = await getEventTeamRemaps(event?.id);
+  const teams = (eventTeams ?? []).map((row: any) => ({ id: row.team_id, number: row.teams?.team_number, displayNumber: eventTeamNumber(row.teams?.team_number, remaps), name: row.teams?.name })).sort((a, b) => a.number - b.number);
 
   return <AppShell active="Manual scouting">
     <ScheduleOfflineCache path="/scout/match"/>

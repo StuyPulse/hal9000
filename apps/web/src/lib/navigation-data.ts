@@ -1,8 +1,10 @@
+import { getEventTeamRemaps } from "./event-team-remaps";
+import { eventTeamNumber } from "./tba-team-identity";
 import { revalidateTag, unstable_cache } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 type SearchEvent = { key: string; name: string; status: string };
-type SearchTeam = { number: number; name: string };
+type SearchTeam = { displayNumber?: string; number: number; name: string };
 type EventRow = { event_key: string; name: string; status: string };
 type EventTeamRow = { teams: { team_number: number; name: string } | { team_number: number; name: string }[] | null };
 
@@ -38,11 +40,12 @@ function getCachedEventTeams(eventId: string) {
 }
 
 export async function getNavigationSearchData(organizationId: string | null, activeEventId: string | null) {
-  const [events, teams] = await Promise.all([
+  const [events, teams, remaps] = await Promise.all([
     organizationId ? getCachedOrganizationEvents(organizationId) : Promise.resolve([]),
     activeEventId ? getCachedEventTeams(activeEventId) : Promise.resolve([]),
+    getEventTeamRemaps(activeEventId),
   ]);
-  return { events, teams };
+  return { events, teams: teams.map((team) => ({ ...team, displayNumber: eventTeamNumber(team.number, remaps) })) };
 }
 
 export function revalidateOrganizationNavigation(organizationId: string) {

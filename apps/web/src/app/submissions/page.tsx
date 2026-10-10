@@ -1,3 +1,5 @@
+import { getEventTeamRemaps } from "@/lib/event-team-remaps";
+import { eventTeamNumber } from "@/lib/tba-team-identity";
 import { AppShell, PageHeader } from "@/components/app-shell";
 import { LiveRefresh } from "@/components/live-refresh";
 import { LocalDateTime } from "@/components/local-date-time";
@@ -51,7 +53,8 @@ export default async function SubmissionsPage({ searchParams }: { searchParams: 
     submissionEventId && type !== "match" ? (supabase as any).from("scouting_entries").select("team_id").eq("event_id", submissionEventId).eq("entry_type", type).eq("status", "submitted") : Promise.resolve({ data: [] }),
   ]);
   const scouts = (members ?? []).map((member: any) => ({ id: member.user_id, name: member.profiles?.display_name ?? "Unnamed scout" })).sort((left, right) => left.name.localeCompare(right.name));
-  const teams = (eventTeams ?? []).map((row: any) => row.teams).filter(Boolean).map((team: any) => ({ id: team.id, number: team.team_number, name: team.name })).sort((left: any, right: any) => left.number - right.number);
+  const remaps = await getEventTeamRemaps(submissionEventId);
+  const teams = (eventTeams ?? []).map((row: any) => row.teams).filter(Boolean).map((team: any) => ({ id: team.id, number: team.team_number, displayNumber: eventTeamNumber(team.team_number, remaps), name: team.name })).sort((left: any, right: any) => left.number - right.number);
   const scoutId = scouts.some((scout) => scout.id === requestedScoutId) ? requestedScoutId : "";
   const teamId = teams.some((team: any) => team.id === requestedTeamId) ? requestedTeamId : "";
   const markedTeamIds = [...new Set(((submittedTeams ?? []) as { team_id: string | null }[]).flatMap((entry) => entry.team_id ? [entry.team_id] : []))];
@@ -107,7 +110,7 @@ export default async function SubmissionsPage({ searchParams }: { searchParams: 
         const editHref = canEdit ? reportEditHref(entry, returnPath) : null;
         return <div className="list-row submission-row" key={entry.id}>
           <Link className="submission-row-main" href={`/submissions/${entry.id}?returnTo=${encodeURIComponent(returnPath)}`}>
-            <div><strong>{scoutingEntryLabel(entry)} · {entry.teams?.team_number} {entry.teams?.name}</strong><div className="muted">{scoutingEntryTypeLabel(entry.entry_type)} · {entry.author?.display_name ?? "Scout"} · {(entry.submitted_at ?? entry.created_at) ? <LocalDateTime value={entry.submitted_at ?? entry.created_at}/> : "Pending"}</div></div><span aria-hidden="true">→</span>
+            <div><strong>{scoutingEntryLabel(entry)} · {eventTeamNumber(entry.teams?.team_number, remaps)} {entry.teams?.name}</strong><div className="muted">{scoutingEntryTypeLabel(entry.entry_type)} · {entry.author?.display_name ?? "Scout"} · {(entry.submitted_at ?? entry.created_at) ? <LocalDateTime value={entry.submitted_at ?? entry.created_at}/> : "Pending"}</div></div><span aria-hidden="true">→</span>
           </Link>
           <div className="submission-row-action">{editHref && <Link className="link" href={editHref}>Edit</Link>}<span className={`tag ${entry.status === "submitted" ? "complete" : "pending"}`}>{entry.status}</span>{canEdit && <DeleteSubmissionForm entryId={entry.id} compact/>}</div>
         </div>;

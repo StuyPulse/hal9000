@@ -1,10 +1,12 @@
 "use client";
 
+import { teamNumberLabel, teamMatchesQuery } from "@/lib/tba-team-identity";
+
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { AppSelect } from "@/components/app-select";
 
-type Team = { id: string; number: number; name: string };
+type Team = { id: string; number: number; displayNumber?: string; name: string };
 
 const stages = [
   ["qualification", "Qualification"],
@@ -24,7 +26,7 @@ export function ManualMatchPicker({ teams }: { teams: Team[] }) {
   const selectedTeam = teams.find((team) => team.id === selectedTeamId);
   const results = useMemo(() => {
     const normalized = query.trim().toLowerCase();
-    return teams.filter((team) => !normalized || String(team.number).includes(normalized) || team.name.toLowerCase().includes(normalized)).slice(0, 8);
+    return teams.filter((team) => !normalized || teamMatchesQuery(team, normalized)).slice(0, 8);
   }, [query, teams]);
   const params = new URLSearchParams({ team: selectedTeamId, stage, alliance });
   if (matchLabel.trim()) params.set("match", matchLabel.trim());
@@ -49,9 +51,9 @@ export function ManualMatchPicker({ teams }: { teams: Team[] }) {
       <label htmlFor="manual-team-search">Team number or name</label>
       <input id="manual-team-search" value={query} onChange={(event) => { setQuery(event.target.value); setSelectedTeamId(""); }} placeholder="Search 694, 1678, robot name…" autoComplete="off" />
       <div className="manual-team-results" role="listbox" aria-label="Matching active-event teams">
-        {results.length ? results.map((team) => <button key={team.id} type="button" role="option" aria-selected={team.id === selectedTeamId} className={team.id === selectedTeamId ? "selected" : ""} onClick={() => { setSelectedTeamId(team.id); setQuery(`${team.number} · ${team.name}`); }}>{team.number} <span>{team.name}</span></button>) : <p className="muted">No active-event teams match that search.</p>}
+        {results.length ? results.map((team) => <button key={team.id} type="button" role="option" aria-selected={team.id === selectedTeamId} className={team.id === selectedTeamId ? "selected" : ""} onClick={() => { setSelectedTeamId(team.id); setQuery(`${teamNumberLabel(team)} · ${team.name}`); }}>{teamNumberLabel(team)} <span>{team.name}</span></button>) : <p className="muted">No active-event teams match that search.</p>}
       </div>
-      {selectedTeam && <p className="manual-selection">Selected: <strong>{selectedTeam.number} · {selectedTeam.name}</strong></p>}
+      {selectedTeam && <p className="manual-selection">Selected: <strong>{teamNumberLabel(selectedTeam)} · {selectedTeam.name}</strong></p>}
     </div>
     <div className="form-actions">
       {selectedTeamId && alliance && (stage === "other" || matchLabel.trim()) ? <Link className="button" href={`/scout/match/manual?${params.toString()}`}>Open manual match form</Link> : <button className="button" disabled>{!selectedTeamId ? "Choose a team to continue" : stage !== "other" && !matchLabel.trim() ? "Enter a match number" : "Choose an alliance to continue"}</button>}

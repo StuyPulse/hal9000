@@ -1,3 +1,5 @@
+import { getEventTeamRemaps } from "@/lib/event-team-remaps";
+import { eventTeamNumber } from "@/lib/tba-team-identity";
 import { AppShell, PageHeader } from "@/components/app-shell";
 import { LiveRefresh } from "@/components/live-refresh";
 import { type TeamScoutEntry, calculateScoutStats, competitiveMatchEntries, groupByTeam, practiceMatchEntries, selectedMatchReportEntries } from "@/lib/scouting-stats";
@@ -20,10 +22,11 @@ export default async function MatchStrategyPage({ params }: { params: Promise<{ 
   const playedQualificationTeams = new Set<string>();
   for (const match of matches ?? []) if (match.match_type === "qualification" && match.status === "played") for (const teamId of [...(match.red_teams ?? []), ...(match.blue_teams ?? [])]) playedQualificationTeams.add(teamId);
   const entriesByTeam = groupByTeam<TeamScoutEntry>(entries);
+  const remaps = await getEventTeamRemaps(event.id);
   const teams = (eventTeams ?? []).map((link: any) => {
     const teamEntries = entriesByTeam.get(link.team_id) ?? [];
     const statEntries = selectedMatchReportEntries(playedQualificationTeams.has(link.team_id) ? competitiveMatchEntries(teamEntries) : practiceMatchEntries(teamEntries), reportSources ?? []);
-    return { id: link.team_id, number: link.teams?.team_number ?? 0, name: link.teams?.name ?? "Unknown team", stats: calculateScoutStats(statEntries) };
+    return { id: link.team_id, number: link.teams?.team_number ?? 0, displayNumber: eventTeamNumber(link.teams?.team_number ?? 0, remaps), name: link.teams?.name ?? "Unknown team", stats: calculateScoutStats(statEntries) };
   }).sort((left, right) => left.number - right.number);
   const scheduledMatches = (matches ?? []).map((match: any) => ({ id: match.id, key: match.tba_match_key, number: match.match_number, type: match.match_type, scheduledAt: match.scheduled_at, status: match.status, red: match.red_teams ?? [], blue: match.blue_teams ?? [] }));
   return <AppShell active="Match strategy"><LiveRefresh tables={["matches", "event_teams", "scouting_entries", "match_report_sources"]} eventId={event.id}/><PageHeader eyebrow={event.name} title="Match strategy."/><section className="card strategy-card"><MatchStrategyPanel matches={scheduledMatches} teams={teams} eventId={event.id} eventKey={eventKey} organizationId={event.organization_id} userId={viewer?.userId ?? null} initialStrokes={Array.isArray((drawing as any)?.strokes) ? (drawing as any).strokes : []}/></section></AppShell>;

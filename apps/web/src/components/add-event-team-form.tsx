@@ -9,7 +9,7 @@ export function AddEventTeamForm({ eventId }: { eventId: string }) {
   return <>
     <form action={action} className="manual-team-form">
       <input type="hidden" name="eventId" value={eventId}/>
-      <label><span>Team #</span><input name="teamNumber" type="text" inputMode="numeric" pattern="[0-9]*" required placeholder="694" disabled={pending}/></label>
+      <label><span>Team #</span><input name="teamNumber" type="text" pattern="[0-9]+[A-Za-z]*" required placeholder="694" disabled={pending}/></label>
       <label><span>Name (optional)</span><input name="name" maxLength={160} placeholder="Stuy Fission" disabled={pending}/></label>
       <button className="button secondary" disabled={pending}>{pending ? "Adding…" : "Add team"}</button>
     </form>

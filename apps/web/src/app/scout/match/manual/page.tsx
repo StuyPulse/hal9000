@@ -1,3 +1,5 @@
+import { getEventTeamRemaps } from "@/lib/event-team-remaps";
+import { eventTeamNumber } from "@/lib/tba-team-identity";
 import Link from "next/link";
 import { AppShell, PageHeader } from "@/components/app-shell";
 import { getActiveEvent } from "@/lib/active-event";
@@ -48,6 +50,7 @@ export default async function ManualMatchFormPage({ searchParams }: { searchPara
     <section className="card"><p className="muted">Choose a team and alliance from the active event before opening a manual match report.</p><div className="section"><Link className="button" href="/scout/match#manual">Back to manual report setup</Link></div></section>
   </AppShell>;
 
+  const remaps = await getEventTeamRemaps(event.id);
   const team = selectedEventTeam.teams as unknown as { team_number: number; name: string } | null;
   const { data: eventTeams } = await supabase.from("event_teams").select("team_id,teams(team_number,name)").eq("event_id", event.id);
   const numericLabel = label?.trim() ?? "";
@@ -69,13 +72,13 @@ export default async function ManualMatchFormPage({ searchParams }: { searchPara
   const otherTeams = (opposingTeamIds ?? (eventTeams ?? []).filter((row) => row.team_id !== selectedEventTeam.team_id).map((row) => row.team_id))
     .map((teamId: string) => {
       const eventTeam = (eventTeams ?? []).find((row) => row.team_id === teamId);
-      return { id: teamId, number: (eventTeam as any)?.teams?.team_number ?? 0, alliance: "manual" as const };
+      return { id: teamId, number: (eventTeam as any)?.teams?.team_number ?? 0, displayNumber: eventTeamNumber((eventTeam as any)?.teams?.team_number ?? 0, remaps), alliance: "manual" as const };
     });
 
   const returnTo = requestedReturnTo?.startsWith("/") && !requestedReturnTo.startsWith("//") ? requestedReturnTo : undefined;
   if (!viewer?.organizationId) notFound();
   return <AppShell active="Manual scouting">
-    <PageHeader eyebrow={`${manualMatchLabel({ stage, label })} · ${alliance} alliance`} title={`${team?.team_number} · ${team?.name}`} />
-    <RebuiltMatchForm eventId={event.id} organizationId={viewer.organizationId} scoutUserId={viewer.userId} matchId={scheduledMatch?.id} teamId={selectedEventTeam.team_id} alliance={alliance} otherTeams={otherTeams} manualMatch={{ stage, label, alliance }} manualTeams={(eventTeams ?? []).map((row: any) => ({ id: row.team_id, number: row.teams?.team_number ?? 0, name: row.teams?.name ?? "Unknown team" })).filter((team) => team.number > 0)} editingEntryId={editingEntry?.id} initialPayload={editingEntry?.payload ?? {}} returnTo={returnTo}/>
+    <PageHeader eyebrow={`${manualMatchLabel({ stage, label })} · ${alliance} alliance`} title={`${team ? eventTeamNumber(team.team_number, remaps) : "—"} · ${team?.name}`} />
+    <RebuiltMatchForm eventId={event.id} organizationId={viewer.organizationId} scoutUserId={viewer.userId} matchId={scheduledMatch?.id} teamId={selectedEventTeam.team_id} alliance={alliance} otherTeams={otherTeams} manualMatch={{ stage, label, alliance }} manualTeams={(eventTeams ?? []).map((row: any) => ({ id: row.team_id, number: row.teams?.team_number ?? 0, displayNumber: eventTeamNumber(row.teams?.team_number ?? 0, remaps), name: row.teams?.name ?? "Unknown team" })).filter((team) => team.number > 0)} editingEntryId={editingEntry?.id} initialPayload={editingEntry?.payload ?? {}} returnTo={returnTo}/>
   </AppShell>;
 }

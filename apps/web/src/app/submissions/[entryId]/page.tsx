@@ -1,3 +1,5 @@
+import { getEventTeamRemaps } from "@/lib/event-team-remaps";
+import { eventTeamNumber } from "@/lib/tba-team-identity";
 import { AppShell, PageHeader } from "@/components/app-shell";
 import { createClient } from "@/lib/supabase/server";
 import Link from "next/link";
@@ -23,9 +25,10 @@ export default async function SubmissionDetailPage({ params, searchParams }: { p
   const { data: entry } = await (supabase as any).from("scouting_entries").select("id,event_id,match_id,scout_user_id,last_edited_by,entry_type,status,form_version,payload,submitted_at,created_at,updated_at,matches(match_number,match_type,tba_match_key),teams(team_number,name),author:profiles!scouting_entries_scout_user_id_fkey(display_name),editor:profiles!scouting_entries_last_edited_by_fkey(display_name)").eq("id", entryId).maybeSingle();
   if (!entry) notFound();
   const { data: eventTeams } = await supabase.from("event_teams").select("team_id,teams(team_number,name)").eq("event_id", entry.event_id);
-  const teamNames = Object.fromEntries((eventTeams ?? []).map((row: any) => [row.team_id, `${row.teams?.team_number ?? "Unknown"} · ${row.teams?.name ?? "team"}`]));
+  const remaps = await getEventTeamRemaps(entry.event_id);
+  const teamNames = Object.fromEntries((eventTeams ?? []).map((row: any) => [row.team_id, `${row.teams ? eventTeamNumber(row.teams.team_number, remaps) : "Unknown"} · ${row.teams?.name ?? "team"}`]));
   const timestamp = entry.submitted_at ?? entry.created_at;
-  const teamName = [entry.teams?.team_number, entry.teams?.name].filter(Boolean).join(" · ") || "Team report";
+  const teamName = [entry.teams ? eventTeamNumber(entry.teams.team_number, remaps) : null, entry.teams?.name].filter(Boolean).join(" · ") || "Team report";
   const canEdit = viewer && (entry.entry_type === "pit" || entry.scout_user_id === viewer.userId || viewerCanManage(viewer));
   const canDelete = viewer && (entry.scout_user_id === viewer.userId || viewerCanManage(viewer));
   const editHref = canEdit ? reportEditHref(entry) : null;

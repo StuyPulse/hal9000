@@ -1,5 +1,6 @@
 "use server";
 import { z } from "zod";
+import { tbaTeamRemapsSchema } from "../tba-team-remaps-schema";
 import { resolveTbaTeamNumbers, saveTbaMatchRows, tbaLiveMatchSchema, tbaMatchRows } from "../tba-matches";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { revalidatePath } from "next/cache";
@@ -31,7 +32,7 @@ export async function importTbaEvent(_: ActionState, formData: FormData): Promis
     const database = createAdminClient();
     const { data: existing, error: existingError } = await database
       .from("events")
-      .select("id,tba_etag,tba_teams_etag,tba_matches_etag,tba_practice_matches_etag")
+      .select("id,tba_etag,tba_teams_etag,tba_matches_etag,tba_practice_matches_etag,tba_team_remaps")
       .eq("organization_id", organizationId)
       .eq("event_key", parsed.data.eventKey)
       .maybeSingle();
@@ -39,7 +40,7 @@ export async function importTbaEvent(_: ActionState, formData: FormData): Promis
 
     const baseUrl = `https://www.thebluealliance.com/api/v3/event/${parsed.data.eventKey}`;
     const [eventResponse, teamsResponse, matchesResponse, practiceResponse] = await Promise.all([
-      fetch(baseUrl, { headers: tbaHeaders(tbaKey, existing?.tba_etag), cache: "no-store" }),
+      fetch(baseUrl, { headers: tbaHeaders(tbaKey, existing?.tba_team_remaps != null ? existing.tba_etag : null), cache: "no-store" }),
       fetch(`${baseUrl}/teams/simple`, { headers: tbaHeaders(tbaKey, existing?.tba_teams_etag), cache: "no-store" }),
       fetch(`${baseUrl}/matches`, { headers: tbaHeaders(tbaKey, existing?.tba_matches_etag), cache: "no-store" }),
       fetch(`${baseUrl}/matches/practice`, { headers: tbaHeaders(tbaKey, existing?.tba_practice_matches_etag), cache: "no-store" }),
@@ -53,7 +54,7 @@ export async function importTbaEvent(_: ActionState, formData: FormData): Promis
     }
 
     let eventId = existing?.id;
-    let eventPayload: unknown;
+    let eventPayload: unknown = { remap_teams: existing?.tba_team_remaps ?? {} };
     if (eventResponse.status !== 304) {
       eventPayload = await eventResponse.json();
       const event = tbaEventSchema.safeParse(eventPayload);
@@ -62,6 +63,8 @@ export async function importTbaEvent(_: ActionState, formData: FormData): Promis
         organization_id: organizationId,
         event_key: parsed.data.eventKey,
         name: event.data.name,
+        tba_team_remaps_etag: eventResponse.headers.get("etag"),
+        tba_team_remaps: tbaTeamRemapsSchema.parse((eventPayload as { remap_teams?: unknown }).remap_teams ?? {}),
         starts_at: `${event.data.start_date}T00:00:00Z`,
         ends_at: `${event.data.end_date}T23:59:59Z`,
         // Refreshing an event must not deactivate it.

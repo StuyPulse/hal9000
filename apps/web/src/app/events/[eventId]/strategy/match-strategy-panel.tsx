@@ -1,12 +1,14 @@
 "use client";
 
+import { teamNumberLabel, resolveTeamLineup } from "@/lib/tba-team-identity";
+
 import Link from "next/link";
 import { useCallback, useEffect, useId, useMemo, useRef, useState, type FormEvent, type PointerEvent as ReactPointerEvent } from "react";
 import type { ScoutStats } from "@/lib/scouting-stats";
 import { compareMatchesChronologically, matchLabel as formatMatchLabel } from "@/lib/match-label";
 import { createClient } from "@/lib/supabase/client";
 
-type Team = { id: string; number: number; name: string; stats: ScoutStats };
+type Team = { id: string; number: number; displayNumber?: string; name: string; stats: ScoutStats };
 type Match = { id: string; key: string; number: number; type: string; scheduledAt: string | null; status: string; red: string[]; blue: string[] };
 type Slot = { id: string; alliance: "red" | "blue"; position: number };
 type Point = { x: number; y: number };
@@ -20,11 +22,11 @@ const drawingColors = ["#ef4444", "#38bdf8", "#facc15", "#34d399", "#a78bfa", "#
 const playedMatchDelayMs = 5 * 60 * 1_000;
 const round = (value: number) => value.toFixed(2);
 const matchLabel = (match: Match) => formatMatchLabel({ match_number: match.number, match_type: match.type, tba_match_key: match.key });
-const matchLineupLabel = (match: Match, teamById: Map<string, Team>) => `${match.red.map((teamId) => teamById.get(teamId)?.number ?? "—").join(" ")} vs ${match.blue.map((teamId) => teamById.get(teamId)?.number ?? "—").join(" ")}`;
+const matchLineupLabel = (match: Match, teamById: Map<string, Team>) => `${match.red.map((teamId) => teamNumberLabel(teamById.get(teamId))).join(" ")} vs ${match.blue.map((teamId) => teamNumberLabel(teamById.get(teamId))).join(" ")}`;
 const matchSearchLabel = (match: Match, teamById: Map<string, Team>) => `${matchLabel(match)} · ${matchLineupLabel(match, teamById)}${match.scheduledAt ? ` · ${new Date(match.scheduledAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}` : ""}`;
 const lineupNumbersFor = (match: Match | undefined, teams: Map<string, Team>) => Object.fromEntries(slots.map((slot) => {
   const id = slot.alliance === "red" ? match?.red[slot.position - 1] : match?.blue[slot.position - 1];
-  return [slot.id, id ? String(teams.get(id)?.number ?? "") : ""];
+  return [slot.id, id ? teamNumberLabel(teams.get(id)) : ""];
 }));
 
 function SearchableMatchSelect({ matches, teams, value, onValueChange }: { matches: Match[]; teams: Team[]; value: string; onValueChange: (value: string) => void }) {
@@ -57,7 +59,7 @@ function AllianceOverview({ alliance, teams, eventKey }: { alliance: "red" | "bl
   return <section className={`strategy-alliance-overview ${alliance}`}>
     <div className="strategy-alliance-overview-head"><span>{alliance} alliance</span><strong>{filledTeams.length}/3 teams</strong></div>
     <div className="strategy-alliance-teams">{teams.map((team, index) => team
-      ? <Link key={team.id} href={`/events/${eventKey}/teams/${team.number}`}><strong>{team.number}</strong><span>{team.name}</span><small>Auto avg {round(team.stats.autoAvgScored)} · peak {round(team.stats.autoMaxScored)}</small><small>Teleop avg {round(team.stats.teleopAvgScored)} · peak {round(team.stats.teleopMaxScored)}</small></Link>
+      ? <Link key={team.id} href={`/events/${eventKey}/teams/${teamNumberLabel(team)}`}><strong>{teamNumberLabel(team)}</strong><span>{team.name}</span><small>Auto avg {round(team.stats.autoAvgScored)} · peak {round(team.stats.autoMaxScored)}</small><small>Teleop avg {round(team.stats.teleopAvgScored)} · peak {round(team.stats.teleopMaxScored)}</small></Link>
       : <div key={`${alliance}-${index}`}><strong>—</strong><span>Open slot</span><small>Use the lineup above</small></div>)}</div>
     <div className="strategy-alliance-totals"><span>Auto <strong>avg {round(autoAverage)} · peak {round(autoPeak)}</strong></span><span>Teleop <strong>avg {round(teleopAverage)} · peak {round(teleopPeak)}</strong></span></div>
   </section>;
@@ -128,7 +130,6 @@ function StrategyDrawing({ strokes, onChange, color, flipped }: { strokes: Strok
 
 export function MatchStrategyPanel({ matches, teams, eventId, eventKey, organizationId, userId, initialStrokes }: { matches: Match[]; teams: Team[]; eventId: string; eventKey: string; organizationId: string; userId: string | null; initialStrokes: Stroke[] }) {
   const teamById = useMemo(() => new Map(teams.map((team) => [team.id, team])), [teams]);
-  const teamByNumber = useMemo(() => new Map(teams.map((team) => [team.number, team])), [teams]);
   const [matchId, setMatchId] = useState(matches[0]?.id ?? "");
   const [overrides, setOverrides] = useState<Record<string, string>>({});
   const [manualNumbers, setManualNumbers] = useState<Record<string, string>>(() => lineupNumbersFor(matches[0], teamById));
@@ -185,14 +186,10 @@ export function MatchStrategyPanel({ matches, teams, eventId, eventKey, organiza
 
   function applyManualLineup(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const redNumbers = slots.filter((slot) => slot.alliance === "red").map((slot) => Number(manualNumbers[slot.id]));
-    const blueNumbers = slots.filter((slot) => slot.alliance === "blue").map((slot) => Number(manualNumbers[slot.id]));
-    if ([...redNumbers, ...blueNumbers].some((teamNumber) => !Number.isInteger(teamNumber) || teamNumber < 1)) { setManualError("Enter a team number in all six alliance slots."); return; }
-    if (new Set([...redNumbers, ...blueNumbers]).size !== 6) { setManualError("Each of the six team numbers must be different."); return; }
-    const requestedNumbers = [...redNumbers, ...blueNumbers];
-    const missing = requestedNumbers.filter((teamNumber) => !teamByNumber.has(teamNumber));
-    if (missing.length) { setManualError(`Team ${missing.join(", ")} is not in this event.`); return; }
-    setOverrides(Object.fromEntries(slots.map((slot, index) => [slot.id, teamByNumber.get(requestedNumbers[index])!.id])));
+    try {
+      const requestedTeams = resolveTeamLineup(slots.map((slot) => manualNumbers[slot.id] ?? ""), teams);
+      setOverrides(Object.fromEntries(slots.map((slot, index) => [slot.id, requestedTeams[index].id])));
+    } catch (error) { setManualError(error instanceof Error ? error.message : "Enter valid event team numbers."); return; }
     setManualError("");
   }
 
@@ -207,7 +204,7 @@ export function MatchStrategyPanel({ matches, teams, eventId, eventKey, organiza
   }
 
   return <section className="strategy-panel">
-    <div className="strategy-controls"><label><span>Choose match</span><SearchableMatchSelect matches={orderedMatches} teams={teams} value={matchId} onValueChange={chooseMatch}/></label><form className="strategy-manual-lineup" onSubmit={applyManualLineup}><span className="strategy-manual-label">Manual event lineup</span><div className="strategy-manual-alliance red"><span>Red</span>{slots.filter((slot) => slot.alliance === "red").map((slot) => <input key={slot.id} aria-label={`Red alliance team ${slot.position}`} value={manualNumbers[slot.id] ?? ""} inputMode="numeric" pattern="[0-9]*" maxLength={5} placeholder={`R${slot.position}`} onChange={(event) => { setManualNumbers((current) => ({ ...current, [slot.id]: event.target.value.replace(/\D/g, "") })); setManualError(""); }}/>)}</div><span className="strategy-manual-versus">vs</span><div className="strategy-manual-alliance blue"><span>Blue</span>{slots.filter((slot) => slot.alliance === "blue").map((slot) => <input key={slot.id} aria-label={`Blue alliance team ${slot.position}`} value={manualNumbers[slot.id] ?? ""} inputMode="numeric" pattern="[0-9]*" maxLength={5} placeholder={`B${slot.position}`} onChange={(event) => { setManualNumbers((current) => ({ ...current, [slot.id]: event.target.value.replace(/\D/g, "") })); setManualError(""); }}/>)}</div><button type="submit" className="button secondary">Use lineup</button>{Object.keys(overrides).length > 0 && <button type="button" className="strategy-clear-lineup" onClick={() => { setOverrides({}); setManualNumbers(lineupNumbersFor(selectedMatch, teamById)); setManualError(""); }}>Use scheduled</button>}{manualError && <span className="strategy-lineup-error" role="alert">{manualError}</span>}</form></div>
+    <div className="strategy-controls"><label><span>Choose match</span><SearchableMatchSelect matches={orderedMatches} teams={teams} value={matchId} onValueChange={chooseMatch}/></label><form className="strategy-manual-lineup" onSubmit={applyManualLineup}><span className="strategy-manual-label">Manual event lineup</span><div className="strategy-manual-alliance red"><span>Red</span>{slots.filter((slot) => slot.alliance === "red").map((slot) => <input key={slot.id} aria-label={`Red alliance team ${slot.position}`} value={manualNumbers[slot.id] ?? ""} pattern="[0-9]+[A-Za-z]*" maxLength={8} placeholder={`R${slot.position}`} onChange={(event) => { setManualNumbers((current) => ({ ...current, [slot.id]: event.target.value.replace(/[^0-9a-z]/gi, "") })); setManualError(""); }}/>)}</div><span className="strategy-manual-versus">vs</span><div className="strategy-manual-alliance blue"><span>Blue</span>{slots.filter((slot) => slot.alliance === "blue").map((slot) => <input key={slot.id} aria-label={`Blue alliance team ${slot.position}`} value={manualNumbers[slot.id] ?? ""} pattern="[0-9]+[A-Za-z]*" maxLength={8} placeholder={`B${slot.position}`} onChange={(event) => { setManualNumbers((current) => ({ ...current, [slot.id]: event.target.value.replace(/[^0-9a-z]/gi, "") })); setManualError(""); }}/>)}</div><button type="submit" className="button secondary">Use lineup</button>{Object.keys(overrides).length > 0 && <button type="button" className="strategy-clear-lineup" onClick={() => { setOverrides({}); setManualNumbers(lineupNumbersFor(selectedMatch, teamById)); setManualError(""); }}>Use scheduled</button>}{manualError && <span className="strategy-lineup-error" role="alert">{manualError}</span>}</form></div>
     <div className="strategy-alliance-overviews" aria-label="Alliance scouting comparison"><AllianceOverview alliance="red" teams={redAlliance} eventKey={eventKey}/><span aria-hidden="true">vs</span><AllianceOverview alliance="blue" teams={blueAlliance} eventKey={eventKey}/></div>
     <div className="strategy-drawing-toolbar"><div className="strategy-color-picker" aria-label="Drawing color">{drawingColors.map((value) => <button key={value} type="button" className={color === value ? "selected" : ""} style={{ backgroundColor: value }} aria-label={`Use ${value} drawing color`} onClick={() => setColor(value)}/>)}</div><button type="button" className="button secondary strategy-tool-button" disabled={!strokes.length} onClick={() => { setStrokes((current) => current.slice(0, -1)); setSaveState(""); }}>Undo</button><button type="button" className="button secondary strategy-tool-button" disabled={!strokes.length} onClick={() => { setStrokes([]); setSaveState(""); }}>Clear</button><button type="button" className="button strategy-tool-button" disabled={!userId || saving} onClick={saveDrawing}>{saving ? "Saving…" : "Save drawing"}</button>{saveState && <span className="strategy-save-state" role="status">{saveState}</span>}<button type="button" className="button secondary strategy-flip-button" aria-pressed={flipped} onClick={() => setFlipped((current) => !current)}>Flip alliance view</button></div>
     <div className={`strategy-field${flipped ? " flip-alliance-view" : ""}`} aria-label={`${selectedMatch ? matchLabel(selectedMatch) : "Selected"} strategy field`}>

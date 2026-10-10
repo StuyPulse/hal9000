@@ -5,7 +5,7 @@ import { useId, useState } from "react";
 import { SearchableTeamSelect } from "@/components/searchable-team-select";
 import { createClient } from "@/lib/supabase/client";
 
-type Team = { id: string; number: number; name: string };
+type Team = { id: string; number: number; displayNumber?: string; name: string };
 const MAX_SOURCE_PIT_PHOTO_BYTES = 25 * 1024 * 1024;
 const MAX_PIT_PHOTO_BYTES = 10 * 1024 * 1024;
 const MAX_PIT_PHOTO_EDGE = 1920;

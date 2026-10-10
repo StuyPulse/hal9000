@@ -1,3 +1,5 @@
+import { getEventTeamRemaps } from "@/lib/event-team-remaps";
+import { eventTeamNumber } from "@/lib/tba-team-identity";
 import { AppShell, PageHeader } from "@/components/app-shell";
 import { getActiveEvent } from "@/lib/active-event";
 import { createClient } from "@/lib/supabase/server";
@@ -15,7 +17,8 @@ export default async function PitPage({ searchParams }: { searchParams: Promise<
     supabase.from("pit_photos").select("team_id").eq("event_id", event.id),
     supabase.from("scouting_entries").select("team_id").eq("event_id", event.id).eq("entry_type", "pit").eq("status", "submitted"),
   ]) : [{ data: [] }, { data: [] }, { data: [] }];
-  const teams = (eventTeams ?? []).map((row: any) => ({ id: row.team_id, number: row.teams?.team_number, name: row.teams?.name })).sort((left, right) => left.number - right.number);
+  const remaps = await getEventTeamRemaps(event?.id);
+  const teams = (eventTeams ?? []).map((row: any) => ({ id: row.team_id, number: row.teams?.team_number, displayNumber: eventTeamNumber(row.teams?.team_number, remaps), name: row.teams?.name })).sort((left, right) => left.number - right.number);
   const photographedTeamIds = new Set((photos ?? []).map((photo: any) => photo.team_id));
   const scoutedTeamIds = [...new Set((pitEntries ?? []).map((entry: any) => entry.team_id))];
   const missing = teams.filter((team) => !photographedTeamIds.has(team.id));

@@ -1,3 +1,5 @@
+import { getEventTeamRemaps } from "@/lib/event-team-remaps";
+import { eventTeamNumber } from "@/lib/tba-team-identity";
 import { AppShell, PageHeader } from "@/components/app-shell";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getViewerContext, viewerCanManage } from "@/lib/viewer-context";
@@ -12,7 +14,8 @@ export default async function PreScoutPage({ searchParams }: { searchParams: Pro
   const { data: eventTeams } = event
     ? await database.from("event_teams").select("team_id,teams(team_number,name)").eq("event_id", event.id)
     : { data: [] };
-  const teams = (eventTeams ?? []).map((row: any) => ({ id: row.team_id, number: row.teams?.team_number, name: row.teams?.name }));
+  const remaps = await getEventTeamRemaps(event?.id);
+  const teams = (eventTeams ?? []).map((row: any) => ({ id: row.team_id, number: row.teams?.team_number, displayNumber: eventTeamNumber(row.teams?.team_number, remaps), name: row.teams?.name }));
   const { data: submittedEntries } = event
     ? await database.from("scouting_entries").select("team_id").eq("event_id", event.id).eq("entry_type", "pre_scout").eq("status", "submitted")
     : { data: [] };

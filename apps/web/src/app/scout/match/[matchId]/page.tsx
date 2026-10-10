@@ -1,3 +1,5 @@
+import { getEventTeamRemaps } from "@/lib/event-team-remaps";
+import { eventTeamNumber } from "@/lib/tba-team-identity";
 import { notFound } from "next/navigation";
 import { AppShell, PageHeader } from "@/components/app-shell";
 import { createClient } from "@/lib/supabase/server";
@@ -21,10 +23,11 @@ export default async function ScoutMatchPage({ params, searchParams }: { params:
   const { data: editingTeam } = editingEntry ? await supabase.from("event_teams").select("teams(team_number,name)").eq("event_id", match.event_id).eq("team_id", editingEntry.team_id).maybeSingle() : { data: null };
   const team = (editingTeam?.teams??assignmentRow?.teams??manualTeam?.teams) as unknown as { team_number: number; name: string } | null;
   const { data: eventTeams } = await supabase.from("event_teams").select("team_id,teams(team_number)").eq("event_id", match.event_id);
+  const remaps = await getEventTeamRemaps(match.event_id);
   const teamNumbers = new Map((eventTeams ?? []).map((row:any)=>[row.team_id,row.teams?.team_number]));
   const red = match.red_teams.includes(selectedTeamId);
-  const others = (red ? match.blue_teams : match.red_teams).map((id: string) => ({ id, number: teamNumbers.get(id) ?? 0, alliance: red ? "blue" as const : "red" as const }));
+  const others = (red ? match.blue_teams : match.red_teams).map((id: string) => ({ id, number: teamNumbers.get(id) ?? 0, displayNumber: eventTeamNumber(Number(teamNumbers.get(id) ?? 0), remaps), alliance: red ? "blue" as const : "red" as const }));
   const returnTo = requestedReturnTo?.startsWith("/") && !requestedReturnTo.startsWith("//") ? requestedReturnTo : undefined;
   if (!viewer?.organizationId) notFound();
-  return <AppShell active={assignmentRow?"My assignments":"Manual scouting"}><div className="match-page-header"><PageHeader eyebrow={`${matchLabel(match)} · ${red ? "Red" : "Blue"} alliance`} title={`${team?.team_number} · ${team?.name}`} /></div><RebuiltMatchForm eventId={match.event_id} organizationId={viewer.organizationId} scoutUserId={viewer.userId} matchId={match.id} teamId={selectedTeamId} assignmentId={assignmentRow?.id} alliance={red?"red":"blue"} otherTeams={others} editingEntryId={editingEntry?.id} initialPayload={editingEntry?.payload ?? {}} returnTo={returnTo}/></AppShell>;
+  return <AppShell active={assignmentRow?"My assignments":"Manual scouting"}><div className="match-page-header"><PageHeader eyebrow={`${matchLabel(match)} · ${red ? "Red" : "Blue"} alliance`} title={`${team ? eventTeamNumber(team.team_number, remaps) : "—"} · ${team?.name}`} /></div><RebuiltMatchForm eventId={match.event_id} organizationId={viewer.organizationId} scoutUserId={viewer.userId} matchId={match.id} teamId={selectedTeamId} assignmentId={assignmentRow?.id} alliance={red?"red":"blue"} otherTeams={others} editingEntryId={editingEntry?.id} initialPayload={editingEntry?.payload ?? {}} returnTo={returnTo}/></AppShell>;
 }

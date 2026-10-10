@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 
-export function TeamPhotoCarousel({ photos, teamNumber }: { photos: string[]; teamNumber: number }) {
+export function TeamPhotoCarousel({ photos, teamNumber }: { photos: string[]; teamNumber: number | string }) {
   const [activeIndex, setActiveIndex] = useState(0);
   const [expanded, setExpanded] = useState(false);
 

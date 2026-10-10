@@ -1,4 +1,7 @@
 import { z } from "zod";
+import { tbaTeamRemapsSchema } from "./tba-team-remaps-schema";
+import { tbaTeamNumberResolver } from "./tba-team-identity";
+export { tbaTeamNumberResolver } from "./tba-team-identity";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 const teamKey = z.string().regex(/^frc\d+[A-Za-z]*$/);
@@ -14,28 +17,11 @@ export const tbaLiveMatchSchema = tbaMatchSchema.extend({
   alliances: z.object({ red: alliance.extend({ score: z.number().int() }), blue: alliance.extend({ score: z.number().int() }) }),
   score_breakdown: z.object({ red: z.record(z.string(), z.unknown()).nullable(), blue: z.record(z.string(), z.unknown()).nullable() }).nullable().optional(),
 });
-const remapSchema = z.object({ remap_teams: z.record(z.string().regex(/^frc\d+$/), teamKey).nullable().optional() });
-
-/** TBA maps numeric demo keys to B-team labels. Resolve labels back to those
- * numbers so a B robot retains its own existing team ID and scouting history. */
-export function tbaTeamNumberResolver(remaps: Record<string, string> = {}) {
-  const originalByLabel = new Map<string, string>();
-  for (const [original, label] of Object.entries(remaps)) {
-    if (originalByLabel.has(label)) throw new Error(`TBA maps ${label} to more than one team.`);
-    originalByLabel.set(label, original);
-  }
-  return (key: string) => {
-    const numericKey = originalByLabel.get(key) ?? key;
-    if (!/^frc\d+$/.test(numericKey)) throw new Error(`TBA team ${key} has no numeric event mapping. The existing schedule was left unchanged.`);
-    const number = Number(numericKey.slice(3));
-    if (!Number.isSafeInteger(number) || number <= 0) throw new Error(`TBA returned an invalid team key: ${key}.`);
-    return number;
-  };
-}
+const remapSchema = z.object({ remap_teams: tbaTeamRemapsSchema.nullable().optional() });
 
 export async function resolveTbaTeamNumbers(baseUrl: string, authKey: string, matches: z.infer<typeof tbaMatchSchema>[], eventPayload?: unknown) {
   const teamKeys = matches.flatMap((match) => [...match.alliances.red.team_keys, ...match.alliances.blue.team_keys]);
-  if (teamKeys.every((key) => /^frc\d+$/.test(key))) return tbaTeamNumberResolver();
+  if (eventPayload === undefined && teamKeys.every((key) => /^frc\d+$/.test(key))) return tbaTeamNumberResolver();
   if (eventPayload === undefined) {
     const response = await fetch(baseUrl, { headers: { "X-TBA-Auth-Key": authKey }, cache: "no-store" });
     if (!response.ok) throw new Error(`TBA team mapping returned HTTP ${response.status}.`);

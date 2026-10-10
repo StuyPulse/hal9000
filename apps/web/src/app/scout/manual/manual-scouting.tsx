@@ -9,7 +9,7 @@ import { queueScoutingEntry, removeQueuedScoutingEntry, tryUpsertScoutingEntry }
 import { updateManualScoutingEntry } from "./actions";
 
 type EntryType = "pre_scout" | "pit";
-type Team = { id: string; number: number; name: string };
+type Team = { id: string; number: number; displayNumber?: string; name: string };
 type Payload = Record<string, string>;
 
 const preScoutFields: [string, string, string][] = [

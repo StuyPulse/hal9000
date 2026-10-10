@@ -1,3 +1,6 @@
+import { fetchTbaRankings } from "@/lib/tba-event-stats";
+import { getEventTeamRemaps } from "@/lib/event-team-remaps";
+import { eventTeamNumber } from "@/lib/tba-team-identity";
 import { notFound, redirect } from "next/navigation";
 import { AppShell, PageHeader } from "@/components/app-shell";
 import { LiveRefresh } from "@/components/live-refresh";
@@ -42,21 +45,10 @@ export default async function PicklistPage({ params }: { params: Promise<{ event
   const canEdit = viewer.role === "global_scout" || viewer.role === "strategist" || viewer.role === "master" || viewerCanManage(viewer);
   const { data: event } = await supabase.from("events").select("id,name,event_key,is_manual").eq("event_key", eventKey).eq("organization_id", viewer.organizationId).maybeSingle();
   if (!event) notFound();
+  const remaps = await getEventTeamRemaps(event.id);
   const loadTba = async () => {
-    let oprs: Record<string, number> = {}; const eventRanks = new Map<number, number>();
-    if (!event.is_manual && process.env.TBA_AUTH_KEY) try {
-      const headers = { "X-TBA-Auth-Key": process.env.TBA_AUTH_KEY };
-      const [oprsResponse, rankingsResponse] = await Promise.all([
-        fetch(`https://www.thebluealliance.com/api/v3/event/${event.event_key}/oprs`, { headers, next: { revalidate: 20 } }),
-        fetch(`https://www.thebluealliance.com/api/v3/event/${event.event_key}/rankings`, { headers, next: { revalidate: 20 } }),
-      ]);
-      if (oprsResponse.ok) oprs = (await oprsResponse.json())?.oprs ?? {};
-      if (rankingsResponse.ok) for (const ranking of (await rankingsResponse.json())?.rankings ?? []) {
-        const teamNumber = Number(String(ranking.team_key ?? "").replace("frc", ""));
-        if (Number.isFinite(teamNumber) && typeof ranking.rank === "number") eventRanks.set(teamNumber, ranking.rank);
-      }
-    } catch { /* Team number is a safe fallback while TBA is unavailable. */ }
-    return { oprs, eventRanks };
+    const { rankings, oprs } = event.is_manual ? { rankings: [], oprs: {} } : await fetchTbaRankings(event.event_key, remaps);
+    return { oprs: oprs as Record<string, number>, eventRanks: new Map(rankings.filter((ranking) => typeof ranking.rank === "number").map((ranking) => [Number(ranking.team_key?.slice(3)), ranking.rank!])) };
   };
   const [{ data: categoryRows }, { data: tagRows }, { data: eventTeamRows }, { data: rankingRows }, { data: reportSources }, matchReports, changeRows, { oprs, eventRanks }] = await Promise.all([
     (supabase as any).from("picklist_categories").select("id,name,color,sort_order").eq("organization_id", viewer.organizationId).order("sort_order").order("name"),
@@ -76,6 +68,6 @@ export default async function PicklistPage({ params }: { params: Promise<{ event
     const reports = reportsByTeam.get(row.team_id) ?? [];
     statsByTeam.set(row.team_id, calculateScoutStats(selectedMatchReportEntries(competitiveMatchEntries(reports), reportSources ?? [])));
   }
-  const teams = (eventTeamRows ?? []).map((row: any) => row.teams ? { ...row.teams, opr: Number(oprs[`frc${row.teams.team_number}`] ?? 0), eventRank: eventRanks.get(row.teams.team_number) ?? null, scouting: statsByTeam.get(row.team_id) ?? null } : null).filter(Boolean).sort((a: any, b: any) => b.opr - a.opr || a.team_number - b.team_number);
-  return <AppShell active="Picklist"><LiveRefresh tables={["picklist_categories", "picklist_tags"]}/><LiveRefresh tables={["shared_picklist_rankings", "picklist_change_log", "scouting_entries", "match_report_sources"]} eventId={event.id}/><PageHeader eyebrow={event.name} title="Picklist."/><PicklistBoard organizationId={viewer.organizationId} eventId={event.id} eventKey={eventKey} userId={viewer.userId} canEdit={canEdit} categories={categoryRows ?? []} tags={tagRows ?? []} teams={teams} rankings={rankingRows ?? []} changes={changeRows}/></AppShell>;
+  const teams = (eventTeamRows ?? []).map((row: any) => row.teams ? { ...row.teams, displayNumber: eventTeamNumber(row.teams.team_number, remaps), opr: Number(oprs[`frc${row.teams.team_number}`] ?? 0), eventRank: eventRanks.get(row.teams.team_number) ?? null, scouting: statsByTeam.get(row.team_id) ?? null } : null).filter(Boolean).sort((a: any, b: any) => b.opr - a.opr || a.team_number - b.team_number);
+  return <AppShell active="Picklist"><LiveRefresh tables={["picklist_categories", "picklist_tags"]}/><LiveRefresh tables={["shared_picklist_rankings", "picklist_change_log", "scouting_entries", "match_report_sources"]} eventId={event.id}/><PageHeader eyebrow={event.name} title="Picklist."/><PicklistBoard organizationId={viewer.organizationId} eventId={event.id} eventKey={eventKey} userId={viewer.userId} canEdit={canEdit} categories={categoryRows ?? []} tags={tagRows ?? []} teams={teams} rankings={rankingRows ?? []} changes={changeRows.map((change: any) => ({ ...change, teams: change.teams ? { ...change.teams, displayNumber: eventTeamNumber(change.teams.team_number, remaps) } : null }))}/></AppShell>;
 }
