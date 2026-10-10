@@ -60,6 +60,7 @@ export type Database = {
           tba_etag: string | null
           tba_last_synced_at: string | null
           tba_matches_etag: string | null
+          tba_practice_matches_etag: string | null
           tba_teams_etag: string | null
           updated_at: string
         }
@@ -75,6 +76,7 @@ export type Database = {
           tba_etag?: string | null
           tba_last_synced_at?: string | null
           tba_matches_etag?: string | null
+          tba_practice_matches_etag?: string | null
           tba_teams_etag?: string | null
           updated_at?: string
         }
@@ -90,6 +92,7 @@ export type Database = {
           tba_etag?: string | null
           tba_last_synced_at?: string | null
           tba_matches_etag?: string | null
+          tba_practice_matches_etag?: string | null
           tba_teams_etag?: string | null
           updated_at?: string
         }

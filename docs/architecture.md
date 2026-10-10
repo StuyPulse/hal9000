@@ -17,3 +17,7 @@ Phase 1 is online-first. The browser validates form payloads with Zod, creates a
 The web app uses `@supabase/ssr` to keep Auth sessions in cookies. The Proxy refreshes and validates the token with `getClaims`; route data is independently constrained by PostgreSQL RLS.
 
 TBA imports must happen in a trusted server context using `TBA_AUTH_KEY`, respect ETags, and upsert events, teams, event links, and matches. TBA is the only external competition data source.
+
+Both admin imports and automatic active-event sync read `/matches` and `/matches/practice`, with separate ETags. Offseason B-team labels resolve through the event's `remap_teams` back to their numeric demo-team records, preserving team IDs and keeping the B robot separate from its parent team. A manual match is adopted only when its round and both alliance lineups identify one official match; its UUID, reports, and assignments remain attached. Ambiguous manual matches remain unchanged. Re-importing an active event preserves its status.
+
+The Supabase Cron job calls `https://hal9000.stuypulse.com/api/live-event/sync` directly, using the trigger secret from Vault. A redirect from a different host drops the Authorization header and prevents automatic sync.
