@@ -8,6 +8,7 @@ import { randomUUID } from "crypto";
 import { revalidateEventTeamNavigation, revalidateOrganizationNavigation } from "@/lib/navigation-data";
 import { adminContext, importDatabaseError, type ActionState } from "@/lib/admin/shared";
 import { manualMatchResultSchema } from "@/lib/manual-match-result";
+import { matchTeamsChanged } from "@/lib/manual-match-safety";
 
 const localMatchSchema = z.object({ eventId: z.string().uuid(), matchId: z.union([z.literal(""), z.string().uuid()]), matchNumber: z.coerce.number().int().positive(), matchType: z.enum(["qualification", "playoff", "practice"]), redTeams: z.string(), blueTeams: z.string() });
 const parseAlliance = (value: string, remaps: TbaTeamRemaps = {}) => [...new Set(value.split(/[\s,]+/).filter(Boolean).map((input) => eventTeamNumberFromInput(input, remaps)))];
@@ -27,7 +28,7 @@ async function localMatchContext(formData: FormData) {
   const numbers = [...redNumbers, ...blueNumbers];
   const { data: existingTeams, error: teamsError } = await database.from("teams").select("id,team_number").eq("organization_id", organizationId).in("team_number", numbers);
   if (teamsError) return { error: "Couldn’t load the team directory." } as const;
-  const teamIdByNumber = new Map((existingTeams ?? []).map((team: any) => [team.team_number, team.id]));
+  const teamIdByNumber = new Map<number, string>((existingTeams ?? []).map((team: any) => [team.team_number, team.id]));
   const missing = numbers.filter((number) => !teamIdByNumber.has(number));
   if (missing.length) {
     const { error } = await database.from("teams").insert(missing.map((team_number) => ({ organization_id: organizationId, team_number, name: `FRC Team ${team_number}` })));
@@ -80,19 +81,21 @@ export async function updateLocalMatch(_: ActionState, formData: FormData): Prom
     if ("error" in context) return { error: context.error };
     const { data: match } = await context.database.from("matches").select("id,red_teams,blue_teams").eq("id", context.parsed.matchId).eq("event_id", context.event.id).like("tba_match_key", "manual_%").maybeSingle();
     if (!match) return { error: "Only locally created manual matches can be edited." };
-    const changedTeams = [...match.red_teams, ...match.blue_teams].sort().join(":") !== [...context.redTeamIds, ...context.blueTeamIds].sort().join(":");
+    const changedTeams = matchTeamsChanged(match, context.redTeamIds, context.blueTeamIds);
     if (changedTeams) {
-      const [{ data: reports }, { data: legacySubmissions }, { data: completeAssignments }] = await Promise.all([
+      const [{ data: reports, error: reportsError }, { data: legacySubmissions, error: submissionsError }, { data: completeAssignments, error: assignmentsError }] = await Promise.all([
         context.database.from("scouting_entries").select("id").eq("match_id", match.id).eq("status", "submitted").limit(1),
         context.database.from("match_submissions").select("id").eq("match_id", match.id).limit(1),
         context.database.from("scouting_assignments").select("id").eq("match_id", match.id).eq("status", "complete").limit(1),
       ]);
+      if (reportsError || submissionsError || assignmentsError) return { error: "Couldn’t verify whether this match has submitted reports." };
       if (reports?.length || legacySubmissions?.length || completeAssignments?.length) return { error: "This manual match has submitted reports, so its teams cannot be changed." };
       const { error: clearAssignmentsError } = await context.database.from("scouting_assignments").delete().eq("match_id", match.id).neq("status", "complete");
       if (clearAssignmentsError) return importDatabaseError("pending manual assignments", clearAssignmentsError);
     }
-    const { error } = await context.database.from("matches").update({ match_number: context.parsed.matchNumber, match_type: context.parsed.matchType, red_teams: context.redTeamIds, blue_teams: context.blueTeamIds }).eq("id", match.id);
+    const { data: updated, error } = await context.database.from("matches").update({ match_number: context.parsed.matchNumber, match_type: context.parsed.matchType, red_teams: context.redTeamIds, blue_teams: context.blueTeamIds }).eq("id", match.id).eq("event_id", context.event.id).select("id").maybeSingle();
     if (error) return importDatabaseError("manual match", error);
+    if (!updated) return { error: "That match is no longer available. Refresh and try again." };
     revalidateLocalMatch(context.event);
     return { success: "Manual match updated." };
   } catch { return { error: "Admin access is required to edit a manual match." }; }
@@ -108,13 +111,15 @@ export async function deleteLocalMatch(_: ActionState, formData: FormData): Prom
     if (!event) return { error: "This event is unavailable." };
     const { data: match } = await database.from("matches").select("id").eq("id", input.data.matchId).eq("event_id", event.id).like("tba_match_key", "manual_%").maybeSingle();
     if (!match) return { error: "Only locally created manual matches can be deleted." };
-    const [{ data: reports }, { data: legacySubmissions }] = await Promise.all([
+    const [{ data: reports, error: reportsError }, { data: legacySubmissions, error: submissionsError }] = await Promise.all([
       database.from("scouting_entries").select("id").eq("match_id", match.id).eq("status", "submitted").limit(1),
       database.from("match_submissions").select("id").eq("match_id", match.id).limit(1),
     ]);
+    if (reportsError || submissionsError) return { error: "Couldn’t verify whether this match has submitted reports." };
     if (reports?.length || legacySubmissions?.length) return { error: "This manual match has submitted reports and cannot be deleted." };
-    const { error } = await database.from("matches").delete().eq("id", match.id);
+    const { data: deleted, error } = await database.from("matches").delete().eq("id", match.id).eq("event_id", event.id).select("id").maybeSingle();
     if (error) return importDatabaseError("manual match", error);
+    if (!deleted) return { error: "That match is no longer available. Refresh and try again." };
     revalidateLocalMatch(event);
     return { success: "Manual match deleted." };
   } catch { return { error: "Admin access is required to delete a manual match." }; }
@@ -240,8 +245,15 @@ export async function removeManualEventTeam(_: ActionState, formData: FormData):
     const { data: matches, error: matchesError } = await database.from("matches").select("red_teams,blue_teams").eq("event_id", event.id);
     if (matchesError) return { error: "Couldn’t check this team’s matches." };
     if (matches?.some((match: any) => [...match.red_teams, ...match.blue_teams].includes(parsed.data.teamId))) return { error: "Edit or remove this team from its matches before removing it from the event." };
-    const { error } = await database.from("event_teams").delete().eq("event_id", event.id).eq("team_id", parsed.data.teamId);
+    const [{ data: reports, error: reportsError }, { data: photos, error: photosError }] = await Promise.all([
+      database.from("scouting_entries").select("id").eq("event_id", event.id).eq("team_id", parsed.data.teamId).limit(1),
+      database.from("pit_photos").select("id").eq("event_id", event.id).eq("team_id", parsed.data.teamId).limit(1),
+    ]);
+    if (reportsError || photosError) return { error: "Couldn’t check this team’s scouting data." };
+    if (reports?.length || photos?.length) return { error: "This team has scouting reports or photos and cannot be removed from the event." };
+    const { data: deleted, error } = await database.from("event_teams").delete().eq("event_id", event.id).eq("team_id", parsed.data.teamId).select("team_id").maybeSingle();
     if (error) return { error: "Couldn’t remove that team." };
+    if (!deleted) return { error: "That team is no longer in this event. Refresh and try again." };
     revalidatePath(`/events/${event.event_key}/matches`); revalidatePath(`/events/${event.event_key}/teams`);
     revalidateEventTeamNavigation(event.id);
     return { success: "Team removed from this event." };
@@ -255,12 +267,32 @@ export async function saveManualMatch(_: ActionState, formData: FormData): Promi
     const red = parseAllianceTeams(parsed.data.redTeams), blue = parseAllianceTeams(parsed.data.blueTeams);
     if (!red.length || !blue.length || red.length > 3 || blue.length > 3 || [...red, ...blue].some((number) => !Number.isInteger(number) || number <= 0) || red.some((number) => blue.includes(number))) return { error: "Enter one to three distinct positive team numbers for each alliance." };
     const { database, organizationId, event } = await manualEventContext(parsed.data.eventId);
+    let existingMatch: { id: string; red_teams: string[]; blue_teams: string[] } | null = null;
+    if (parsed.data.matchId) {
+      const { data, error } = await database.from("matches").select("id,red_teams,blue_teams").eq("id", parsed.data.matchId).eq("event_id", event.id).maybeSingle();
+      if (error || !data) return { error: "That match is no longer available. Refresh and try again." };
+      existingMatch = data;
+    }
     const teams = await ensureManualEventTeams(database, organizationId, event.id, [...red, ...blue]);
-    const match = { event_id: event.id, match_number: parsed.data.matchNumber, match_type: parsed.data.matchType, red_teams: red.map((number) => teams.get(number)!), blue_teams: blue.map((number) => teams.get(number)!), scheduled_at: parsed.data.scheduledAtIso ?? null, status: "scheduled" };
-    const { error } = parsed.data.matchId
-      ? await database.from("matches").update(match).eq("id", parsed.data.matchId).eq("event_id", event.id)
-      : await database.from("matches").insert({ ...match, tba_match_key: `manual_${randomUUID()}` });
+    const redTeamIds = red.map((number) => teams.get(number)!) as string[], blueTeamIds = blue.map((number) => teams.get(number)!) as string[];
+    if (existingMatch && matchTeamsChanged(existingMatch, redTeamIds, blueTeamIds)) {
+      const [{ data: reports, error: reportsError }, { data: submissions, error: submissionsError }, { data: completed, error: completedError }] = await Promise.all([
+        database.from("scouting_entries").select("id").eq("match_id", existingMatch.id).eq("status", "submitted").limit(1),
+        database.from("match_submissions").select("id").eq("match_id", existingMatch.id).limit(1),
+        database.from("scouting_assignments").select("id").eq("match_id", existingMatch.id).eq("status", "complete").limit(1),
+      ]);
+      if (reportsError || submissionsError || completedError) return { error: "Couldn’t verify whether this match has submitted reports." };
+      if (reports?.length || submissions?.length || completed?.length) return { error: "This manual match has submitted reports, so its teams cannot be changed." };
+      const { error } = await database.from("scouting_assignments").delete().eq("match_id", existingMatch.id).neq("status", "complete");
+      if (error) return importDatabaseError("pending manual assignments", error);
+    }
+    // Editing the schedule must not reopen a completed match or clear its scores.
+    const match = { event_id: event.id, match_number: parsed.data.matchNumber, match_type: parsed.data.matchType, red_teams: redTeamIds, blue_teams: blueTeamIds, scheduled_at: parsed.data.scheduledAtIso ?? null };
+    const { data: saved, error } = parsed.data.matchId
+      ? await database.from("matches").update(match).eq("id", parsed.data.matchId).eq("event_id", event.id).select("id").maybeSingle()
+      : await database.from("matches").insert({ ...match, status: "scheduled", tba_match_key: `manual_${randomUUID()}` }).select("id").single();
     if (error) return { error: "Couldn’t save that match. Match numbers must be unique within each round type." };
+    if (!saved) return { error: "That match is no longer available. Refresh and try again." };
     revalidatePath(`/events/${event.event_key}/matches`); revalidatePath("/scout/match");
     revalidateEventTeamNavigation(event.id);
     return { success: parsed.data.matchId ? "Match updated." : "Match added." };
@@ -272,11 +304,17 @@ export async function deleteManualMatch(_: ActionState, formData: FormData): Pro
     const parsed = z.object({ eventId: z.string().uuid(), matchId: z.string().uuid() }).safeParse({ eventId: formData.get("eventId"), matchId: formData.get("matchId") });
     if (!parsed.success) return { error: "This match could not be identified." };
     const { database, event } = await manualEventContext(parsed.data.eventId);
-    const { data: submissions, error: submissionsError } = await database.from("match_submissions").select("id").eq("match_id", parsed.data.matchId).limit(1);
-    if (submissionsError) return { error: "Couldn’t check whether this match has submissions." };
-    if (submissions?.length) return { error: "This match has submissions, so it cannot be deleted." };
-    const { error } = await database.from("matches").delete().eq("id", parsed.data.matchId).eq("event_id", event.id);
+    const { data: match, error: matchError } = await database.from("matches").select("id").eq("id", parsed.data.matchId).eq("event_id", event.id).maybeSingle();
+    if (matchError || !match) return { error: "That match is no longer available. Refresh and try again." };
+    const [{ data: submissions, error: submissionsError }, { data: reports, error: reportsError }] = await Promise.all([
+      database.from("match_submissions").select("id").eq("match_id", match.id).limit(1),
+      database.from("scouting_entries").select("id").eq("match_id", match.id).eq("status", "submitted").limit(1),
+    ]);
+    if (submissionsError || reportsError) return { error: "Couldn’t check whether this match has submissions." };
+    if (submissions?.length || reports?.length) return { error: "This match has submissions, so it cannot be deleted." };
+    const { data: deleted, error } = await database.from("matches").delete().eq("id", match.id).eq("event_id", event.id).select("id").maybeSingle();
     if (error) return { error: "Couldn’t delete that match." };
+    if (!deleted) return { error: "That match is no longer available. Refresh and try again." };
     revalidatePath(`/events/${event.event_key}/matches`); revalidatePath("/scout/match");
     return { success: "Match deleted." };
   } catch { return { error: "Manual-event admin access is required." }; }
@@ -287,9 +325,15 @@ export async function deleteEvent(_: ActionState, formData: FormData): Promise<A
     const input = z.object({ eventId: z.string().uuid(), eventName: z.string().trim().min(1).max(160) }).safeParse({ eventId: formData.get("eventId"), eventName: formData.get("eventName") });
     if (!input.success) return { error: "This event could not be identified." };
     const { supabase, organizationId } = await adminContext();
-    const { data: submissions, error: submissionsError } = await supabase.from("match_submissions").select("id").eq("event_id", input.data.eventId).limit(1);
-    if (submissionsError) return { error: "Couldn’t check whether the event has submissions." };
-    if (submissions?.length) return { error: "This event has scouting submissions, so it is protected from deletion." };
+    const { data: event, error: eventError } = await supabase.from("events").select("id").eq("id", input.data.eventId).eq("organization_id", organizationId).maybeSingle();
+    if (eventError || !event) return { error: "This event is unavailable." };
+    const [{ data: submissions, error: submissionsError }, { data: reports, error: reportsError }, { data: photos, error: photosError }] = await Promise.all([
+      supabase.from("match_submissions").select("id").eq("event_id", event.id).limit(1),
+      supabase.from("scouting_entries").select("id").eq("event_id", event.id).limit(1),
+      supabase.from("pit_photos").select("id").eq("event_id", event.id).limit(1),
+    ]);
+    if (submissionsError || reportsError || photosError) return { error: "Couldn’t check whether the event has scouting data." };
+    if (submissions?.length || reports?.length || photos?.length) return { error: "This event has scouting submissions or photos, so it is protected from deletion." };
     const { data: deleted, error } = await supabase.from("events").delete().eq("id", input.data.eventId).eq("organization_id", organizationId).select("id").maybeSingle();
     if (error || !deleted) return { error: "Couldn’t delete the event. It may have changed or you may not have access." };
     revalidatePath("/events");

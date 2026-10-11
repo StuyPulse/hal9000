@@ -1,5 +1,6 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+import { authRedirect } from "@/lib/auth/redirect-response";
 
 export async function updateSession(request: NextRequest) {
   let response = NextResponse.next({ request });
@@ -21,10 +22,10 @@ export async function updateSession(request: NextRequest) {
   const { data } = await supabase.auth.getClaims();
   const claims = data?.claims;
   if (!claims && !isPublicPath) {
-    const url = request.nextUrl.clone(); url.pathname = "/auth/login"; return NextResponse.redirect(url);
+    return authRedirect(request, "/auth/login", response);
   }
   if (claims && path === "/auth/login") {
-    const url = request.nextUrl.clone(); url.pathname = "/scout/match"; return NextResponse.redirect(url);
+    return authRedirect(request, "/scout/match", response);
   }
   return response;
 }

@@ -56,7 +56,7 @@ export function tbaMatchRows(matches: z.infer<typeof tbaLiveMatchSchema>[], even
     event_id: eventId, tba_match_key: match.key, match_number: match.match_number, match_type: tbaMatchType(match.comp_level),
     red_teams: match.alliances.red.team_keys.map(teamId), blue_teams: match.alliances.blue.team_keys.map(teamId),
     scheduled_at: timestamp(match.predicted_time ?? match.time), actual_at: timestamp(match.actual_time),
-    status: match.actual_time || match.post_result_time ? "played" : "scheduled",
+    status: match.actual_time || match.post_result_time || (match.alliances.red.score >= 0 && match.alliances.blue.score >= 0) ? "played" : "scheduled",
     red_score: match.alliances.red.score >= 0 ? match.alliances.red.score : null,
     blue_score: match.alliances.blue.score >= 0 ? match.alliances.blue.score : null,
     tba_score_breakdown: match.score_breakdown ?? {},

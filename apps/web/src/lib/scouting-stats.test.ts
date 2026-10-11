@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { averageReportsByMatch, calculateScoutStats, selectedMatchReportEntries } from "./scouting-stats";
+import { averageReportsByMatch, calculateScoutStats, isCompetitiveMatchEntry, selectedMatchReportEntries } from "./scouting-stats";
 
 const report = (id: string, matchId: string, autoScored: number, fouls: number, broken = false) => ({
   id,
@@ -11,6 +11,27 @@ const report = (id: string, matchId: string, autoScored: number, fouls: number, 
     fouls,
     robot_broke: broken,
   },
+});
+
+test("scored fuel excludes ferrying and preserves explicit zeros over legacy values", () => {
+  const stats = calculateScoutStats([{ payload: { auto: { shoot: 10, ferry: 30 }, teleop: { shoot: 20, ferry: 40 } } }]);
+  assert.equal(stats.totalFuel, 30);
+  assert.equal(stats.autoAvgFerried, 30);
+  assert.equal(stats.teleopAvgFerried, 40);
+  const zero = calculateScoutStats([{ payload: { auto: { shoot: 0 }, teleop: { shoot: 0 }, auto_fuel: 99, teleop_fuel: 99 } }]);
+  assert.equal(zero.totalFuel, 0);
+  const legacy = calculateScoutStats([{ payload: { auto_fuel: 8, teleop_fuel: 12 } }]);
+  assert.equal(legacy.autoAvgScored, 8);
+  assert.equal(legacy.totalFuel, 20);
+});
+
+test("scheduled and manual competitive reports count but practice reports do not", () => {
+  for (const stage of ["qualification", "playoff"]) {
+    assert.equal(isCompetitiveMatchEntry({ matches: { match_type: stage } }), true);
+    assert.equal(isCompetitiveMatchEntry({ payload: { manual_match: { stage, label: "3" } } }), true);
+  }
+  assert.equal(isCompetitiveMatchEntry({ matches: { match_type: "practice" } }), false);
+  assert.equal(isCompetitiveMatchEntry({ payload: { manual_match: { stage: "practice", label: "3" } } }), false);
 });
 
 test("averages reports within a match before averaging a team's matches", () => {

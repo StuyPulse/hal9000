@@ -64,6 +64,15 @@ test("an exact manual round and alliance lineup keeps its original match UUID", 
   assert.equal(manualMatchToAdopt({ ...official, blue_teams: official.red_teams, red_teams: official.blue_teams }, [manual], [official]), undefined);
 });
 
+test("published zero scores mark a match played even without TBA timestamps", () => {
+  const scored = { ...payload, alliances: { red: { ...payload.alliances.red, score: 0 }, blue: { ...payload.alliances.blue, score: 0 } } };
+  const teamIds = new Map([334, 1155, 9998, 1807, 3017, 263].map((number) => [number, `id-${number}`]));
+  const [row] = tbaMatchRows([tbaLiveMatchSchema.parse(scored)], "event", teamIds, tbaTeamNumberResolver(remaps));
+  assert.equal(row.status, "played");
+  assert.equal(row.red_score, 0);
+  assert.equal(row.blue_score, 0);
+});
+
 test("ambiguous rounds and existing official matches never replace manual records", () => {
   assert.equal(manualMatchToAdopt(official, [manual, { ...manual, id: "another-id" }], [official]), undefined);
   assert.equal(manualMatchToAdopt(official, [manual], [official, { ...official, tba_match_key: "another-official-key" }]), undefined);

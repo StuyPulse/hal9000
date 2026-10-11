@@ -42,7 +42,7 @@ const matchOf = (entry: ScoutEntry | null | undefined) => Array.isArray(entry?.m
 export type MatchReportSource = { team_id: string; match_key: string; selected_entry_id: string | null };
 
 const reportValues = (entry: ScoutEntry): MatchValues => {
-  const autoScored = number(entry.payload?.auto?.shoot);
+  const autoScored = number(entry.payload?.auto?.shoot ?? entry.payload?.auto_fuel);
   const autoFerried = number(entry.payload?.auto?.ferry);
   const teleopScored = number(entry.payload?.teleop?.shoot ?? entry.payload?.teleop_fuel);
   const teleopFerried = number(entry.payload?.teleop?.ferry);
@@ -51,8 +51,9 @@ const reportValues = (entry: ScoutEntry): MatchValues => {
     autoFerried,
     teleopScored,
     teleopFerried,
-    autoFuel: autoScored + autoFerried || number(entry.payload?.auto_fuel),
-    teleopFuel: teleopScored + teleopFerried || number(entry.payload?.teleop_fuel),
+    // Scored fuel and ferried fuel are separate metrics, just like the timeline.
+    autoFuel: autoScored,
+    teleopFuel: teleopScored,
     fouls: number(entry.payload?.fouls),
     defense: number(entry.payload?.defense_level),
     broken: entry.payload?.robot_broke ? 1 : 0,

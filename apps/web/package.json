@@ -15,11 +15,11 @@
     "@vercel/analytics": "^2.0.1",
     "@wildcard/shared": "*",
     "lucide-react": "1.34.0",
-    "next": "16.3.3",
+    "next": "16.3.8",
     "react": "19.2.8",
     "react-dom": "19.2.8",
     "recharts": "^3.10.1",
-    "sharp": "0.35.4",
+    "sharp": "0.35.5",
     "zod": "4.4.3"
   },
   "devDependencies": {
@@ -28,7 +28,7 @@
     "@types/react-dom": "19.2.5",
     "autoprefixer": "^10.5.4",
     "eslint": "9.39.5",
-    "eslint-config-next": "16.3.3",
+    "eslint-config-next": "16.3.8",
     "postcss": "^8.5.23",
     "tailwindcss": "^3.4.19",
     "typescript": "6.0.3"
