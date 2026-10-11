@@ -4,7 +4,7 @@ import { teamNumberLabel } from "@/lib/tba-team-identity";
 
 import Link from "next/link";
 import { type FormEvent, useActionState, useMemo, useState } from "react";
-import { addEventTeam, completeManualMatch, createLocalMatch, deleteLocalMatch, deleteManualMatch, removeManualEventTeam, saveManualMatch, updateLocalMatch } from "@/lib/admin/events-matches";
+import { addEventTeam, completeManualMatch, createLocalMatch, deleteLocalMatch, deleteManualMatch, removeManualEventTeam, saveManualMatch, saveManualMatchResult, updateLocalMatch } from "@/lib/admin/events-matches";
 import { type ActionState } from "@/lib/admin/shared";
 import { formatLocalDateTime } from "@/components/local-date-time";
 import { SearchableTeamSelect } from "@/components/searchable-team-select";
@@ -49,8 +49,21 @@ function LocalMatchSetup({ eventId, teams, matches, editing, onEditingChange }: 
 
 function CompleteManualMatchButton({ eventId, match }: { eventId: string; match: Match }) {
   const [state, action, pending] = useActionState(completeManualMatch, initialActionState);
-  if (match.status === "played") return null;
-  return <form action={action} className="practice-complete"><input type="hidden" name="eventId" value={eventId}/><input type="hidden" name="matchId" value={match.id}/><button className="button secondary" disabled={pending}>{pending ? "Completing…" : "Mark complete"}</button><Message state={state}/></form>;
+  const [scoreState, scoreAction, savingScores] = useActionState(saveManualMatchResult, initialActionState);
+  const busy = pending || savingScores;
+  return <div className="manual-match-results">
+    {match.status !== "played" && <form action={action} className="practice-complete"><input type="hidden" name="eventId" value={eventId}/><input type="hidden" name="matchId" value={match.id}/><button className="button secondary" disabled={busy}>{pending ? "Completing…" : "Mark complete"}</button><Message state={state}/></form>}
+    <details className="manual-score-editor"><summary>{match.redScore !== null && match.blueScore !== null ? "Edit score" : "Enter score"}</summary>
+      <form key={`${match.id}:${match.redScore}:${match.blueScore}`} action={scoreAction} className="manual-score-form" aria-label={`Scores for ${label(match)}`}>
+        <input type="hidden" name="eventId" value={eventId}/><input type="hidden" name="matchId" value={match.id}/>
+        <label className="field"><span>Red score</span><input name="redScore" type="number" min={0} max={2147483647} step={1} inputMode="numeric" defaultValue={match.redScore ?? ""} required disabled={busy}/></label>
+        <label className="field"><span>Blue score</span><input name="blueScore" type="number" min={0} max={2147483647} step={1} inputMode="numeric" defaultValue={match.blueScore ?? ""} required disabled={busy}/></label>
+        <button className="button secondary" disabled={busy}>{savingScores ? "Saving…" : "Save score & complete"}</button>
+      </form>
+      {scoreState.error && <p className="error" role="alert">{scoreState.error}</p>}
+      {scoreState.success && <p className="trend" role="status">{scoreState.success}</p>}
+    </details>
+  </div>;
 }
 
 function LocalMatchRowActions({ eventId, match, onEdit }: { eventId: string; match: Match; onEdit: () => void }) {
@@ -110,7 +123,7 @@ export function MatchesBoard({ matches, teams, eventId, isManual, canManage }: {
         <SearchableTeamSelect id="schedule-team-filter" value={teamId} onValueChange={setTeamId} teams={teams.map((team) => ({ ...team, name: team.name }))} emptyLabel="All teams" placeholder="Search team…"/>
         <AppSelect ariaLabel="Filter by status" value={status} onValueChange={setStatus} options={[{ value: "all", label: "All statuses" }, { value: "scheduled", label: "Upcoming" }, { value: "played", label: "Finished" }]}/>
       </div>
-      {shown.map((match) => <div className="match-row" key={match.id}><span className="match-time">{match.scheduledAt ? formatLocalDateTime(match.scheduledAt, "time") : "—"}</span><span className="match-num">{label(match)}</span><div className="alliances"><div className="red">{match.red.map((id) => number.get(id) ?? "—").join(" · ")}</div><div className="blue">{match.blue.map((id) => number.get(id) ?? "—").join(" · ")}</div></div>{match.redScore !== null && match.blueScore !== null ? <span className="match-score" aria-label={`Final score: red ${match.redScore}, blue ${match.blueScore}`}><span className="red">{match.redScore}</span><span>–</span><span className="blue">{match.blueScore}</span></span> : <span className={`tag ${match.status === "played" ? "complete" : "pending"}`}>{match.status}</span>}<div className="row-actions">{canManage && !isManual && match.key.startsWith("manual_") && <LocalMatchRowActions eventId={eventId} match={match} onEdit={() => setLocalEditing(match)}/>}<Link className="button secondary" href={`/submissions?match=${match.id}`}>Reports</Link><Link className="button secondary" href={`/scout/match?match=${match.id}`}>Scout</Link></div></div>)}
+      {shown.map((match) => <div className="match-row" key={match.id}><span className="match-time">{match.scheduledAt ? formatLocalDateTime(match.scheduledAt, "time") : "—"}</span><span className="match-num">{label(match)}</span><div className="alliances"><div className="red">{match.red.map((id) => number.get(id) ?? "—").join(" · ")}</div><div className="blue">{match.blue.map((id) => number.get(id) ?? "—").join(" · ")}</div></div>{match.redScore !== null && match.blueScore !== null ? <span className="match-score" aria-label={`Final score: red ${match.redScore}, blue ${match.blueScore}`}><span className="red">{match.redScore}</span><span>–</span><span className="blue">{match.blueScore}</span></span> : <span className={`tag ${match.status === "played" ? "complete" : "pending"}`}>{match.status}</span>}<div className="row-actions">{canManage && isManual && <CompleteManualMatchButton eventId={eventId} match={match}/>} {canManage && !isManual && match.key.startsWith("manual_") && <LocalMatchRowActions eventId={eventId} match={match} onEdit={() => setLocalEditing(match)}/>}<Link className="button secondary" href={`/submissions?match=${match.id}`}>Reports</Link><Link className="button secondary" href={`/scout/match?match=${match.id}`}>Scout</Link></div></div>)}
       {!shown.length && <p className="muted">No matches match these filters.</p>}
     </section>
   </>;

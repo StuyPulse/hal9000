@@ -5,13 +5,15 @@ import { LiveEventSync } from "./live-event-sync";
 import { BackButton } from "./back-button";
 import { GlobalSearch } from "./global-search";
 import { getNavigationSearchData } from "@/lib/navigation-data";
+import { canManageEmailAccess } from "@/lib/auth/email-access";
 
 export async function AppShell({ children, active = "Dashboard" }: { children: React.ReactNode; active?: string }) {
   const viewer = await getViewerContext();
   const activeEvent = viewer?.activeEvent;
   const canManage = viewerCanManage(viewer);
+  const emailAccess = viewer ? await canManageEmailAccess() : false;
   const eventHref = activeEvent ? `/events/${activeEvent.event_key}` : "/events";
-  return <div className="shell"><LiveEventSync active={Boolean(activeEvent)}/><Sidebar active={active} canManage={canManage} eventHref={eventHref}/><main className="main">{children}</main></div>;
+  return <div className="shell"><LiveEventSync active={Boolean(activeEvent)}/><Sidebar active={active} canManage={canManage} canManageEmailAccess={emailAccess} eventHref={eventHref}/><main className="main">{children}</main></div>;
 }
 
 export async function PageHeader({ eyebrow, title, children }: { eyebrow?: string; title: string; children?: React.ReactNode }) {

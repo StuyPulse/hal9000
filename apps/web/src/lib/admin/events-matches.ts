@@ -7,6 +7,7 @@ import { revalidatePath } from "next/cache";
 import { randomUUID } from "crypto";
 import { revalidateEventTeamNavigation, revalidateOrganizationNavigation } from "@/lib/navigation-data";
 import { adminContext, importDatabaseError, type ActionState } from "@/lib/admin/shared";
+import { manualMatchResultSchema } from "@/lib/manual-match-result";
 
 const localMatchSchema = z.object({ eventId: z.string().uuid(), matchId: z.union([z.literal(""), z.string().uuid()]), matchNumber: z.coerce.number().int().positive(), matchType: z.enum(["qualification", "playoff", "practice"]), redTeams: z.string(), blueTeams: z.string() });
 const parseAlliance = (value: string, remaps: TbaTeamRemaps = {}) => [...new Set(value.split(/[\s,]+/).filter(Boolean).map((input) => eventTeamNumberFromInput(input, remaps)))];
@@ -51,6 +52,8 @@ function revalidateManualMatchCompletion(event: { id: string; event_key: string 
   revalidateLocalMatch(event);
   revalidatePath(`/events/${event.event_key}/strategy`);
   revalidatePath(`/events/${event.event_key}/summary`);
+  revalidatePath(`/events/${event.event_key}/teams`, "layout");
+  revalidatePath("/dashboard");
 }
 
 export async function createLocalMatch(_: ActionState, formData: FormData): Promise<ActionState> {
@@ -135,6 +138,24 @@ export async function completeManualMatch(_: ActionState, formData: FormData): P
     revalidateManualMatchCompletion(event);
     return { success: "Manual match marked complete." };
   } catch { return { error: "Admin access is required to complete a manual match." }; }
+}
+
+export async function saveManualMatchResult(_: ActionState, formData: FormData): Promise<ActionState> {
+  try {
+    const { organizationId } = await adminContext();
+    const input = manualMatchResultSchema.safeParse({ eventId: formData.get("eventId"), matchId: formData.get("matchId"), redScore: formData.get("redScore"), blueScore: formData.get("blueScore") });
+    if (!input.success) return { error: "Enter a whole, nonnegative score for both alliances." };
+    const database = createAdminClient();
+    const { data: event } = await database.from("events").select("id,event_key,is_manual").eq("id", input.data.eventId).eq("organization_id", organizationId).maybeSingle();
+    if (!event) return { error: "This event is unavailable." };
+    const { data: match } = await database.from("matches").select("id,tba_match_key").eq("id", input.data.matchId).eq("event_id", event.id).maybeSingle();
+    if (!match || (!event.is_manual && !String(match.tba_match_key).startsWith("manual_"))) return { error: "Only manual match scores can be edited. Official scores come from TBA." };
+    const { data: updated, error } = await database.from("matches").update({ status: "played", red_score: input.data.redScore, blue_score: input.data.blueScore }).eq("id", match.id).eq("event_id", event.id).eq("tba_match_key", match.tba_match_key).select("id").maybeSingle();
+    if (error) return importDatabaseError("manual match scores", error);
+    if (!updated) return { error: "That match is no longer available. Refresh and try again." };
+    revalidateManualMatchCompletion(event);
+    return { success: "Scores saved and manual match marked complete." };
+  } catch { return { error: "Admin access is required to save manual match scores." }; }
 }
 
 const manualEventSchema = z.object({ name: z.string().trim().min(3).max(160), startsAt: z.string().date(), endsAt: z.string().date().optional() }).refine((input) => !input.endsAt || input.endsAt >= input.startsAt, { message: "The end date must not be before the event date." });

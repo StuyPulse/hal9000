@@ -7,7 +7,7 @@ import { useEffect, useRef, useState } from "react";
 import { BrandLogo } from "./brand-logo";
 import { SignOutButton } from "./sign-out-button";
 
-type Props = { active: string; canManage: boolean; eventHref: string };
+type Props = { active: string; canManage: boolean; canManageEmailAccess: boolean; eventHref: string };
 type NavItem = [string, string, LucideIcon];
 type NavSection = [string, NavItem[]];
 
@@ -18,7 +18,7 @@ function NavLink({ item, active, compact = false, onNavigate }: { item: NavItem;
   return <Link title={compact ? name : undefined} aria-label={name} className={`nav-item ${current ? "active" : ""}`} href={href} onClick={onNavigate}><Icon size={17}/><span>{name}</span></Link>;
 }
 
-export function Sidebar({ active, canManage, eventHref }: Props) {
+export function Sidebar({ active, canManage, canManageEmailAccess, eventHref }: Props) {
   const [collapsed, setCollapsed] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
   const desktopNavRef = useRef<HTMLElement>(null);
@@ -39,12 +39,14 @@ export function Sidebar({ active, canManage, eventHref }: Props) {
   const scoutRecords: NavItem[] = [["Submissions", "/submissions", BarChart3]];
   const strategy: NavItem[] = [["Match strategy", `${eventHref}/strategy`, Map], ["Picklist", `${eventHref}/picklist`, ListOrdered]];
   const admin: NavItem[] = [["Events", "/events", CalendarDays], ["Assignments", "/admin/assignments", Radio], ["Users & roles", "/admin/users", ShieldCheck], ["Form builder", "/admin/forms", Settings]];
+  const emailAccess: NavItem[] = canManageEmailAccess ? [["Email access", "/admin/email-access", ShieldCheck]] : [];
+  const visibleAdmin = [...(canManage ? admin : []), ...emailAccess];
   const navigation: NavSection[] = [["Workspace", workspace], ["Scouting forms", scoutingForms], ["Scout records", scoutRecords], ["Strategy", strategy]];
-  if (canManage) navigation.push(["Admin", admin]);
+  if (visibleAdmin.length) navigation.push(["Admin", visibleAdmin]);
   // Keep the bottom bar to five comfortably tappable destinations. The rest are
   // available in More instead of making every item too small to use on a phone.
   const mobilePrimary = [workspace[0], workspace[3], scoutingForms[0]];
-  const mobileMore = [workspace[1], workspace[2], ...scoutingForms.slice(1), ...scoutRecords, ...strategy, ...(canManage ? admin : [])];
+  const mobileMore = [workspace[1], workspace[2], ...scoutingForms.slice(1), ...scoutRecords, ...strategy, ...visibleAdmin];
   return <aside className={`sidebar ${collapsed ? "collapsed" : ""}`}>
     <div className="sidebar-top"><Link href="/scout/match" className="brand"><BrandLogo/><span className="brand-copy">HAL9000<small>STUYPULSE · 694</small></span></Link><button className="sidebar-toggle" type="button" onClick={() => setCollapsed((current) => !current)} aria-label={collapsed ? "Expand navigation" : "Collapse navigation"}>{collapsed ? <ChevronRight size={17}/> : <ChevronLeft size={17}/>}</button></div>
     <nav ref={desktopNavRef} className="nav-links desktop-nav" aria-label="Primary navigation">{navigation.map(([label, items]) => <div className="nav-section" key={label}><div className="nav-label">{label}</div>{items.map((item) => <NavLink item={item} active={active} compact={collapsed} onNavigate={rememberDesktopScroll} key={item[0]}/>)}</div>)}</nav>

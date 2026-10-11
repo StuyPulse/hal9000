@@ -8,9 +8,10 @@ import { useRouter } from "next/navigation";
 import { MatchReportSummary } from "@/components/scouting-payload";
 import { AppSelect } from "@/components/app-select";
 import { createClient } from "@/lib/supabase/client";
+import { timelineFerryValues } from "@/lib/timeline-ferry";
 
-type MetricKey = "totalFuel" | "autoFuel" | "teleopFuel" | "fouls" | "defense" | "broken";
-const metricOptions: { key: MetricKey; label: string; color: string }[] = [{ key: "totalFuel", label: "Avg fuel", color: "#f24444" }, { key: "autoFuel", label: "Auto fuel", color: "#f2bf44" }, { key: "teleopFuel", label: "Teleop fuel", color: "#60a5fa" }, { key: "fouls", label: "Fouls", color: "#c084fc" }, { key: "defense", label: "Defense", color: "#34d399" }, { key: "broken", label: "Broken", color: "#fb7185" }];
+type MetricKey = "totalFuel" | "autoFuel" | "teleopFuel" | "ferried" | "autoFerried" | "teleopFerried" | "fouls" | "defense" | "broken";
+const metricOptions: { key: MetricKey; label: string; color: string }[] = [{ key: "totalFuel", label: "Avg fuel", color: "#f24444" }, { key: "autoFuel", label: "Auto fuel", color: "#f2bf44" }, { key: "teleopFuel", label: "Teleop fuel", color: "#60a5fa" }, { key: "ferried", label: "Avg ferried", color: "#22d3ee" }, { key: "autoFerried", label: "Auto ferried", color: "#fb923c" }, { key: "teleopFerried", label: "Teleop ferried", color: "#a3e635" }, { key: "fouls", label: "Fouls", color: "#c084fc" }, { key: "defense", label: "Defense", color: "#34d399" }, { key: "broken", label: "Broken", color: "#fb7185" }];
 export type TimelineMatch = { id: string; sourceKey: string; selectedReportId: string | null; label: string; axisLabel: string; matchType: "qualification" | "playoff" | "practice" | "other"; roundOrder: number; alliance: "red" | "blue"; outcome: "win" | "loss" | "tie" | "pending"; score: string; tbaUrl?: string; reports: { id: string; payload: Record<string, unknown>; scout: string }[]; hasScout: boolean; totalFuel: number | null; autoFuel: number | null; teleopFuel: number | null; scored: number | null; ferried: number | null; fouls: number | null; defense: number | null; broken: number | null };
 const label = (outcome: TimelineMatch["outcome"]) => outcome === "win" ? "Won" : outcome === "loss" ? "Lost" : outcome === "tie" ? "Tied" : "Pending";
 const value = (number: number | null) => number === null ? "—" : number.toFixed(2);
@@ -53,9 +54,13 @@ export function TeamMatchTimeline({ matches, teamNames, organizationId, eventId,
   const hasData = visibleMatches.some((match) => match.hasScout);
   const selectedValues = (match: TimelineMatch) => {
     const selectedReport = match.reports.find((report) => report.id === reportSourceByMatch[match.id]);
-    return selectedReport ? reportBreakdown(selectedReport.payload) : { totalFuel: match.totalFuel, autoFuel: match.autoFuel, teleopFuel: match.teleopFuel, scored: match.scored, ferried: match.ferried, fouls: match.fouls, defense: match.defense, broken: match.broken };
+    const ferryValues = timelineFerryValues((selectedReport ? [selectedReport] : match.reports).map((report) => report.payload));
+    return { ...(selectedReport ? reportBreakdown(selectedReport.payload) : { totalFuel: match.totalFuel, autoFuel: match.autoFuel, teleopFuel: match.teleopFuel, scored: match.scored, ferried: match.ferried, fouls: match.fouls, defense: match.defense, broken: match.broken }), ...ferryValues };
   };
-  const chartData = visibleMatches.map((match) => ({ ...match, ...selectedValues(match), match: match.axisLabel, ...Object.fromEntries(metricOptions.map(({ key }) => [key, selectedValues(match)[key] ?? undefined])) }));
+  const chartData = visibleMatches.map((match) => {
+    const values = selectedValues(match);
+    return { ...match, ...values, match: match.axisLabel, ...Object.fromEntries(metricOptions.map(({ key }) => [key, values[key] ?? undefined])) };
+  });
   const toggleMetric = (key: MetricKey) => setMetrics((current) => current.includes(key) ? current.length === 1 ? current : current.filter((item) => item !== key) : [...current, key].slice(-4));
   async function selectReportSource(match: TimelineMatch, reportId: string) {
     const previousReportId = reportSourceByMatch[match.id] ?? "combined";

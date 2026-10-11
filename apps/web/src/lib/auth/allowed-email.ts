@@ -1,6 +1,5 @@
-const EXTERNAL_ALLOWED_EMAILS = new Set(["seb@sebastianw.tech", "dommasiello27@gmail.com"]);
-
-export function isAuthorizedEmail(value: string) {
+export async function isAuthorizedEmail(value: string, lookup: (email: string) => Promise<boolean>) {
   const email = value.trim().toLowerCase();
-  return email.endsWith("@stuypulse.com") || EXTERNAL_ALLOWED_EMAILS.has(email);
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return false;
+  return email.endsWith("@stuypulse.com") || lookup(email);
 }

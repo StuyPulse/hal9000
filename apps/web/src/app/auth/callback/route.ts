@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import type { NextRequest } from "next/server";
-import { isAuthorizedEmail } from "@/lib/auth/allowed-email";
+import { isAuthorizedEmail } from "@/lib/auth/authorized-email-server";
 export async function GET(request: NextRequest) {
   const code = request.nextUrl.searchParams.get("code"); const url = request.nextUrl.clone();
   const next = request.nextUrl.searchParams.get("next");
@@ -21,7 +21,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(loginUrl);
   }
   const { data: { user } } = await supabase.auth.getUser();
-  if (!user?.email || !isAuthorizedEmail(user.email)) {
+  if (!user?.email || !await isAuthorizedEmail(user.email)) {
     await supabase.auth.signOut();
     const loginUrl = request.nextUrl.clone();
     loginUrl.pathname = "/auth/login";
