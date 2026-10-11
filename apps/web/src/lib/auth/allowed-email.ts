@@ -1,4 +1,4 @@
-const EXTERNAL_ALLOWED_EMAILS = new Set(["seb@sebastianw.tech"]);
+const EXTERNAL_ALLOWED_EMAILS = new Set(["seb@sebastianw.tech", "dommasiello27@gmail.com"]);
 
 export function isAuthorizedEmail(value: string) {
   const email = value.trim().toLowerCase();
