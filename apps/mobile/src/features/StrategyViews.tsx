@@ -5,6 +5,7 @@ import { SvgXml } from 'react-native-svg';
 import type { Category, EventBundle, Match, NativeEntry, Palette, PicklistRanking, Team } from '../core/types';
 import type { BundleExtras, ScoredMatch } from './common';
 import { StrategyCanvas } from './StrategyCanvas';
+import { DragRow } from './DragRow';
 import { drawingQueue } from '../core/strategy-sync';
 import { eventEntries } from '../core/report-overlay';
 import { getValue, putValue, removeValue } from '../core/storage';
@@ -13,7 +14,7 @@ import { parseStrokes, type DrawStroke } from './strategyDrawing';
 import { Button, Card, Choice, Input, Row, Section } from '../components/ui';
 import { Badge, Notice, Screen, TeamPicker, useFeatureApp } from './common';
 import { PIT_TEXT_FIELDS, PRE_SCOUT_TEXT_FIELDS } from './manualFields';
-import { META_COLORS, UNSORTED, canEditPicklistRole, describeChange, groupRevisions, isHexColor, planMove, planMoveToTier, planRemoveTier, planRestore, teamsInTier, validateMetaName, type FullRanking, type RankPatch } from './picklist';
+import { META_COLORS, UNSORTED, canEditPicklistRole, describeChange, groupRevisions, databaseCategory, isHexColor, planInsert, planMove, planMoveToTier, planRemoveTier, planRestore, teamsInTier, validateMetaName, type FullRanking, type RankPatch } from './picklist';
 import {
   EMPTY_STATS, breakageIssues, compareMatches, formatStat, heatColor, manualMatchLabel, matchLabel, matchOutcome, matchReportKey,
   officialClimb, officialFeedStatus, officialFuelAverages, officialForTeam, officialMetrics, latestPreScout as selectLatestPreScout, STRATEGY_DEFAULT_SORT, strategyMatchOrder, teamRecord, readableSpot, record as asRecord, reportValues, selectedMatchReportEntries, statsForTeam, type ScoutStats, type StatsBasis,
@@ -347,6 +348,7 @@ function PicklistView({ analysis, theme }: { analysis: Analysis; theme: Palette 
   const [historyOpen, setHistoryOpen] = useState(false);
   const [historyLimit, setHistoryLimit] = useState(15);
   const [openRevision, setOpenRevision] = useState<string | null>(null);
+  const rowHeights = useRef(new Map<string, number>());
 
   const roleCanEdit = canEditPicklistRole(app.viewer?.role);
   const writer = app.savePicklistRanking;
@@ -378,6 +380,33 @@ function PicklistView({ analysis, theme }: { analysis: Analysis; theme: Palette 
     } finally {
       setBusy(null);
     }
+  }
+
+  /** Drag-to-reorder inside a tier: convert the finger's distance into a new position. */
+  function dropTeam(teamId: string, tierId: string, dy: number) {
+    const order = tierOrders[tierId] ?? [];
+    const index = order.findIndex((item) => item.teamId === teamId);
+    if (index < 0 || Math.abs(dy) < 12) return;
+    const heights = order.map((item) => (rowHeights.current.get(item.teamId) ?? 76) + 8);
+    let target = index;
+    let travelled = 0;
+    if (dy > 0) {
+      while (target < order.length - 1 && travelled + heights[target + 1] / 2 < dy) { travelled += heights[target + 1]; target += 1; }
+    } else {
+      while (target > 0 && travelled + heights[target - 1] / 2 < -dy) { travelled += heights[target - 1]; target -= 1; }
+    }
+    if (target === index) return;
+    const team = orderedTeams.find((item) => item.id === teamId);
+    const others = order.filter((item) => item.teamId !== teamId);
+    if (order.some((item) => item.rank === null)) {
+      // Unranked teams sort after ranked ones, so the first drag numbers the whole tier like the website does.
+      const ids = order.map((item) => item.teamId);
+      ids.splice(index, 1);
+      ids.splice(target, 0, teamId);
+      void write(ids.map((id, position) => ({ teamId: id, patch: { rank: (position + 1) * 1024, category_id: databaseCategory(tierId) } })), `${team?.displayNumber ?? 'Team'} moved.`);
+      return;
+    }
+    void write(toPatches(planInsert(teamId, others, target, tierId)), `${team?.displayNumber ?? 'Team'} moved.`);
   }
   const metaWriter = app.savePicklistMeta;
   const metaDeleter = app.deletePicklistMeta;
@@ -492,12 +521,14 @@ function PicklistView({ analysis, theme }: { analysis: Analysis; theme: Palette 
               const position = tierOrders[tier.id].findIndex((item) => item.teamId === team.id);
               const saving = busy === team.id;
               return (
-                <View key={team.id} style={{ backgroundColor: ranking?.selected ? theme.selection : theme.surface, borderRadius: 14, padding: 12, gap: 8, borderLeftWidth: 5, borderLeftColor: tier.color }}>
+                <DragRow key={team.id} enabled={canEdit && !open && !activeTags.length} color={theme.muted} onLayoutHeight={(height) => { rowHeights.current.set(team.id, height); }} onDrop={(dy) => dropTeam(team.id, tier.id, dy)} style={{ backgroundColor: ranking?.selected ? theme.selection : theme.surface, borderRadius: 14, padding: 12, gap: 8, borderLeftWidth: 5, borderLeftColor: tier.color }}>
+                  {(handle) => (<>
                   <Pressable accessibilityRole="button" accessibilityLabel={`Team ${team.displayNumber} ${team.name}, position ${overall}${ranking?.selected ? ', selected' : ''}. ${open ? 'Collapse' : 'Expand'} controls`} accessibilityState={{ expanded: open }} onPress={() => setExpanded(open ? null : team.id)} style={{ minHeight: 48, justifyContent: 'center', gap: 4 }}>
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
                       <Text style={{ color: theme.muted, width: 28 }}>{overall}</Text>
                       <Text style={{ color: theme.text, fontSize: 17, fontWeight: '700', flex: 1 }} numberOfLines={1}>{team.displayNumber} · {team.name}</Text>
                       {ranking?.selected ? <Badge theme={theme} tone="success" text="Selected" /> : null}
+                      {handle}
                     </View>
                     {value.matches ? <Text style={{ color: theme.muted, fontSize: 13 }}>{`Auto ${formatStat(value.autoAvgScored)} · Teleop ${formatStat(value.teleopAvgScored)} · ${value.brokenPercent.toFixed(0)}% broken`}</Text> : null}
                     {teamTags.length ? <Text style={{ color: theme.tint, fontSize: 13 }}>{teamTags.map((tag) => tag.name).join(' · ')}</Text> : null}
@@ -543,7 +574,8 @@ function PicklistView({ analysis, theme }: { analysis: Analysis; theme: Palette 
                       <Button theme={theme} secondary title="Open team profile" onPress={() => goTeam(router, team.id)} />
                     </View>
                   ) : null}
-                </View>
+                  </>)}
+                </DragRow>
               );
             }) : <Text style={{ color: theme.muted }}>{activeTags.length ? 'No teams match these tags.' : 'No teams in this tier.'}</Text>}
           </View>

@@ -1,9 +1,9 @@
 import React from 'react';
 import {Pressable,Text,View} from 'react-native';
 import {useRouter} from 'expo-router';
-import {useApp} from '../../src/core/context';
-import {Screen} from '../../src/components/Screen';
-import {Button,Label} from '../../src/components/ui';
+import {useApp} from '../src/core/context';
+import {Screen} from '../src/components/Screen';
+import {Button,Label} from '../src/components/ui';
 
 export default function Outbox(){
  const {records,photos,bundle,theme,sync,syncing,online,viewer}=useApp();const router=useRouter();

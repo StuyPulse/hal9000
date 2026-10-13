@@ -6,9 +6,9 @@ import {Screen} from '../../src/components/Screen';
 
 type Route=[label:string,path:string];
 const groups:{title:string;routes:Route[];roles?:string[]}[]=[
- {title:'Review',routes:[['Submissions','/submissions'],['Search','/search'],['Leaderboard','/leaderboard']]},
+ {title:'Review',routes:[['Submissions','/submissions'],['Outbox & sync','/outbox'],['Search','/search'],['Leaderboard','/leaderboard']]},
  {title:'Scouting',routes:[['Pit scouting','/pit'],['Pre scouting','/pre-scout'],['Photos & coverage','/photos'],['Global scouting document','/global']]},
- {title:'Strategy',routes:[['Scouting summary','/strategy/summary'],['Compare teams','/strategy/compare'],['Shared picklist','/strategy/picklist'],['Match strategy','/strategy/strategy'],['Team directory','/teams']]},
+ {title:'Strategy',routes:[['Compare teams','/strategy/compare'],['Shared picklist','/strategy/picklist'],['Match strategy','/strategy/strategy'],['Team directory','/teams']]},
  {title:'Master',routes:[['Scan scout QR','/scanner']],roles:['master','admin','developer']},
  {title:'Admin',routes:[['Event setup & members','/admin'],['Email access','/admin/email-access']],roles:['admin','developer']},
  {title:'Device',routes:[['Settings & event download','/settings']]},
