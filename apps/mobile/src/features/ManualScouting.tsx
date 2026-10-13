@@ -1,3 +1,4 @@
+import {friendlyError} from '../core/friendly-error';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Image, Text, View, type ImageSourcePropType } from 'react-native';
 import { useRouter } from 'expo-router';
@@ -96,7 +97,7 @@ export function ManualScoutingScreen({ kind, entryId, fieldArt }: { kind: Manual
       return id;
     } catch (error) {
       creating.current = recordIdRef.current ? creating.current : null;
-      setSaveError(error instanceof Error ? error.message : 'Could not save on this device.');
+      setSaveError(friendlyError(error, 'Could not save on this device.'));
       return null;
     }
   }, [app, kind]);

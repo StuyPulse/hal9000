@@ -1,4 +1,4 @@
-import React, { useContext, useMemo } from 'react';
+import React, { useContext, useMemo, useRef } from 'react';
 import { Text, View, type LayoutChangeEvent } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, { useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
@@ -10,15 +10,20 @@ import { ScrollRefContext } from './common';
  * The row follows the finger; `onDrop` receives the vertical distance in points so the
  * caller can convert it into a new position.
  */
-export function DragRow({ children, enabled = true, onDrop, onLayoutHeight, color, style }: {
+export function DragRow({ children, enabled = true, onDrop, onLayoutHeight, onLift, color, style }: {
   children: (handle: React.ReactNode) => React.ReactNode;
   enabled?: boolean;
   onDrop: (offsetY: number) => void;
   onLayoutHeight?: (height: number) => void;
+  onLift?: (lifted: boolean) => void;
   color: string;
   style?: object;
 }) {
   const scrollRef = useContext(ScrollRefContext);
+  const dropRef = useRef(onDrop);
+  const liftRef = useRef(onLift);
+  dropRef.current = onDrop;
+  liftRef.current = onLift;
   const offset = useSharedValue(0);
   const lifted = useSharedValue(0);
 
@@ -27,13 +32,13 @@ export function DragRow({ children, enabled = true, onDrop, onLayoutHeight, colo
       .enabled(enabled)
       .activateAfterLongPress(220)
       .runOnJS(true)
-      .onStart(() => { lifted.value = withSpring(1); void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => undefined); })
+      .onStart(() => { liftRef.current?.(true); lifted.value = withSpring(1); void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => undefined); })
       .onUpdate((event) => { offset.value = event.translationY; })
-      .onEnd((event) => { onDrop(event.translationY); })
-      .onFinalize(() => { offset.value = withSpring(0); lifted.value = withSpring(0); });
+      .onEnd((event) => { dropRef.current(event.translationY); })
+      .onFinalize(() => { liftRef.current?.(false); offset.value = withSpring(0); lifted.value = withSpring(0); });
     if (scrollRef?.current) gesture = gesture.blocksExternalGesture(scrollRef as never);
     return gesture;
-  }, [enabled, onDrop, scrollRef, offset, lifted]);
+  }, [enabled, scrollRef, offset, lifted]);
 
   const animated = useAnimatedStyle(() => ({
     transform: [{ translateY: offset.value }, { scale: 1 + lifted.value * 0.02 }],

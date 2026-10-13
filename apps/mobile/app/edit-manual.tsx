@@ -1,3 +1,4 @@
+import {friendlyError} from '../src/core/friendly-error';
 import React,{useState} from 'react';
 import {Alert,View} from 'react-native';
 import {Stack,useLocalSearchParams,useRouter} from 'expo-router';
@@ -13,7 +14,7 @@ export default function EditManual(){
  const [teamId,setTeamId]=useState(entry?.team_id??''),[stage,setStage]=useState(metadata?.stage??'Qualification'),[label,setLabel]=useState(metadata?.label??''),[alliance,setAlliance]=useState<'red'|'blue'>(metadata?.alliance==='blue'?'blue':'red'),[busy,setBusy]=useState(false);
  const router=useRouter();
  if(!entry||!metadata||!bundle)return <Screen><Label theme={theme}>Download this report first.</Label></Screen>;
- const save=async()=>{setBusy(true);try{await saveManualIdentity(id,teamId,{stage,label:label.trim()||null,alliance});router.back()}catch(e){Alert.alert('Correction not confirmed',(e as Error).message)}finally{setBusy(false)}};
+ const save=async()=>{setBusy(true);try{await saveManualIdentity(id,teamId,{stage,label:label.trim()||null,alliance});router.back()}catch(e){Alert.alert('Correction not confirmed',friendlyError(e))}finally{setBusy(false)}};
  return <Screen><Stack.Screen options={{title:'Correct manual match'}}/>
   
   <Section title="Robot" theme={theme}><View style={{flexDirection:'row',flexWrap:'wrap',gap:8}}>{bundle.teams.map(team=><Choice key={team.id} label={`${team.displayNumber} · ${team.name}`} selected={teamId===team.id} theme={theme} onPress={()=>setTeamId(team.id)}/>)}</View></Section>

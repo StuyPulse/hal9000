@@ -1,3 +1,4 @@
+import {friendlyError} from '../../core/friendly-error';
 import React,{useEffect,useRef,useState} from 'react';
 import {Alert,Text,View} from 'react-native';
 import * as Crypto from 'expo-crypto';
@@ -23,11 +24,11 @@ export function AdminTools({task}:{task:string}){
  const scope=viewer?scopedIdentity(viewer.userId,viewer.organizationId,viewer.demo):null;
  const currentScope=useRef(scope);currentScope.current=scope;
  const reload=async()=>{if(!viewer||!scope)return;const identity={expectedUserId:viewer.userId,expectedOrganizationId:viewer.organizationId};if(viewer.demo){const cached=await getValue<SetupState>(scope,'admin','state');if(currentScope.current!==scope)return;setState(cached??{members:[{id:viewer.userId,name:viewer.displayName,role:viewer.role}],rosters:[],canManageEmailAccess:true,emails:[]});return}setLoading(true);try{const next=await loadSetupState(viewer);if(currentScope.current!==scope)return;setState(next);try{const data=await apiRequest<{members:SetupState['members']}>('/api/mobile/admin/members','GET',undefined,identity);if(currentScope.current===scope)setState(s=>({...s,members:data.members}))}catch{/* Profiles remain usable without server email listing. */}if(next.canManageEmailAccess){const data=await apiRequest<{emails:{email:string}[]}>('/api/mobile/admin/email-access','GET',undefined,identity);if(currentScope.current===scope)setState(s=>({...s,emails:data.emails.map(e=>e.email)}))}}finally{if(currentScope.current===scope)setLoading(false)}};
- useEffect(()=>{let active=true;reload().catch(e=>{if(active)setMessage(e.message)});return()=>{active=false}},[scope]);
+ useEffect(()=>{let active=true;reload().catch(e=>{if(active)setMessage(friendlyError(e))});return()=>{active=false}},[scope]);
  useEffect(()=>{setMessage('');setPreview(false)},[task]);
  if(!viewer||!bundle||!scope)return null;
  const persist=async(next:SetupState)=>{await putValue(scope,'admin','state',next);if(currentScope.current===scope)setState(next)};
- const run=async(fn:()=>Promise<void>,success:string)=>{if(busy||currentScope.current!==scope)return;if(!viewer.demo&&!online){setMessage('Connect before changing organization setup. No change has been sent.');return}setBusy(true);setMessage('');try{await fn();if(currentScope.current!==scope)return;if(!viewer.demo){await refresh();await reload()}setMessage(success)}catch(e){if(currentScope.current!==scope)return;setMessage((e as Error).message)}finally{if(currentScope.current===scope)setBusy(false)}};
+ const run=async(fn:()=>Promise<void>,success:string)=>{if(busy||currentScope.current!==scope)return;if(!viewer.demo&&!online){setMessage('Connect before changing organization setup. No change has been sent.');return}setBusy(true);setMessage('');try{await fn();if(currentScope.current!==scope)return;if(!viewer.demo){await refresh();await reload()}setMessage(success)}catch(e){if(currentScope.current!==scope)return;setMessage(friendlyError(e))}finally{if(currentScope.current===scope)setBusy(false)}};
  const confirm=(title:string,details:string,fn:()=>Promise<void>,success:string)=>Alert.alert(title,details,[{text:'Cancel',style:'cancel'},{text:'Confirm',onPress:()=>void run(fn,success)}]);
  const eligible=state.members.filter(m=>['scout','global_scout','admin','developer'].includes(m.role));
  const roster=state.rosters.find(r=>r.id===rosterId),rosterScouts=roster?.userIds.filter(id=>eligible.some(m=>m.id===id))??[];

@@ -17,6 +17,7 @@ import {canonicalJson,validateSignedProof,type SignedRelayProof} from '@wildcard
 import {normalizeNativePayload,validateNativeEntry} from '@wildcard/shared/src/native-contracts';
 import {workspaceCache} from './workspace-cache';
 import {normalizeGoogleDocumentUrl,GOOGLE_DOCUMENT_ERROR} from './document-link';
+import {friendlyError} from './friendly-error';
 import {chooseWorkspaceEvent,type WorkspaceMode} from './workspace-cache-model';
 import type {FeatureContext,Viewer,EventBundle,Event,LocalSubmission,LocalPhoto,Payload,EntryKind,Palette,PicklistRanking,NativeEntry} from './types';
 
@@ -26,7 +27,8 @@ export const useApp=()=>{const c=useContext(Context);if(!c)throw Error('AppProvi
 const dark:Palette={bg:'#10151d',surface:'#1b222d',panel:'#202b3a',text:'#f2f5fa',muted:'#a2adbd',line:'#303947',tint:'#b9cbff',onTint:'#15284d',selection:'#253653',success:'#84d8a8',warning:'#f0c377',danger:'#ff9caa',red:'#ff9daa',blue:'#9fbfff',dark:true};
 const light:Palette={bg:'#f8f9fb',surface:'#fff',panel:'#eef2f7',text:'#171d28',muted:'#626e7e',line:'#dce2e9',tint:'#244bc1',onTint:'#fff',selection:'#e6edff',success:'#237443',warning:'#895214',danger:'#ac2038',red:'#a92438',blue:'#24589f',dark:false};
 export function AppProvider({children}:{children:React.ReactNode}){
- const [ready,setReady]=useState(false),[viewer,setViewer]=useState<Viewer|null>(null),[bundle,setBundle]=useState<EventBundle|null>(null),[events,setEvents]=useState<Event[]>([]),[records,setRecords]=useState<LocalSubmission[]>([]),[photos,setPhotos]=useState<LocalPhoto[]>([]),[online,setOnline]=useState(true),[syncing,setSyncing]=useState(false),[error,setError]=useState<string|null>(null),[appearance,setAppearanceState]=useState<'light'|'dark'|'system'>('system'),[systemDark,setSystemDark]=useState(Appearance.getColorScheme()==='dark');
+ const [ready,setReady]=useState(false),[viewer,setViewer]=useState<Viewer|null>(null),[bundle,setBundle]=useState<EventBundle|null>(null),[events,setEvents]=useState<Event[]>([]),[records,setRecords]=useState<LocalSubmission[]>([]),[photos,setPhotos]=useState<LocalPhoto[]>([]),[online,setOnline]=useState(true),[syncing,setSyncing]=useState(false),[error,setErrorRaw]=useState<string|null>(null),[appearance,setAppearanceState]=useState<'light'|'dark'|'system'>('system'),[systemDark,setSystemDark]=useState(Appearance.getColorScheme()==='dark');
+ const setError=useCallback((message:string|null)=>setErrorRaw(message===null?null:friendlyError(message)),[]);
  const writeChain=useRef(Promise.resolve()),syncLock=useRef(false),scopeRef=useRef<string|null>(null);
  const autosaveTimer=useRef<ReturnType<typeof setTimeout>|null>(null);
  const [workspaceMode,setWorkspaceMode]=useState<WorkspaceMode>('active'),[membershipPending,setMembershipPending]=useState(false);

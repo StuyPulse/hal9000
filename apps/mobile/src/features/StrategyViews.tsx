@@ -1,3 +1,4 @@
+import {friendlyError} from '../core/friendly-error';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Image, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { useRouter } from 'expo-router';
@@ -13,6 +14,8 @@ import { ComparisonStatsGraph, MetricChart } from './MetricChart';
 import { parseStrokes, type DrawStroke } from './strategyDrawing';
 import { Button, Card, Choice, Input, Row, Section } from '../components/ui';
 import { Badge, Notice, Screen, TeamPicker, useFeatureApp } from './common';
+import { DataTable } from '../components/DataTable';
+import { useLayout } from '../components/layout';
 import { PIT_TEXT_FIELDS, PRE_SCOUT_TEXT_FIELDS } from './manualFields';
 import { META_COLORS, UNSORTED, canEditPicklistRole, describeChange, groupRevisions, databaseCategory, isHexColor, planInsert, planMove, planMoveToTier, planRemoveTier, planRestore, teamsInTier, validateMetaName, type FullRanking, type RankPatch } from './picklist';
 import {
@@ -141,7 +144,7 @@ function NoEvent({ theme }: { theme: Palette }) {
 
 function Tabs({ theme, items, value, onChange }: { theme: Palette; items: { id: string; label: string }[]; value: string; onChange: (id: string) => void }) {
   return (
-    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
+    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexGrow: 0, flexShrink: 0 }} contentContainerStyle={{ gap: 8 }}>
       {items.map((item) => <Choice key={item.id} theme={theme} label={item.label} selected={item.id === value} onPress={() => onChange(item.id)} />)}
     </ScrollView>
   );
@@ -198,67 +201,84 @@ function SummaryView({ analysis, theme }: { analysis: Analysis; theme: Palette }
     return selectLatestPreScout(analysis.entries);
   }, [analysis.entries]);
 
+  const columns = active.metrics.map((metric) => ({ key: metric.key, title: metric.label, width: metric.label.length > 12 ? 128 : 104, sortable: metric.sortable !== false }));
+  const onSort = (key: string) => {
+    if (key === sortKey) setDirection((value) => (value === 'desc' ? 'asc' : 'desc'));
+    else { setSortKey(key as MetricKey); setDirection(key === 'rank' || key === 'team' ? 'asc' : 'desc'); }
+  };
+  const preScoutColumns = [['autos', 'Auto'], ['active_shift', 'Active HUB'], ['inactive_shift', 'Inactive HUB'], ['traversal', 'Traversal'], ['average_pieces', 'Average fuel'], ['with_them', 'With them'], ['against_them', 'Against them']].map(([key, title]) => ({ key, title, width: 200, sortable: false }));
+  const sortedTeams = useMemo(() => [...analysis.bundle.teams].sort((a, b) => a.number - b.number), [analysis.bundle.teams]);
+  const { large, wide } = useLayout();
+
   return (
-    <Screen theme={theme}>
+    <Screen theme={theme} fill>
       <SourceNotice theme={theme} analysis={analysis} />
-      <Tabs theme={theme} value={group} onChange={setGroup} items={METRIC_GROUPS.map((item) => ({ id: item.id, label: item.label }))} />
-      <TextInput accessibilityLabel="Filter teams" value={filter} onChangeText={setFilter} placeholder="Filter teams" placeholderTextColor={theme.muted} autoCorrect={false} autoCapitalize="none" style={{ minHeight: 48, borderWidth: 1, borderRadius: 12, paddingHorizontal: 14, fontSize: 16, color: theme.text, backgroundColor: theme.surface, borderColor: theme.line }} />
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
-        {SORT_OPTIONS.map(option => <Choice key={option.key} theme={theme} label={option.label} selected={sortKey === option.key} onPress={() => { setSortKey(option.key); setDirection(option.key === 'rank' || option.key === 'team' ? 'asc' : 'desc'); }} />)}
-        <Choice theme={theme} label={direction === 'desc' ? 'High → low' : 'Low → high'} selected={false} onPress={() => setDirection((value) => (value === 'desc' ? 'asc' : 'desc'))} />
+      <View style={{ flexDirection: 'row', gap: 10, alignItems: 'center' }}>
+        <TextInput accessibilityLabel="Filter teams" value={filter} onChangeText={setFilter} placeholder="Filter teams" placeholderTextColor={theme.muted} autoCorrect={false} autoCapitalize="none" style={{ flex: 1, minHeight: 46, borderWidth: 1, borderRadius: 12, paddingHorizontal: 14, fontSize: 16, color: theme.text, backgroundColor: theme.surface, borderColor: theme.line }} />
+      </View>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexGrow: 0, flexShrink: 0 }} contentContainerStyle={{ gap: 8, alignItems: 'center' }}>
+        {[['table', 'Table'], ['cards', 'Cards'], ['prescout', 'Pre-scout']].map(([id, label]) => <Choice key={id} theme={theme} label={label} selected={layout === id} onPress={() => setLayout(id)} />)}
+        {layout !== 'prescout' ? <View style={{ width: 1, height: 28, backgroundColor: theme.line, marginHorizontal: 4 }} /> : null}
+        {layout !== 'prescout' ? METRIC_GROUPS.map((item) => <Choice key={item.id} theme={theme} label={item.label} selected={group === item.id} onPress={() => setGroup(item.id)} />) : null}
       </ScrollView>
-      <Tabs theme={theme} value={layout} onChange={setLayout} items={[{ id: 'cards', label: 'Cards' }, { id: 'table', label: 'Table' }]} />
-      {layout === 'table' ? <>
-        <ScrollView horizontal><View>
-          <View style={{ flexDirection: 'row', backgroundColor: theme.panel }}><Text style={{ color: theme.text, width: 100, padding: 10, fontWeight: '700' }}>Team</Text>{active.metrics.map(metric => <Text key={metric.key} style={{ color: theme.text, width: 140, padding: 10, fontWeight: '700' }}>{metric.label}</Text>)}</View>
-          {rows.map(team => <View key={team.id} style={{ flexDirection: 'row', alignItems: 'center', borderBottomWidth: 1, borderColor: theme.line }}><Pressable accessibilityRole="button" accessibilityLabel={`Open team ${team.displayNumber}`} onPress={() => goTeam(router, team.id)} style={{ width: 100, minHeight: 52, padding: 10, justifyContent: 'center' }}><Text style={{ color: theme.tint, fontWeight: '700' }}>{team.displayNumber}</Text></Pressable>{active.metrics.map(metric => { const value = metricValue(stats.get(team.id) ?? EMPTY_STATS, officialValues.get(team.id)!, metric.key); return <Text key={metric.key} style={{ color: theme.text, width: 140, padding: 10 }}>{metric.key === 'rank' && value === 99999 ? '—' : displayMetric(value, metric)}</Text>; })}</View>)}
-        </View></ScrollView>
-      </> : null}
-
-      {layout === 'cards' ? rows.map((team) => {
-        const value = stats.get(team.id) ?? EMPTY_STATS;
-        return (
-          <Pressable key={team.id} accessibilityRole="button" accessibilityLabel={`Team ${team.displayNumber} ${team.name}. ${value.matches} scouted matches. Open team profile.`} onPress={() => goTeam(router, team.id)} style={{ backgroundColor: theme.surface, borderRadius: 16, padding: 14, gap: 10 }}>
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-              <Text style={{ color: theme.text, fontSize: 18, fontWeight: '700', flex: 1 }} numberOfLines={1}>{team.displayNumber} · {team.name}</Text>
-              <Badge theme={theme} tone={value.matches ? 'tint' : 'muted'} text={value.matches ? `${value.matches} match${value.matches === 1 ? '' : 'es'}` : 'No data'} />
-            </View>
-            {hasOfficial ? (() => {
-              const info = official.get(team.id);
-              return <Text style={{ color: theme.muted, fontSize: 13 }}>TBA {info?.rank ? `rank #${info.rank}` : 'unranked'}{info?.record ? ` · ${info.record}` : ''}{info?.opr !== null && info?.opr !== undefined ? ` · OPR ${formatStat(info.opr)}` : ''}</Text>;
-            })() : null}
-            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-              {active.metrics.map((metric) => {
-                const raw = metricValue(value, officialValues.get(team.id)!, metric.key);
-                const background = typeof raw === 'number' && (value.matches || OFFICIAL_KEYS.has(metric.key)) && metric.key !== 'matches' && metric.key !== 'entries' ? rgba(heatColor(raw, columnValues.get(metric.key) ?? [], metric.reverse)) : undefined;
-                return (
-                  <View key={metric.key} style={{ minWidth: '30%', flexGrow: 1, padding: 8, borderRadius: 10, backgroundColor: background ?? theme.panel }}>
-                    <Text style={{ color: theme.muted, fontSize: 12 }}>{metric.label}</Text>
-                    <Text style={{ color: theme.text, fontSize: 17, fontWeight: '700' }}>{metric.key === 'rank' && raw === 99999 ? '—' : displayMetric(raw, metric)}</Text>
-                  </View>
-                );
-              })}
-            </View>
-          </Pressable>
-        );
-      }) : null}
-
-      <Section theme={theme} title="Pre-scout sheet">
-        <ScrollView horizontal><View>
-          <View style={{ flexDirection: 'row', backgroundColor: theme.panel }}>{[['team', 'Team'], ['autos', 'Auto'], ['active_shift', 'Active HUB'], ['inactive_shift', 'Inactive HUB'], ['traversal', 'Traversal'], ['average_pieces', 'Average fuel'], ['with_them', 'With them'], ['against_them', 'Against them']].map(([key, title]) => <Text key={key} style={{ color: theme.text, width: key === 'team' ? 160 : 230, padding: 12, fontWeight: '700' }}>{title}</Text>)}</View>
-          {[...analysis.bundle.teams].sort((a, b) => a.number - b.number).map(team => <View key={team.id} style={{ flexDirection: 'row', alignItems: 'center', borderBottomWidth: 1, borderColor: theme.line }}><Text style={{ color: theme.text, width: 160, padding: 12 }}>{team.displayNumber} · {team.name}</Text>{['autos', 'active_shift', 'inactive_shift', 'traversal', 'average_pieces', 'with_them', 'against_them'].map(key => <Text key={key} style={{ color: theme.text, width: 230, padding: 12 }}>{String(latestPreScout.get(team.id)?.payload[key] ?? '—')}</Text>)}</View>)}
-        </View></ScrollView>
-        {analysis.bundle.teams.slice().sort((a, b) => a.number - b.number).map((team) => {
-          const entry = latestPreScout.get(team.id);
-          const open = preScoutOpen === team.id;
-          return (
-            <View key={team.id} style={{ borderBottomWidth: 1, borderColor: theme.line }}>
-              <Row theme={theme} title={`${team.displayNumber} · ${team.name}`} subtitle={entry ? `Average fuel ${asRecord(entry.payload).average_pieces ?? '—'}` : 'Not pre-scouted'} onPress={entry ? () => setPreScoutOpen(open ? null : team.id) : undefined} tail={entry ? <Text style={{ color: theme.tint, fontWeight: '600' }}>{open ? 'Hide' : 'View'}</Text> : undefined} />
-              {open && entry ? <View style={{ paddingBottom: 12 }}><PayloadList theme={theme} payload={entry.payload} /></View> : null}
-            </View>
-          );
-        })}
-      </Section>
+      {layout === 'table' ? (
+        <View style={{ flex: 1, borderWidth: 1, borderColor: theme.line, borderRadius: 14, overflow: 'hidden' }}>
+          <DataTable
+            theme={theme} columns={columns} rows={rows} rowKey={(team) => team.id}
+            sortKey={sortKey} sortDirection={direction} onSort={onSort}
+            rowLabel={(team) => `Open team ${team.displayNumber}`} onPressRow={(team) => goTeam(router, team.id)}
+            renderFirst={(team) => <Text numberOfLines={1} style={{ color: theme.tint, fontWeight: '800', fontSize: 16 }}>{team.displayNumber}</Text>}
+            renderCell={(team, column) => {
+              const metric = active.metrics.find((item) => item.key === column.key)!;
+              const value = metricValue(stats.get(team.id) ?? EMPTY_STATS, officialValues.get(team.id)!, metric.key);
+              const scouted = (stats.get(team.id) ?? EMPTY_STATS).matches;
+              const background = typeof value === 'number' && (scouted || OFFICIAL_KEYS.has(metric.key)) && metric.key !== 'matches' && metric.key !== 'entries' ? rgba(heatColor(value, columnValues.get(metric.key) ?? [], metric.reverse)) : undefined;
+              return <View style={{ flex: 1, justifyContent: 'center', marginHorizontal: -10, paddingHorizontal: 10, backgroundColor: background }}><Text numberOfLines={1} style={{ color: theme.text, fontSize: 15 }}>{metric.key === 'rank' && value === 99999 ? '—' : displayMetric(value, metric)}</Text></View>;
+            }}
+          />
+        </View>
+      ) : null}
+      {layout === 'cards' ? (
+        <ScrollView style={{ flex: 1 }} contentContainerStyle={{ gap: 12, paddingBottom: 24, flexDirection: 'row', flexWrap: 'wrap' }}>
+          {rows.map((team) => {
+            const value = stats.get(team.id) ?? EMPTY_STATS;
+            return (
+              <Pressable key={team.id} accessibilityRole="button" accessibilityLabel={`Team ${team.displayNumber} ${team.name}. ${value.matches} scouted matches. Open team profile.`} onPress={() => goTeam(router, team.id)} style={{ backgroundColor: theme.surface, borderWidth: 1, borderColor: theme.line, borderRadius: 16, padding: 14, gap: 10, flexGrow: 1, flexBasis: large ? '31%' : wide ? '47%' : '100%' }}>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <Text style={{ color: theme.text, fontSize: 18, fontWeight: '700', flex: 1 }} numberOfLines={1}>{team.displayNumber} · {team.name}</Text>
+                  <Badge theme={theme} tone={value.matches ? 'tint' : 'muted'} text={value.matches ? `${value.matches} match${value.matches === 1 ? '' : 'es'}` : 'No data'} />
+                </View>
+                {hasOfficial ? (() => {
+                  const info = official.get(team.id);
+                  return <Text style={{ color: theme.muted, fontSize: 13 }}>TBA {info?.rank ? `rank #${info.rank}` : 'unranked'}{info?.record ? ` · ${info.record}` : ''}{info?.opr !== null && info?.opr !== undefined ? ` · OPR ${formatStat(info.opr)}` : ''}</Text>;
+                })() : null}
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+                  {active.metrics.map((metric) => {
+                    const raw = metricValue(value, officialValues.get(team.id)!, metric.key);
+                    const background = typeof raw === 'number' && (value.matches || OFFICIAL_KEYS.has(metric.key)) && metric.key !== 'matches' && metric.key !== 'entries' ? rgba(heatColor(raw, columnValues.get(metric.key) ?? [], metric.reverse)) : undefined;
+                    return (
+                      <View key={metric.key} style={{ minWidth: '30%', flexGrow: 1, padding: 8, borderRadius: 10, backgroundColor: background ?? theme.panel }}>
+                        <Text style={{ color: theme.muted, fontSize: 12 }}>{metric.label}</Text>
+                        <Text style={{ color: theme.text, fontSize: 17, fontWeight: '700' }}>{metric.key === 'rank' && raw === 99999 ? '—' : displayMetric(raw, metric)}</Text>
+                      </View>
+                    );
+                  })}
+                </View>
+              </Pressable>
+            );
+          })}
+        </ScrollView>
+      ) : null}
+      {layout === 'prescout' ? (
+        <View style={{ flex: 1, borderWidth: 1, borderColor: theme.line, borderRadius: 14, overflow: 'hidden' }}>
+          <DataTable
+            theme={theme} columns={preScoutColumns} rows={sortedTeams} rowKey={(team) => team.id} rowHeight={72}
+            rowLabel={(team) => `Open team ${team.displayNumber}`} onPressRow={(team) => goTeam(router, team.id)}
+            renderFirst={(team) => <Text numberOfLines={1} style={{ color: theme.tint, fontWeight: '800', fontSize: 16 }}>{team.displayNumber}</Text>}
+            renderCell={(team, column) => <Text numberOfLines={3} style={{ color: theme.text, fontSize: 14 }}>{String(latestPreScout.get(team.id)?.payload[column.key] ?? '—')}</Text>}
+          />
+        </View>
+      ) : null}
     </Screen>
   );
 }
@@ -349,6 +369,8 @@ function PicklistView({ analysis, theme }: { analysis: Analysis; theme: Palette 
   const [historyLimit, setHistoryLimit] = useState(15);
   const [openRevision, setOpenRevision] = useState<string | null>(null);
   const rowHeights = useRef(new Map<string, number>());
+  const headerHeights = useRef(new Map<string, number>());
+  const [liftTier, setLiftTier] = useState<string | null>(null);
 
   const roleCanEdit = canEditPicklistRole(app.viewer?.role);
   const writer = app.savePicklistRanking;
@@ -376,37 +398,48 @@ function PicklistView({ analysis, theme }: { analysis: Analysis; theme: Palette 
       await bulkWriter(patches);
       setNotice({ text: success, error: false });
     } catch (error) {
-      setNotice({ text: error instanceof Error ? error.message : 'That change was not saved. Check your connection and role, then retry.', error: true });
+      setNotice({ text: friendlyError(error, 'That change was not saved. Check your connection and role, then retry.'), error: true });
     } finally {
       setBusy(null);
     }
   }
 
-  /** Drag-to-reorder inside a tier: convert the finger's distance into a new position. */
+  /** Drag-to-reorder: turn the finger's final position into a tier and an index, across tiers. */
   function dropTeam(teamId: string, tierId: string, dy: number) {
-    const order = tierOrders[tierId] ?? [];
-    const index = order.findIndex((item) => item.teamId === teamId);
-    if (index < 0 || Math.abs(dy) < 12) return;
-    const heights = order.map((item) => (rowHeights.current.get(item.teamId) ?? 76) + 8);
-    let target = index;
-    let travelled = 0;
-    if (dy > 0) {
-      while (target < order.length - 1 && travelled + heights[target + 1] / 2 < dy) { travelled += heights[target + 1]; target += 1; }
-    } else {
-      while (target > 0 && travelled + heights[target - 1] / 2 < -dy) { travelled += heights[target - 1]; target -= 1; }
+    if (Math.abs(dy) < 12) return;
+    let y = 0;
+    let draggedMid = 0;
+    const spans: { tier: string; start: number; end: number; rows: { id: string; mid: number }[] }[] = [];
+    for (const tier of tiers) {
+      const start = y;
+      y += (headerHeights.current.get(tier.id) ?? 28) + 16;
+      const rows: { id: string; mid: number }[] = [];
+      for (const team of teamsInTier(orderedTeams, rankings, tier.id).filter((item) => visible(item.id))) {
+        const height = (rowHeights.current.get(team.id) ?? 76) + 8;
+        if (team.id === teamId) draggedMid = y + height / 2;
+        rows.push({ id: team.id, mid: y + height / 2 });
+        y += height;
+      }
+      spans.push({ tier: tier.id, start, end: y, rows });
     }
-    if (target === index) return;
-    const team = orderedTeams.find((item) => item.id === teamId);
+    const pointer = draggedMid + dy;
+    const span = spans.find((item) => pointer >= item.start && pointer < item.end) ?? (pointer < 0 ? spans[0] : spans[spans.length - 1]);
+    const dest = span.tier;
+    const index = span.rows.filter((row) => row.id !== teamId && row.mid < pointer).length;
+    const order = tierOrders[dest] ?? [];
     const others = order.filter((item) => item.teamId !== teamId);
-    if (order.some((item) => item.rank === null)) {
-      // Unranked teams sort after ranked ones, so the first drag numbers the whole tier like the website does.
-      const ids = order.map((item) => item.teamId);
-      ids.splice(index, 1);
-      ids.splice(target, 0, teamId);
-      void write(ids.map((id, position) => ({ teamId: id, patch: { rank: (position + 1) * 1024, category_id: databaseCategory(tierId) } })), `${team?.displayNumber ?? 'Team'} moved.`);
+    const team = orderedTeams.find((item) => item.id === teamId);
+    if (dest === tierId && order.findIndex((item) => item.teamId === teamId) === index) return;
+    const destName = tiers.find((item) => item.id === dest)?.name ?? 'tier';
+    const note = dest === tierId ? `${team?.displayNumber ?? 'Team'} moved.` : `${team?.displayNumber ?? 'Team'} moved to ${destName}.`;
+    if (others.some((item) => item.rank === null)) {
+      // Unranked teams sort after ranked ones, so number the whole destination tier like the website does.
+      const ids = others.map((item) => item.teamId);
+      ids.splice(Math.min(index, ids.length), 0, teamId);
+      void write(ids.map((id, position) => ({ teamId: id, patch: { rank: (position + 1) * 1024, category_id: databaseCategory(dest) } })), note);
       return;
     }
-    void write(toPatches(planInsert(teamId, others, target, tierId)), `${team?.displayNumber ?? 'Team'} moved.`);
+    void write(toPatches(planInsert(teamId, others, index, dest)), note);
   }
   const metaWriter = app.savePicklistMeta;
   const metaDeleter = app.deletePicklistMeta;
@@ -422,7 +455,7 @@ function PicklistView({ analysis, theme }: { analysis: Analysis; theme: Palette 
       await task();
       setNotice({ text: success, error: false });
     } catch (error) {
-      setNotice({ text: error instanceof Error ? error.message : 'That change was not saved.', error: true });
+      setNotice({ text: friendlyError(error, 'That change was not saved.'), error: true });
     } finally {
       setBusy(null);
     }
@@ -503,14 +536,14 @@ function PicklistView({ analysis, theme }: { analysis: Analysis; theme: Palette 
         const members = teamsInTier(orderedTeams, rankings, tier.id);
         const shown = members.filter((team) => visible(team.id));
         const header = (
-          <View key={`${tier.id}-head`} style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 8 }}>
+          <View key={`${tier.id}-head`} onLayout={(event) => { headerHeights.current.set(tier.id, event.nativeEvent.layout.height); }} style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 8 }}>
             <View style={{ width: 12, height: 28, borderRadius: 6, backgroundColor: tier.color }} />
             <Text accessibilityRole="header" style={{ color: theme.text, fontSize: 19, fontWeight: '700' }}>{tier.name}</Text>
             <Text style={{ color: theme.muted }}>{activeTags.length ? `${shown.length} of ${members.length}` : members.length} teams</Text>
           </View>
         );
         return (
-          <View key={tier.id} style={{ gap: 8 }}>
+          <View key={tier.id} style={{ gap: 8, zIndex: liftTier === tier.id ? 50 : 0 }}>
             {header}
             {shown.length ? shown.map((team) => {
               const overall = overallByTeam.get(team.id) ?? 0;
@@ -521,7 +554,7 @@ function PicklistView({ analysis, theme }: { analysis: Analysis; theme: Palette 
               const position = tierOrders[tier.id].findIndex((item) => item.teamId === team.id);
               const saving = busy === team.id;
               return (
-                <DragRow key={team.id} enabled={canEdit && !open && !activeTags.length} color={theme.muted} onLayoutHeight={(height) => { rowHeights.current.set(team.id, height); }} onDrop={(dy) => dropTeam(team.id, tier.id, dy)} style={{ backgroundColor: ranking?.selected ? theme.selection : theme.surface, borderRadius: 14, padding: 12, gap: 8, borderLeftWidth: 5, borderLeftColor: tier.color }}>
+                <DragRow key={team.id} enabled={canEdit && !open && !activeTags.length} color={theme.muted} onLayoutHeight={(height) => { rowHeights.current.set(team.id, height); }} onLift={(lifted) => setLiftTier(lifted ? tier.id : null)} onDrop={(dy) => dropTeam(team.id, tier.id, dy)} style={{ backgroundColor: ranking?.selected ? theme.selection : theme.surface, borderRadius: 14, padding: 12, gap: 8, borderLeftWidth: 5, borderLeftColor: tier.color }}>
                   {(handle) => (<>
                   <Pressable accessibilityRole="button" accessibilityLabel={`Team ${team.displayNumber} ${team.name}, position ${overall}${ranking?.selected ? ', selected' : ''}. ${open ? 'Collapse' : 'Expand'} controls`} accessibilityState={{ expanded: open }} onPress={() => setExpanded(open ? null : team.id)} style={{ minHeight: 48, justifyContent: 'center', gap: 4 }}>
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
@@ -690,7 +723,7 @@ function MatchStrategyView({ analysis, theme }: { analysis: Analysis; theme: Pal
     setStrokes(next); setDirtyDrawing(true); setDrawingNotice(null);
     const scope = analysis.bundle.scope;
     draftWrites.current = draftWrites.current.catch(() => {}).then(() => putValue(scope, 'working-sketch', draftKey, next));
-    void draftWrites.current.catch(error => setDrawingNotice({ text: `Could not retain this sketch: ${error.message}`, error: true }));
+    void draftWrites.current.catch(error => setDrawingNotice({ text: `Could not retain this sketch: ${friendlyError(error)}`, error: true }));
   }
   const writeDrawing = app.saveStrategyDrawing;
   async function saveDrawing() {
@@ -711,7 +744,7 @@ function MatchStrategyView({ analysis, theme }: { analysis: Analysis; theme: Pal
       setPendingUpload(waiting);
       setDrawingNotice({ text: waiting ? 'Drawing saved on this device. It will upload when the connection allows.' : 'Drawing saved.', error: false });
     } catch (error) {
-      setDrawingNotice({ text: error instanceof Error ? error.message : 'Could not save the drawing.', error: true });
+      setDrawingNotice({ text: friendlyError(error, 'Could not save the drawing.'), error: true });
     } finally {
       setSavingDrawing(false);
     }
@@ -960,7 +993,7 @@ export function TeamProfileScreen({ teamId }: { teamId: string }) {
       await app.saveRobotProfile(teamId, next);
       setRobotNotice({ text: 'Robot profile saved.', error: false });
     } catch (error) {
-      setRobotNotice({ text: error instanceof Error ? error.message : 'Could not save the robot profile.', error: true });
+      setRobotNotice({ text: friendlyError(error, 'Could not save the robot profile.'), error: true });
     }
   }
 
@@ -1061,7 +1094,7 @@ export function TeamProfileScreen({ teamId }: { teamId: string }) {
                           setSourceBusy(slot.key); setSourceNotice(null);
                           app.saveReportSource(teamId, slot.key, option.id)
                             .then(() => setSourceNotice({ text: option.id ? 'Selected report saved.' : 'Using combined reports.', error: false }))
-                            .catch((error: unknown) => setSourceNotice({ text: error instanceof Error ? error.message : 'Could not save the selected report.', error: true }))
+                            .catch((error: unknown) => setSourceNotice({ text: friendlyError(error, 'Could not save the selected report.'), error: true }))
                             .finally(() => setSourceBusy(null));
                         }} />
                     ))}

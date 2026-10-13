@@ -1,5 +1,7 @@
+import {friendlyError} from '../../src/core/friendly-error';
 import React,{useEffect,useRef,useState} from 'react';
-import {Alert,Pressable,Text,View} from 'react-native';
+import {Alert,Pressable,ScrollView,Text,View} from 'react-native';
+import {useLayout} from '../../src/components/layout';
 import {useLocalSearchParams,useRouter} from 'expo-router';
 import {useApp} from '../../src/core/context';
 import {emptyRebuilt} from '../../src/core/data';
@@ -9,8 +11,9 @@ import {TeamPicker} from '../../src/features/common';
 import {compareMatches,matchLabel} from '../../src/features/stats';
 
 export default function Schedule(){
+ const {wide,large}=useLayout();
  const {bundle,theme,createDraft}=useApp(),router=useRouter(),params=useLocalSearchParams<{match?:string}>();
- const [matchId,setMatchId]=useState(''),[teamId,setTeamId]=useState(''),[search,setSearch]=useState(''),[manual,setManual]=useState(false),[stage,setStage]=useState('Qualification'),[label,setLabel]=useState(''),[alliance,setAlliance]=useState<'red'|'blue'|null>(null),[busy,setBusy]=useState(false);
+ const [matchId,setMatchId]=useState(''),[teamId,setTeamId]=useState(''),[search,setSearch]=useState(''),[manual,setManual]=useState(false),[stage,setStage]=useState('Qualification'),[label,setLabel]=useState(''),[alliance,setAlliance]=useState<'red'|'blue'|null>(null),[busy,setBusy]=useState(false),[round,setRound]=useState('all'),[state,setState]=useState('all');
  const previous=useRef(new Map<string,string>()),observed=useRef(new Map<string,number>()),[now,setNow]=useState(Date.now());
  useEffect(()=>{const timer=setInterval(()=>setNow(Date.now()),30000);return()=>clearInterval(timer)},[]);
  useEffect(()=>{for(const m of bundle?.matches??[]){if(m.status==='played'&&previous.current.has(m.id)&&previous.current.get(m.id)!=='played')observed.current.set(m.id,Date.now());previous.current.set(m.id,m.status)}},[bundle?.matches]);
@@ -18,11 +21,11 @@ export default function Schedule(){
  if(!bundle)return <Screen><Label theme={theme}>Download an event first.</Label></Screen>;
  const match=bundle.matches.find(m=>m.id===matchId);
  const q=search.trim().toLowerCase();
- const matches=bundle.matches.filter(m=>!q||[matchLabel(m),...bundle.teams.filter(t=>[...m.red_teams,...m.blue_teams].includes(t.id)).flatMap(t=>[t.displayNumber,t.name])].join(' ').toLowerCase().includes(q)).sort((a,b)=>{const played=(m:typeof a)=>m.status==='played'&&(!observed.current.has(m.id)||now-observed.current.get(m.id)!>=5*60*1000);return Number(played(a))-Number(played(b))||compareMatches(a,b)});
+ const matches=bundle.matches.filter(m=>(round==='all'||m.match_type===round)&&(state==='all'||(state==='finished'?m.status==='played':m.status!=='played'&&m.status!=='cancelled'))).filter(m=>!q||[matchLabel(m),...bundle.teams.filter(t=>[...m.red_teams,...m.blue_teams].includes(t.id)).flatMap(t=>[t.displayNumber,t.name])].join(' ').toLowerCase().includes(q)).sort((a,b)=>{const played=(m:typeof a)=>m.status==='played'&&(!observed.current.has(m.id)||now-observed.current.get(m.id)!>=5*60*1000);return Number(played(a))-Number(played(b))||compareMatches(a,b)});
  const open=async()=>{
   if(!teamId||(!manual&&!match))return;
   if(manual&&(!alliance||(stage!=='Other / exception'&&!label.trim())))return;
-  setBusy(true);try{const payload=manual?{...emptyRebuilt(),report_source:'manual',manual_match:{stage,label:label.trim()||null,alliance}}:undefined;const local=await createDraft('match',teamId,manual?null:matchId,null,payload);router.push({pathname:'/match/[id]',params:{id:local.entry.id}})}catch(e){Alert.alert('Cannot start',(e as Error).message)}finally{setBusy(false)}
+  setBusy(true);try{const payload=manual?{...emptyRebuilt(),report_source:'manual',manual_match:{stage,label:label.trim()||null,alliance}}:undefined;const local=await createDraft('match',teamId,manual?null:matchId,null,payload);router.push({pathname:'/match/[id]',params:{id:local.entry.id}})}catch(e){Alert.alert('Cannot start',friendlyError(e))}finally{setBusy(false)}
  };
  const numbers=(ids:string[])=>bundle.teams.filter(t=>ids.includes(t.id)).sort((a,b)=>a.number-b.number);
  const chosen=bundle.teams.find(t=>t.id===teamId);
@@ -47,10 +50,18 @@ export default function Schedule(){
    </View>)}</View>
   </>:<>
    <Input label="Find a match or team" theme={theme} value={search} onChangeText={setSearch}/>
-   {matches.length===0?<Label theme={theme} muted>No matches found.</Label>:matches.map(m=>{const played=m.status==='played';return <Pressable key={m.id} accessibilityRole="button" accessibilityLabel={matchLabel(m)} onPress={()=>{setMatchId(m.id);setTeamId('')}} style={{backgroundColor:theme.surface,borderRadius:12,padding:14,gap:4,opacity:played?.65:1}}>
-    <View style={{flexDirection:'row',justifyContent:'space-between'}}><Text style={{color:theme.text,fontSize:17,fontWeight:'700'}}>{matchLabel(m)}</Text>{played?<Text style={{color:theme.muted,fontSize:13}}>played</Text>:null}</View>
-    <Text style={{fontSize:14}}><Text style={{color:theme.red,fontWeight:'700'}}>{numbers(m.red_teams).map(t=>t.displayNumber).join('  ')}</Text><Text style={{color:theme.muted}}>   |   </Text><Text style={{color:theme.blue,fontWeight:'700'}}>{numbers(m.blue_teams).map(t=>t.displayNumber).join('  ')}</Text></Text>
-   </Pressable>})}
+   <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{flexGrow:0}} contentContainerStyle={{gap:8}}>
+    {[['all','All rounds'],['qualification','Quals'],['playoff','Playoffs'],['practice','Practice']].map(([id,l])=><Choice key={id} label={l} theme={theme} selected={round===id} onPress={()=>setRound(id)}/>)}
+    <View style={{width:1,backgroundColor:theme.line,marginHorizontal:4}}/>
+    {[['all','Any status'],['upcoming','Upcoming'],['finished','Finished']].map(([id,l])=><Choice key={id} label={l} theme={theme} selected={state===id} onPress={()=>setState(id)}/>)}
+   </ScrollView>
+   {matches.length===0?<Label theme={theme} muted>No matches found.</Label>:<View style={{flexDirection:'row',flexWrap:'wrap',gap:10}}>{matches.map(m=>{const played=m.status==='played',scored=typeof m.red_score==='number'&&typeof m.blue_score==='number'&&m.red_score>=0&&m.blue_score>=0;const time=m.scheduled_at?new Date(m.scheduled_at).toLocaleTimeString([],{hour:'numeric',minute:'2-digit'}):null;return <View key={m.id} style={{flexGrow:1,flexBasis:large?'31%':wide?'47%':'100%',backgroundColor:theme.surface,borderWidth:1,borderColor:theme.line,borderRadius:14,opacity:played?.75:1,overflow:'hidden'}}>
+    <Pressable accessibilityRole="button" accessibilityLabel={matchLabel(m)} onPress={()=>{setMatchId(m.id);setTeamId('')}} style={{padding:14,gap:6}}>
+     <View style={{flexDirection:'row',justifyContent:'space-between',alignItems:'center'}}><Text style={{color:theme.text,fontSize:17,fontWeight:'800'}}>{matchLabel(m)}</Text><Text style={{color:theme.muted,fontSize:13}}>{scored?`${m.red_score} – ${m.blue_score}`:played?'Played':time??''}</Text></View>
+     <Text style={{fontSize:15}}><Text style={{color:theme.red,fontWeight:'700'}}>{numbers(m.red_teams).map(t=>t.displayNumber).join('  ')}</Text><Text style={{color:theme.muted}}>   |   </Text><Text style={{color:theme.blue,fontWeight:'700'}}>{numbers(m.blue_teams).map(t=>t.displayNumber).join('  ')}</Text></Text>
+    </Pressable>
+    <Pressable accessibilityRole="button" accessibilityLabel={`Reports for ${matchLabel(m)}`} onPress={()=>router.push({pathname:'/submissions',params:{match:m.id}})} style={{borderTopWidth:1,borderTopColor:theme.line,paddingVertical:10,paddingHorizontal:14}}><Text style={{color:theme.tint,fontWeight:'700',fontSize:14}}>Reports</Text></Pressable>
+   </View>})}</View>}
   </>}
  </Screen>;
 }

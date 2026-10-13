@@ -1,3 +1,5 @@
+import {useLayout} from '../../src/components/layout';
+import {friendlyError} from '../../src/core/friendly-error';
 import React,{useMemo,useState} from 'react';
 import {Alert,Pressable,Text,View} from 'react-native';
 import {useRouter} from 'expo-router';
@@ -8,6 +10,7 @@ import {eventEntries} from '../../src/core/report-overlay';
 import {compareMatches,matchLabel} from '../../src/features/stats';
 
 export default function Home(){
+ const {wide}=useLayout();
  const {bundle,records,theme,online,viewer,createDraft}=useApp();
  const router=useRouter();
  const [busy,setBusy]=useState(false);
@@ -32,7 +35,7 @@ export default function Home(){
  const team=(id?:string)=>bundle.teams.find(t=>t.id===id);
  const next=data.assignments[0],nextTeam=team(next?.team_id),nextMatch=bundle.matches.find(m=>m.id===next?.match_id);
  const side=nextMatch&&nextTeam?(nextMatch.red_teams.includes(nextTeam.id)?'red':'blue'):null;
- const start=async(a=next)=>{if(!a)return;setBusy(true);try{const draft=await createDraft('match',a.team_id,a.match_id,a.id);router.push({pathname:'/match/[id]',params:{id:draft.entry.id}})}catch(e){Alert.alert('Cannot start',(e as Error).message)}finally{setBusy(false)}};
+ const start=async(a=next)=>{if(!a)return;setBusy(true);try{const draft=await createDraft('match',a.team_id,a.match_id,a.id);router.push({pathname:'/match/[id]',params:{id:draft.entry.id}})}catch(e){Alert.alert('Cannot start',friendlyError(e))}finally{setBusy(false)}};
  const stat=(value:string,label:string,onPress?:()=>void)=><Pressable key={label} disabled={!onPress} onPress={onPress} accessibilityRole={onPress?'button':undefined} accessibilityLabel={`${label} ${value}`} style={{width:'48%',backgroundColor:theme.surface,borderRadius:18,padding:14,gap:2,borderWidth:1,borderColor:theme.line}}>
   <Text style={{color:theme.text,fontSize:26,fontWeight:'800',letterSpacing:-.5}}>{value}</Text>
   <Text style={{color:theme.muted,fontSize:13,fontWeight:'600'}}>{label}</Text>
@@ -51,6 +54,8 @@ export default function Home(){
    </Pressable>
   </View>
 
+  <View style={{flexDirection:wide?'row':'column',gap:wide?20:12,alignItems:'flex-start'}}>
+   <View style={{flex:wide?1.25:undefined,width:wide?undefined:'100%',gap:12}}>
   {next&&nextTeam&&nextMatch?<View style={{backgroundColor:theme.surface,borderRadius:22,borderWidth:1,borderColor:theme.line,overflow:'hidden'}}>
    <View style={{height:6,backgroundColor:accent}}/>
    <View style={{padding:18,gap:14}}>
@@ -88,6 +93,8 @@ export default function Home(){
    </View>
   </View>
 
+   </View>
+   <View style={{flex:wide?1:undefined,width:wide?undefined:'100%',gap:12}}>
   {data.assignments.length>1?<View style={{gap:10}}>
    <Text style={{color:theme.muted,fontSize:13,fontWeight:'700',letterSpacing:.6,textTransform:'uppercase'}}>Coming up</Text>
    <View style={{backgroundColor:theme.surface,borderRadius:18,borderWidth:1,borderColor:theme.line,overflow:'hidden'}}>
@@ -109,5 +116,7 @@ export default function Home(){
     </Pressable>)}
    </View>
   </View>:null}
+   </View>
+  </View>
  </Screen>;
 }

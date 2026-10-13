@@ -1,3 +1,4 @@
+import {friendlyError} from '../src/core/friendly-error';
 import React,{useState,useEffect} from 'react';
 import {Text,View,Image,Platform,Linking} from 'react-native';
 import {useRouter} from 'expo-router';
@@ -12,7 +13,7 @@ export default function Login(){
  const [email,setEmail]=useState(''),[password,setPassword]=useState(''),[firstName,setFirstName]=useState(''),[lastName,setLastName]=useState('');
  const [register,setRegister]=useState(false),[busy,setBusy]=useState<string|null>(null),[message,setMessage]=useState(''),[success,setSuccess]=useState(false);
  useEffect(()=>{if(ready&&viewer&&bundle)router.replace('/(tabs)')},[ready,viewer?.userId,bundle?.event.id,router]);
- const run=async(name:string,action:()=>Promise<void>)=>{if(busy)return;setBusy(name);setMessage('');setSuccess(false);try{await action()}catch(e){setMessage((e as Error).message)}finally{setBusy(null)}};
+ const run=async(name:string,action:()=>Promise<void>)=>{if(busy)return;setBusy(name);setMessage('');setSuccess(false);try{await action()}catch(e){setMessage(friendlyError(e))}finally{setBusy(null)}};
  const login=()=>run(register?'Creating account…':'Signing in…',async()=>{const address=normalizedEmail(email);validatePassword(password);if(register){await signUp(address,password,signupProfile(firstName,lastName));setSuccess(true);setMessage('Check your inbox to confirm, then sign in.')}else{await signIn(address,password);router.replace('/(tabs)')}});
  if(membershipPending)return <Screen>
   <View style={{paddingTop:Platform.OS==='ios'?46:30,gap:14}}>

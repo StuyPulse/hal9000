@@ -1,3 +1,4 @@
+import {friendlyError} from '../../src/core/friendly-error';
 import React,{useEffect,useRef,useState} from 'react';
 import {Image,Pressable,Text,TextInput,View} from 'react-native';
 import {useLocalSearchParams,useRouter} from 'expo-router';
@@ -44,12 +45,12 @@ export default function MatchCapture(){
  const metadata=payload.manual_match as {stage:string;label:string|null;alliance:'red'|'blue'}|null;
  const alliance=metadata?.alliance??(match?.red_teams.includes(record.entry.team_id)?'red':'blue');
  const noShow=payload.no_show===true,editing=record.entry.status==='submitted';
- const change=(next:Payload)=>{latest.current=next;setPayload(next);setSaving(true);setError('');const token=++saveVersion.current;void saveDraft(id,next).then(()=>{if(token===saveVersion.current)setSaving(false)}).catch(e=>{if(token===saveVersion.current){setSaving(false);setError((e as Error).message)}})};
+ const change=(next:Payload)=>{latest.current=next;setPayload(next);setSaving(true);setError('');const token=++saveVersion.current;void saveDraft(id,next).then(()=>{if(token===saveVersion.current)setSaving(false)}).catch(e=>{if(token===saveVersion.current){setSaving(false);setError(friendlyError(e))}})};
  const set=(key:string,value:unknown)=>change({...latest.current!,[key]:value});
  const score=(period:'auto'|'teleop',key:'shoot'|'ferry',n:number)=>change({...latest.current!,[period]:{...(latest.current![period] as object),[key]:n}});
  const issues=payload.breakage_issues as {timestamp:string;issue:string|null}[];
  const issueChange=(i:number,key:'timestamp'|'issue',value:string)=>set('breakage_issues',issues.map((item,j)=>j===i?{...item,[key]:value}:item));
- const submit=async()=>{setSaving(true);try{await saveDraft(id,normalizeRebuilt(latest.current!),true);router.replace({pathname:'/submission/[id]',params:{id}})}catch(e){setError((e as Error).message)}finally{setSaving(false)}};
+ const submit=async()=>{setSaving(true);try{await saveDraft(id,normalizeRebuilt(latest.current!),true);router.replace({pathname:'/submission/[id]',params:{id}})}catch(e){setError(friendlyError(e))}finally{setSaving(false)}};
  return <Screen footerInset footer={<>{error?<Text accessibilityRole="alert" style={{color:theme.danger}}>{error}</Text>:null}<Button title={saving?'Saving…':editing?'Save changes':'Submit scout report'} theme={theme} disabled={saving} onPress={()=>void submit()}/></>}>
   <View style={{gap:2}}><Text style={{color:theme.text,fontSize:24,fontWeight:'800'}}>{team?.displayNumber} · {team?.name}</Text><Text style={{color:alliance==='red'?theme.red:theme.blue,fontSize:15,fontWeight:'700'}}>{metadata?manualMatchLabel(metadata):match?matchLabel(match):'Match'} · {String(alliance).toUpperCase()}{editing?' · editing':''}</Text></View>
   {metadata&&<Section title="Manual match details" theme={theme}>{editing?<Button title="Correct manual match identity" secondary theme={theme} onPress={()=>router.push({pathname:'/edit-manual',params:{id}})}/>:<>

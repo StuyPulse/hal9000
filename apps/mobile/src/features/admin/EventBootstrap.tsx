@@ -1,3 +1,4 @@
+import {friendlyError} from '../../core/friendly-error';
 import React,{useRef,useState} from 'react';
 import {Alert,Text} from 'react-native';
 import {useRouter} from 'expo-router';
@@ -14,7 +15,7 @@ export function EventBootstrap(){
  const lock=useRef(false),currentUser=useRef(viewer?.userId);currentUser.current=viewer?.userId;
  const run=async(action:()=>Promise<void>,success:string)=>{
   if(!viewer||lock.current)return;if(!online){setMessage('Connect before setting up an event.');return;}const userId=viewer.userId;lock.current=true;setBusy(true);setMessage('');
-  try{await action();if(currentUser.current!==userId)return;await refresh();if(currentUser.current===userId)setMessage(success);}catch(e){if(currentUser.current===userId)setMessage((e as Error).message);}finally{lock.current=false;if(currentUser.current===userId)setBusy(false);}
+  try{await action();if(currentUser.current!==userId)return;await refresh();if(currentUser.current===userId)setMessage(success);}catch(e){if(currentUser.current===userId)setMessage(friendlyError(e));}finally{lock.current=false;if(currentUser.current===userId)setBusy(false);}
  };
  if(!viewer||!['admin','developer'].includes(viewer.role))return <Screen><Label theme={theme}>An admin needs to create or import your organization’s event.</Label></Screen>;
  return <Screen><Text accessibilityRole="header" style={{color:theme.text,fontSize:24,fontWeight:'700'}}>Events & imports</Text>
