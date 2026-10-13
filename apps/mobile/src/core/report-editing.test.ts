@@ -1,0 +1,11 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {canEditReport,seedServerEdit} from './report-editing';
+import {DEMO_VIEWER} from './demo';
+import type {NativeEntry} from './types';
+const entry:NativeEntry={id:'report',organization_id:DEMO_VIEWER.organizationId,event_id:'event',team_id:'team',match_id:null,assignment_id:null,scout_user_id:'other-scout',entry_type:'pit',form_version:2,payload:{notes:'original'},status:'submitted',submitted_at:null,updated_at:'2026-10-13T00:00:00Z'};
+test('members can seed pit edits without changing report or author identity',()=>{const viewer={...DEMO_VIEWER,role:'scout' as const};const local=seedServerEdit(viewer,entry);assert.equal(local.entry.id,entry.id);assert.equal(local.entry.scout_user_id,'other-scout');assert.equal(local.baseUpdatedAt,entry.updated_at);local.entry.payload.notes='edited';assert.equal(entry.payload.notes,'original')});
+test('submitted match corrections require an authorized role',()=>{const match={...entry,entry_type:'match' as const};assert.equal(canEditReport({...DEMO_VIEWER,role:'scout'},match),false);assert.equal(canEditReport(DEMO_VIEWER,match),true)});
+test('authors can stage submitted corrections for the authenticated server endpoint',()=>{const mine={...entry,entry_type:'match' as const,scout_user_id:DEMO_VIEWER.userId};assert.equal(canEditReport({...DEMO_VIEWER,role:'scout'},mine),true);assert.equal(seedServerEdit({...DEMO_VIEWER,role:'scout'},mine).baseUpdatedAt,mine.updated_at)});
+test('cross-organization edits and receipts are never allowed',()=>{assert.equal(canEditReport(DEMO_VIEWER,{...entry,organization_id:'another-org'}),false);const receipt={...seedServerEdit(DEMO_VIEWER,entry),origin:'relay' as const};assert.equal(canEditReport(DEMO_VIEWER,entry,receipt),false)});
+test('a downloaded report needs a server conflict token',()=>{assert.throws(()=>seedServerEdit(DEMO_VIEWER,{...entry,updated_at:undefined}),/server revision/)});
