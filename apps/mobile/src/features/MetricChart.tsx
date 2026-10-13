@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { ScrollView, Text, View } from 'react-native';
+import { ScrollView, View } from 'react-native';
+import { Text } from '../components/AppText';
 import Svg, { Circle, Line, Polyline, Text as SvgText } from 'react-native-svg';
 import type { Palette } from '../core/types';
 import { Choice } from '../components/ui';

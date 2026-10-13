@@ -1,6 +1,7 @@
 import {friendlyError} from '../../core/friendly-error';
 import React,{useEffect,useRef,useState} from 'react';
-import {Alert,Text,View} from 'react-native';
+import { Alert, View } from 'react-native';
+import { Text } from '../../components/AppText';
 import * as Crypto from 'expo-crypto';
 import type {FormDefinition} from '@wildcard/shared';
 import {useApp} from '../../core/context';

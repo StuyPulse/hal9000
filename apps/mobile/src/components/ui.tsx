@@ -1,5 +1,6 @@
 import React from 'react';
-import { Platform, Pressable, StyleSheet, Text, TextInput, View, type TextInputProps, type ViewStyle, type ColorValue } from 'react-native';
+import { Platform, Pressable, StyleSheet, View, type TextInputProps, type ViewStyle, type ColorValue } from 'react-native';
+import { Text, TextInput } from './AppText';
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 import type { Palette } from '../core/types';
 

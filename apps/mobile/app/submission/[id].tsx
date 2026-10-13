@@ -1,6 +1,7 @@
 import {friendlyError} from '../../src/core/friendly-error';
 import React,{useEffect,useState} from 'react';
-import {Text,View,Alert,Share,Platform} from 'react-native';
+import { View, Alert, Share, Platform } from 'react-native';
+import { Text } from '../../src/components/AppText';
 import {useLocalSearchParams,useRouter} from 'expo-router';
 import QRCode from 'react-native-qrcode-svg';
 import * as Crypto from 'expo-crypto';

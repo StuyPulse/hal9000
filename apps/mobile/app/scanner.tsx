@@ -1,6 +1,7 @@
 import {friendlyError} from '../src/core/friendly-error';
 import React,{useState,useRef} from 'react';
-import {View,Text,Alert} from 'react-native';
+import { View, Alert } from 'react-native';
+import { Text } from '../src/components/AppText';
 import {CameraView,useCameraPermissions} from 'expo-camera';
 import * as Crypto from 'expo-crypto';
 import {useApp} from '../src/core/context';

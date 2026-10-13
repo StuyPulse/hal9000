@@ -1,6 +1,7 @@
 import {friendlyError} from '../src/core/friendly-error';
 import React,{useEffect,useRef,useState} from 'react';
-import {View,Alert,Text,Linking,Platform} from 'react-native';
+import { View, Alert, Linking, Platform } from 'react-native';
+import { Text } from '../src/components/AppText';
 import {useRouter} from 'expo-router';
 import {useApp} from '../src/core/context';
 import {Screen} from '../src/components/Screen';

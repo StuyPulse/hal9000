@@ -1,5 +1,5 @@
 import React,{useDeferredValue,useMemo,useState} from 'react';
-import {Text} from 'react-native';
+import { Text } from '../../src/components/AppText';
 import {useRouter} from 'expo-router';
 import {useApp} from '../../src/core/context';
 import {Screen} from '../../src/components/Screen';

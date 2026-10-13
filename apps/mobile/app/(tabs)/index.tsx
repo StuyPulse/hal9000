@@ -1,7 +1,8 @@
 import {useLayout} from '../../src/components/layout';
 import {friendlyError} from '../../src/core/friendly-error';
 import React,{useMemo,useState} from 'react';
-import {Alert,Pressable,Text,View} from 'react-native';
+import { Alert, Pressable, View } from 'react-native';
+import { Text } from '../../src/components/AppText';
 import {useRouter} from 'expo-router';
 import {useApp} from '../../src/core/context';
 import {Screen} from '../../src/components/Screen';
@@ -45,9 +46,9 @@ export default function Home(){
   <View style={{gap:1}}><Text style={{color:theme.text,fontSize:16,fontWeight:'800'}}>{title}</Text><Text style={{color:theme.muted,fontSize:12}}>{sub}</Text></View>
  </Pressable>;
  const accent=side==='red'?theme.red:side==='blue'?theme.blue:theme.tint;
- return <Screen>
+ return <Screen topInset>
   <View style={{flexDirection:'row',alignItems:'center',justifyContent:'space-between',gap:10}}>
-   <Text style={{color:theme.text,fontSize:22,fontWeight:'800',letterSpacing:-.4,flexShrink:1}} numberOfLines={1}>{bundle.event.name}</Text>
+   <Text style={{color:theme.text,fontSize:22,fontWeight:'800',letterSpacing:-.4,flexShrink:1}} maxFontSizeMultiplier={1.3} numberOfLines={2}>{bundle.event.name}</Text>
    <Pressable accessibilityRole="button" accessibilityLabel="Open outbox" onPress={()=>router.push('/outbox')} style={{flexDirection:'row',alignItems:'center',gap:6,backgroundColor:theme.surface,borderWidth:1,borderColor:theme.line,borderRadius:20,paddingHorizontal:12,minHeight:36}}>
     <View style={{width:8,height:8,borderRadius:4,backgroundColor:online?theme.success:theme.warning}}/>
     <Text style={{color:theme.text,fontSize:13,fontWeight:'700'}}>{data.toSend?`${data.toSend} to send`:online?'Online':'Offline'}</Text>
@@ -59,12 +60,12 @@ export default function Home(){
   {next&&nextTeam&&nextMatch?<View style={{backgroundColor:theme.surface,borderRadius:22,borderWidth:1,borderColor:theme.line,overflow:'hidden'}}>
    <View style={{height:6,backgroundColor:accent}}/>
    <View style={{padding:18,gap:14}}>
-    <View style={{flexDirection:'row',justifyContent:'space-between',alignItems:'center'}}>
+    <View style={{flexDirection:'row',flexWrap:'wrap',justifyContent:'space-between',alignItems:'center',gap:6}}>
      <Text style={{color:theme.muted,fontSize:13,fontWeight:'700',letterSpacing:.6,textTransform:'uppercase'}}>Up next</Text>
      <Text style={{color:accent,fontSize:13,fontWeight:'800'}}>{matchLabel(nextMatch)} · {String(side).toUpperCase()}</Text>
     </View>
-    <View style={{flexDirection:'row',alignItems:'baseline',gap:12}}>
-     <Text style={{color:theme.text,fontSize:56,fontWeight:'900',letterSpacing:-1.5}}>{nextTeam.displayNumber}</Text>
+    <View style={{flexDirection:'row',flexWrap:'wrap',alignItems:'baseline',columnGap:12}}>
+     <Text style={{color:theme.text,fontSize:56,fontWeight:'900',letterSpacing:-1.5}} maxFontSizeMultiplier={1.1} adjustsFontSizeToFit numberOfLines={1}>{nextTeam.displayNumber}</Text>
      <Text style={{color:theme.muted,fontSize:17,flexShrink:1}} numberOfLines={1}>{nextTeam.name}</Text>
     </View>
     <Button title={busy?'Opening…':'Start scouting'} theme={theme} disabled={busy} onPress={()=>void start()}/>

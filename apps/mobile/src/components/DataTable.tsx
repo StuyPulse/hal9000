@@ -1,5 +1,6 @@
 import React, { useRef, useState } from 'react';
-import { Animated, Pressable, ScrollView, Text, View } from 'react-native';
+import { Animated, Pressable, ScrollView, View } from 'react-native';
+import { Text } from './AppText';
 import type { Palette } from '../core/types';
 
 export type TableColumn = { key: string; title: string; width: number; sortable?: boolean };

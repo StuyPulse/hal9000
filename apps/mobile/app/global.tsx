@@ -1,6 +1,7 @@
 import {friendlyError} from '../src/core/friendly-error';
 import React, { useState } from 'react';
-import { ActivityIndicator, Alert, Linking, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, Linking, View } from 'react-native';
+import { Text } from '../src/components/AppText';
 import { useApp } from '../src/core/context';
 import { Screen } from '../src/components/Screen';
 import { Button, Input, Label } from '../src/components/ui';

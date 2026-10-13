@@ -1,5 +1,6 @@
 import React,{useEffect,useState} from 'react';
-import {Alert,Pressable,Text,View} from 'react-native';
+import { Alert, Pressable, View } from 'react-native';
+import { Text } from '../src/components/AppText';
 import {useLocalSearchParams,useRouter} from 'expo-router';
 import {useApp} from '../src/core/context';
 import {eventEntries} from '../src/core/report-overlay';

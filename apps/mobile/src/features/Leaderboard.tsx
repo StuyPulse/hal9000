@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from 'react';
-import { Text, View } from 'react-native';
+import { View } from 'react-native';
+import { Text } from '../components/AppText';
 import { Choice, Card } from '../components/ui';
 import { Notice, Screen, useFeatureApp } from './common';
 import { eventEntries, pendingSubmittedCount } from '../core/report-overlay';

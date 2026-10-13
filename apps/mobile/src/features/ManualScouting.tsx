@@ -1,6 +1,7 @@
 import {friendlyError} from '../core/friendly-error';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Image, Text, View, type ImageSourcePropType } from 'react-native';
+import { Image, View, type ImageSourcePropType } from 'react-native';
+import { Text } from '../components/AppText';
 import { useRouter } from 'expo-router';
 import {PhotoSubmissionQueue} from '../components/PhotoSubmissionQueue';
 import { SvgXml } from 'react-native-svg';

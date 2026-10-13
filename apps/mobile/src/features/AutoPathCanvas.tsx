@@ -1,5 +1,6 @@
 import React, { useContext, useMemo, useRef, useState } from 'react';
-import { Pressable, Text, View, type ImageSourcePropType, Image } from 'react-native';
+import { Pressable, View, type ImageSourcePropType, Image } from 'react-native';
+import { Text } from '../components/AppText';
 import { Gesture, GestureDetector, GestureHandlerRootView } from 'react-native-gesture-handler';
 import Svg, { Defs, LinearGradient, Path, Stop } from 'react-native-svg';
 import type { Palette } from '../core/types';

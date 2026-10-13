@@ -1,6 +1,7 @@
 import {friendlyError} from '../core/friendly-error';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Image, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
+import { Image, Linking, Pressable, ScrollView, View } from 'react-native';
+import { Text, TextInput } from '../components/AppText';
 import { useRouter } from 'expo-router';
 import { SvgXml } from 'react-native-svg';
 import type { Category, EventBundle, Match, NativeEntry, Palette, PicklistRanking, Team } from '../core/types';
@@ -160,6 +161,27 @@ function SourceNotice({ theme, analysis }: { theme: Palette; analysis: Analysis 
   return (
     <View style={{ gap: 8 }}>
       {notices.map((text) => <Notice key={text} theme={theme} tone="warning">{text}</Notice>)}
+    </View>
+  );
+}
+
+
+function PhotoPager({ theme, photos, label, index, onIndex }: { theme: Palette; photos: { id: string; uri: string }[]; label: string; index: number; onIndex: (index: number) => void }) {
+  const [width, setWidth] = useState(0);
+  const scroller = useRef<ScrollView>(null);
+  useEffect(() => { if (width) scroller.current?.scrollTo({ x: index * width, animated: false }); }, [width]);
+  return (
+    <View onLayout={(event) => setWidth(event.nativeEvent.layout.width)} style={{ gap: 8 }}>
+      <ScrollView ref={scroller} horizontal pagingEnabled showsHorizontalScrollIndicator={false} scrollEnabled={photos.length > 1} onMomentumScrollEnd={(event) => width && onIndex(Math.round(event.nativeEvent.contentOffset.x / width))} style={{ borderRadius: 16 }}>
+        {photos.map((photo, position) => (
+          <Image key={photo.id} source={{ uri: photo.uri }} accessibilityLabel={`${label} ${position + 1} of ${photos.length}`} resizeMode="cover" style={{ width: width || '100%', aspectRatio: 4 / 3, backgroundColor: theme.panel }} />
+        ))}
+      </ScrollView>
+      {photos.length > 1 ? (
+        <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 6 }}>
+          {photos.map((photo, position) => <View key={photo.id} style={{ width: position === index ? 18 : 7, height: 7, borderRadius: 4, backgroundColor: position === index ? theme.tint : theme.line }} />)}
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -1015,14 +1037,7 @@ export function TeamProfileScreen({ teamId }: { teamId: string }) {
 
       {current ? (
         <View style={{ gap: 8 }}>
-          <Image source={{ uri: current.uri }} accessibilityLabel={`Team ${team.displayNumber} robot photo ${photoIndex + 1} of ${photos.length}`} resizeMode="cover" style={{ width: '100%', aspectRatio: 4 / 3, borderRadius: 16, backgroundColor: theme.panel }} />
-          {photos.length > 1 ? (
-            <View style={{ flexDirection: 'row', gap: 10 }}>
-              <Button theme={theme} secondary title="Previous" onPress={() => setPhotoIndex((photoIndex - 1 + photos.length) % photos.length)} style={{ flex: 1 }} />
-              <Button theme={theme} secondary title={`${photoIndex + 1} / ${photos.length}`} onPress={() => undefined} style={{ flex: 1 }} />
-              <Button theme={theme} secondary title="Next" onPress={() => setPhotoIndex((photoIndex + 1) % photos.length)} style={{ flex: 1 }} />
-            </View>
-          ) : null}
+          <PhotoPager theme={theme} photos={photos} label={`Team ${team.displayNumber} robot photo`} index={photoIndex} onIndex={setPhotoIndex} />
           {current.pending ? <Badge theme={theme} tone="warning" text="Photo not uploaded yet" /> : null}
         </View>
       ) : null}
@@ -1083,6 +1098,11 @@ export function TeamProfileScreen({ teamId }: { teamId: string }) {
                 </Text>
                 {selectedId ? <Text style={{ color: theme.tint, fontSize: 12 }}>Admin selected one report for this match.</Text> : null}
               </Pressable>
+              {(() => {
+                const tbaKey = analysis.bundle.matches.find((item) => item.tba_match_key === slot.key)?.tba_match_key;
+                if (!tbaKey || tbaKey.startsWith('manual_')) return null;
+                return <Text accessibilityRole="link" onPress={() => void Linking.openURL(`https://www.thebluealliance.com/match/${tbaKey}`).catch(() => undefined)} style={{ color: theme.tint, fontSize: 13, fontWeight: '600' }}>View on The Blue Alliance ↗</Text>;
+              })()}
               {app.viewer?.role === 'admin' && slot.reports.length > 1 ? (
                 <View style={{ gap: 6 }}>
                   <Text style={{ color: theme.muted, fontSize: 12, fontWeight: '600' }}>Data source for this match</Text>

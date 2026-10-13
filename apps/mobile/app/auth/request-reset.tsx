@@ -1,6 +1,6 @@
 import {friendlyError} from '../../src/core/friendly-error';
 import React,{useState} from 'react';
-import {Text} from 'react-native';
+import { Text } from '../../src/components/AppText';
 import {Stack,useLocalSearchParams,useRouter} from 'expo-router';
 import {useApp} from '../../src/core/context';
 import {configured} from '../../src/core/client';

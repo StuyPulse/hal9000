@@ -1,6 +1,7 @@
 import {friendlyError} from '../src/core/friendly-error';
 import React,{useEffect,useState} from 'react';
-import {Alert,ScrollView,Text,View} from 'react-native';
+import { Alert, ScrollView, View } from 'react-native';
+import { Text } from '../src/components/AppText';
 import * as Crypto from 'expo-crypto';
 import {useApp} from '../src/core/context';
 import {compareMatches,matchLabel} from '../src/features/stats';

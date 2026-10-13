@@ -1,6 +1,7 @@
 import {friendlyError} from '../../src/core/friendly-error';
 import React,{useEffect,useRef,useState} from 'react';
-import {ActivityIndicator,Text,Platform} from 'react-native';
+import { ActivityIndicator, Platform } from 'react-native';
+import { Text } from '../../src/components/AppText';
 import * as Linking from 'expo-linking';
 import {Stack,useRouter} from 'expo-router';
 import {useApp} from '../../src/core/context';

@@ -1,6 +1,7 @@
 import {friendlyError} from '../core/friendly-error';
 import React,{useEffect,useRef,useState} from 'react';
-import {Alert,Image,Pressable,Text,View} from 'react-native';
+import { Alert, Image, Pressable, View } from 'react-native';
+import { Text } from './AppText';
 import * as ImagePicker from 'expo-image-picker';
 import {useApp} from '../core/context';
 import {scopedIdentity} from '../core/sync-model';

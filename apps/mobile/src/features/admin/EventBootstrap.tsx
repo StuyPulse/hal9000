@@ -1,6 +1,7 @@
 import {friendlyError} from '../../core/friendly-error';
 import React,{useRef,useState} from 'react';
-import {Alert,Text} from 'react-native';
+import { Alert } from 'react-native';
+import { Text } from '../../components/AppText';
 import {useRouter} from 'expo-router';
 import {useApp} from '../../core/context';
 import {createManualEvent,serverSetupAction} from '../../core/setup';

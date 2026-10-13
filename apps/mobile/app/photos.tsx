@@ -1,5 +1,6 @@
 import React,{useState} from 'react';
-import {Image,Pressable,Text,View} from 'react-native';
+import { Image, Pressable, View } from 'react-native';
+import { Text } from '../src/components/AppText';
 import {useApp} from '../src/core/context';
 import {Screen} from '../src/components/Screen';
 import {Label,Section} from '../src/components/ui';

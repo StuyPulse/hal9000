@@ -1,6 +1,6 @@
 import {friendlyError} from '../../src/core/friendly-error';
 import React,{useEffect,useRef,useState} from 'react';
-import {Text} from 'react-native';
+import { Text } from '../../src/components/AppText';
 import * as Crypto from 'expo-crypto';
 import {useApp} from '../../src/core/context';
 import {apiRequest} from '../../src/core/mobile-api';
