@@ -245,7 +245,6 @@ export function ManualScoutingScreen({ kind, entryId, fieldArt }: { kind: Manual
 
   return (
     <Screen theme={theme} scrollEnabled={!drawing} footer={teamId ? <Button theme={theme} title="Review report" icon="check" disabled={blocked} onPress={() => { if (timer.current) clearTimeout(timer.current); void persist(false); setStep('review'); }} /> : undefined}>
-      <Text accessibilityRole="header" style={{ color: theme.text, fontSize: 26, fontWeight: '700' }}>{title}</Text>
       <Text style={{ color: theme.muted, fontSize: 15 }}>{bundle.event.name}</Text>
       {editing ? <Notice theme={theme}>The report stays attached to its original team and event.</Notice> : null}
       {preScoutNote ? <Notice theme={theme} tone="warning">{preScoutNote}</Notice> : null}

@@ -24,7 +24,6 @@ export default function Search(){
  if(!bundle)return <Screen><Label theme={theme}>Download an event in Settings before searching offline.</Label><Row title="Open Settings" theme={theme} onPress={()=>router.push('/settings')}/></Screen>;
  const visible=filter==='All'?['Teams','Matches','Reports']:[filter],count=filter==='Teams'?results.teams.length:filter==='Matches'?results.matches.length:filter==='Reports'?results.reports.length:results.teams.length+results.matches.length+results.reports.length;
  return <Screen>
-  <Text accessibilityRole="header" style={{color:theme.text,fontSize:24,fontWeight:'700'}}>Search</Text>
   <Label theme={theme} muted>{bundle.event.name} · downloaded event only · works offline</Label>
   <Input label="Search teams, matches and reports" theme={theme} autoFocus autoCorrect={false} placeholder="Team number, scout, match or report notes" value={query} onChangeText={text=>{setQuery(text);setLimit(30)}}/>
   <View style={{flexDirection:'row',flexWrap:'wrap',gap:8}}>{(['All','Teams','Matches','Reports'] as const).map(item=><Choice key={item} label={item} theme={theme} selected={filter===item} onPress={()=>{setFilter(item);setLimit(30)}}/>)}</View>

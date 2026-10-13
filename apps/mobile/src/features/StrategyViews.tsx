@@ -454,8 +454,6 @@ function PicklistView({ analysis, theme }: { analysis: Analysis; theme: Palette 
 
   return (
     <Screen theme={theme}>
-      <Text accessibilityRole="header" style={{ color: theme.text, fontSize: 26, fontWeight: '700' }}>Picklist</Text>
-      <Text style={{ color: theme.muted }}>{bundle.event.name} · shared by everyone allowed to view it</Text>
       {!canEdit ? (
         <Notice theme={theme}>{roleCanEdit ? 'Editing is not available in this build; showing the board read-only.' : `View only. Strategists, masters, global scouts and admins can edit the picklist (your role: ${app.viewer?.role ?? 'unknown'}).`}</Notice>
       ) : null}
@@ -501,9 +499,7 @@ function PicklistView({ analysis, theme }: { analysis: Analysis; theme: Palette 
                       <Text style={{ color: theme.text, fontSize: 17, fontWeight: '700', flex: 1 }} numberOfLines={1}>{team.displayNumber} · {team.name}</Text>
                       {ranking?.selected ? <Badge theme={theme} tone="success" text="Selected" /> : null}
                     </View>
-                    <Text style={{ color: theme.muted, fontSize: 13 }}>
-                      {value.matches ? `Auto ${formatStat(value.autoAvgScored)} · Teleop ${formatStat(value.teleopAvgScored)} scored avg · ${value.brokenPercent.toFixed(0)}% broken` : 'No qualification/playoff scouting yet'}
-                    </Text>
+                    {value.matches ? <Text style={{ color: theme.muted, fontSize: 13 }}>{`Auto ${formatStat(value.autoAvgScored)} · Teleop ${formatStat(value.teleopAvgScored)} · ${value.brokenPercent.toFixed(0)}% broken`}</Text> : null}
                     {teamTags.length ? <Text style={{ color: theme.tint, fontSize: 13 }}>{teamTags.map((tag) => tag.name).join(' · ')}</Text> : null}
                     {!open && ranking?.note ? <Text style={{ color: theme.text, fontSize: 14 }} numberOfLines={2}>{ranking.note}</Text> : null}
                   </Pressable>
@@ -525,7 +521,6 @@ function PicklistView({ analysis, theme }: { analysis: Analysis; theme: Palette 
                             <Choice theme={theme} label="Move up" selected={false} onPress={() => void write(toPatches(planMove(team.id, tierIds, tierOrders, tier.id, -1)), `${team.displayNumber} moved.`)} />
                             <Choice theme={theme} label="Move down" selected={false} onPress={() => void write(toPatches(planMove(team.id, tierIds, tierOrders, tier.id, 1)), `${team.displayNumber} moved.`)} />
                           </View>
-                          <Text style={{ color: theme.muted, fontSize: 13 }}>Tier</Text>
                           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
                             {tiers.map((option) => <Choice key={option.id} theme={theme} label={option.name} selected={option.id === tier.id} onPress={() => option.id !== tier.id && void write(toPatches(planMoveToTier(team.id, tierOrders, option.id)), `${team.displayNumber} moved to ${option.name}.`)} />)}
                           </View>
@@ -540,7 +535,7 @@ function PicklistView({ analysis, theme }: { analysis: Analysis; theme: Palette 
                               </View>
                             </>
                           ) : null}
-                          <Text style={{ color: theme.muted, fontSize: 12 }}>Position {position + 1} of {tierOrders[tier.id].length} in {tier.name}.{saving ? ' Saving…' : ''}</Text>
+                          {saving ? <Text style={{ color: theme.muted, fontSize: 12 }}>Saving…</Text> : null}
                         </>
                       ) : (
                         <Text style={{ color: theme.text, fontSize: 15 }}>{ranking?.note || 'No notes.'}</Text>
@@ -764,7 +759,6 @@ function MatchStrategyView({ analysis, theme }: { analysis: Analysis; theme: Pal
 
   return (
     <Screen theme={theme} scrollEnabled={!drawing}>
-      <Text accessibilityRole="header" style={{ color: theme.text, fontSize: 26, fontWeight: '700' }}>Match strategy</Text>
       <SourceNotice theme={theme} analysis={analysis} />
       <Input theme={theme} label="Choose match" value={query} onChangeText={setQuery} placeholder="Search matches or teams…" autoCorrect={false} />
       {results.map((match) => <Row key={match.id} theme={theme} title={label(match)} subtitle={`${lineup(match)}${match.scheduled_at ? ` · ${new Date(match.scheduled_at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}` : ''}${match.status === 'played' ? ' · played' : ''}`} onPress={() => chooseMatch(match)} tail={match.id === matchId ? <Badge theme={theme} tone="tint" text="Selected" /> : undefined} />)}

@@ -26,49 +26,31 @@ export default function Settings(){
  const pendingReports=records.filter(r=>r.entry.status==='submitted'&&r.status!=='synced').length,pendingPhotos=photos.filter(p=>p.status!=='synced').length;
  const packageReady=!!bundle&&bundle.teams.length>0&&!!bundle.downloadedAt;
  const labels:Record<string,string>={masterRelay:'Signed scout-to-Master relay',deviceRegistration:'Native device registration',reportCorrection:'Submitted report corrections',manualReportCorrection:'Pit and pre-scout corrections',reportDeletion:'Report deletion',robotProfiles:'Robot profile editing',memberRoles:'Member roles',invitations:'Member invitations',emailAccess:'Email authorization',eventActivation:'Transactional event activation',tbaImport:'TBA event import',tbaStats:'Official TBA statistics'};
+ const down=(capabilities?Object.entries(capabilities.operations).filter(([,enabled])=>!enabled).map(([key])=>labels[key]??key):[]);
+ const link=(url:string,label:string)=><Text accessibilityRole="link" onPress={()=>void Linking.openURL(url).catch(e=>{if(mounted.current)setMessage(e.message)})} style={{color:theme.muted,fontSize:14,paddingVertical:8}}>{label}</Text>;
  return <Screen>
-  <Text accessibilityRole="header" style={{color:theme.text,fontSize:24,fontWeight:'700'}}>Settings</Text>
-  <Label theme={theme}>{viewer?.displayName} · {viewer?.role}</Label>
+  <Text style={{color:theme.muted,fontSize:14}}>{viewer?.displayName} · {viewer?.role}</Text>
   {!!message&&<Text accessibilityRole="alert" selectable style={{color:theme.text,lineHeight:22}}>{message}</Text>}
-  <Section title="Event download" theme={theme}>
-   {events.map(event=><Row key={event.id} title={event.name} subtitle={bundle?.event.id===event.id?'Selected · saved on this device':event.status} theme={theme} onPress={()=>{if(!busy&&(online||viewer?.demo))void download(event.id)}}/>)}
-   <Button title={busy?'Working…':'Refresh event package'} theme={theme} disabled={busy||(!online&&!viewer?.demo)} onPress={()=>void download()}/>
-   <Label theme={theme} muted>{bundle?`Teams, schedule, assignments, forms and reports saved ${new Date(bundle.downloadedAt).toLocaleString()}.`:'No downloaded event. Sign in online and choose an event.'}</Label>
+  <Section title="Event" theme={theme}>
+   {events.map(event=><Row key={event.id} title={event.name} subtitle={bundle?.event.id===event.id?`Downloaded ${new Date(bundle.downloadedAt).toLocaleString()}`:event.status} theme={theme} onPress={()=>{if(!busy&&(online||viewer?.demo))void download(event.id)}}/>)}
+   <Button title={busy?'Working…':'Refresh event'} theme={theme} disabled={busy||(!online&&!viewer?.demo)} onPress={()=>void download()}/>
   </Section>
-  <Section title="Offline readiness" theme={theme}>
-   <Row theme={theme} title={viewer?'Account loaded':'Sign in online first'} subtitle={viewer?.demo?'Practice is isolated from organization data.':'Local work is scoped to this account and organization.'}/>
-   <Row theme={theme} title={packageReady?'Event package downloaded':'Download an event package'} subtitle={bundle?`${bundle.teams.length} teams · ${bundle.matches.length} matches · ${bundle.forms.length} generic form definitions`:'Keep a connection until the initial download completes.'}/>
-   <Row theme={theme} title={`${pendingReports} reports and ${pendingPhotos} photos await delivery`} subtitle="Local saving is separate from confirmed server delivery. Photos upload directly, not through QR codes."/>
-   <Row theme={theme} title="Before competition: test in Airplane Mode" subtitle="Complete a practice report, export and scan its QR on a second native device, reconnect, and verify exactly one server record. This checklist is not automatically verified."/>
-  </Section>
-  <Section title="Signed offline relay" theme={theme}>
-   <Label theme={theme}>{deviceLoaded?(registered?'Registration remembered on this device':'This device is not registered for signed relay'):'Checking secure device storage…'}</Label>
-   
-   {viewer?.demo?<Label theme={theme}>Practice does not register or revoke real devices.</Label>:Platform.OS==='web'?null:<>
-    {!registered&&<Input label="Device name" theme={theme} value={deviceName} onChangeText={setDeviceName} maxLength={100}/>}
-    <Button title={registered?'Confirm device registration':'Register this device'} theme={theme} disabled={busy||!online||!nativeLive||!relayAvailable} onPress={()=>void register()}/>
-    <Button title="Revoke this device" secondary theme={theme} disabled={busy||!online||!registered||!nativeLive||!relayAvailable} onPress={revoke}/>
-    {!relayAvailable&&null}
-   </>}
-  </Section>
-  <Section title="Mobile server" theme={theme}>
-   {viewer?.demo?<Label theme={theme}>Local practice does not contact the mobile server.</Label>:<>
-    <Label theme={theme}>{capabilities?`API v${capabilities.apiVersion} · ${capabilities.configured?'server configured':'server configuration incomplete'}`:capabilityError||'Server capabilities have not been checked.'}</Label>
-    {checkedAt&&<Label theme={theme} muted>Last checked {new Date(checkedAt).toLocaleString()}{!online?' · currently offline':''}</Label>}
-    {capabilities&&Object.entries(capabilities.operations).map(([key,enabled])=><Row key={key} theme={theme} title={labels[key]??key} subtitle={enabled?'Server reports available':'Not available on this server'}/>)}
-    {capabilities&&Object.entries(capabilities.limitations).map(([key,limitation])=><Label key={key} theme={theme} muted>{limitation}</Label>)}
-    <Button secondary title="Check server capabilities" theme={theme} disabled={busy||!online} onPress={()=>void action(checkServer)}/>
-    {(!capabilities||!capabilities.configured)&&null}
-   </>}
-  </Section>
-  <Section title="Appearance" theme={theme}><View style={{flexDirection:'row',gap:8}}>{(['light','dark','system'] as const).map(mode=><Choice key={mode} label={mode} selected={appearance===mode} theme={theme} onPress={()=>setAppearance(mode)}/>)}</View></Section>
   <Section title="Delivery" theme={theme}>
-   <Label theme={theme}>{online?'Network available':'Offline'} · {pendingReports} reports and {pendingPhotos} photos await delivery.</Label>
-   <Button title={syncing?'Syncing…':'Retry sync now'} theme={theme} disabled={busy||!online||syncing||viewer?.demo} onPress={()=>void action(sync)}/>
-   
+   <Label theme={theme}>{pendingReports||pendingPhotos?`${pendingReports} report${pendingReports===1?'':'s'} · ${pendingPhotos} photo${pendingPhotos===1?'':'s'} to send`:'Everything is sent'}{online?'':' · offline'}</Label>
+   <Button title={syncing?'Syncing…':'Sync now'} theme={theme} secondary={!(pendingReports||pendingPhotos)} disabled={busy||!online||syncing||viewer?.demo} onPress={()=>void action(sync)}/>
   </Section>
-  <Button title="Sign out · keep local work" theme={theme} secondary disabled={busy} onPress={()=>{const captured=scope;Alert.alert('Sign out?','Local reports remain protected under this account and reappear when you sign back in. Pending work is not deleted.',[{text:'Keep working',style:'cancel'},{text:'Sign out',onPress:()=>{if(!valid(captured))return;void action(async()=>{await signOut();if(mounted.current)router.replace('/login')})}}])}}/>
-  <Button title="Privacy policy" theme={theme} secondary onPress={()=>void Linking.openURL('https://hal9000.stuypulse.com/privacy').catch(e=>{if(mounted.current)setMessage(e.message)})}/>
-  <Button title="Terms of service" theme={theme} secondary onPress={()=>void Linking.openURL('https://hal9000.stuypulse.com/terms').catch(e=>{if(mounted.current)setMessage(e.message)})}/>
+  {!viewer?.demo&&Platform.OS!=='web'?<Section title="QR relay signing" theme={theme}>
+   <Label theme={theme}>{deviceLoaded?(registered?'This device is registered':'This device is not registered'):'Checking…'}</Label>
+   {!registered&&<Input label="Device name" theme={theme} value={deviceName} onChangeText={setDeviceName} maxLength={100}/>}
+   <Button title={registered?'Confirm registration':'Register this device'} theme={theme} disabled={busy||!online||!nativeLive||!relayAvailable} onPress={()=>void register()}/>
+   {registered?<Button title="Revoke this device" secondary theme={theme} disabled={busy||!online||!nativeLive||!relayAvailable} onPress={revoke}/>:null}
+  </Section>:null}
+  {!viewer?.demo?<Section title="Server" theme={theme}>
+   <Label theme={theme}>{capabilities?(capabilities.configured&&!down.length?'Ready':down.length?`Unavailable: ${down.join(', ')}`:'Configuration incomplete'):capabilityError||'Not checked'}</Label>
+   <Button secondary title="Check server" theme={theme} disabled={busy||!online} onPress={()=>void action(checkServer)}/>
+  </Section>:null}
+  <Section title="Appearance" theme={theme}><View style={{flexDirection:'row',gap:8}}>{(['light','dark','system'] as const).map(mode=><Choice key={mode} label={mode[0].toUpperCase()+mode.slice(1)} selected={appearance===mode} theme={theme} onPress={()=>setAppearance(mode)}/>)}</View></Section>
+  <Button title="Sign out" theme={theme} secondary disabled={busy} onPress={()=>{const captured=scope;Alert.alert('Sign out?','Your local reports stay on this phone.',[{text:'Keep working',style:'cancel'},{text:'Sign out',onPress:()=>{if(!valid(captured))return;void action(async()=>{await signOut();if(mounted.current)router.replace('/login')})}}])}}/>
+ <View style={{flexDirection:'row',gap:20,justifyContent:'center'}}>{link('https://hal9000.stuypulse.com/terms','Terms')}{link('https://hal9000.stuypulse.com/privacy','Privacy')}</View>
  </Screen>;
 }

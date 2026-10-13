@@ -39,7 +39,6 @@ export function LeaderboardScreen() {
 
   return (
     <Screen theme={theme}>
-      <Text accessibilityRole="header" style={{ color: theme.text, fontSize: 26, fontWeight: '700' }}>Leaderboard</Text>
       <Text style={{ color: theme.muted }}>{bundle.event.name} · submitted scouting reports</Text>
       {bundle.event.status !== 'active' ? null : null}
       {pendingSubmittedCount(bundle, records) && !viewer?.demo ? <><Notice theme={theme} tone="warning">{pendingSubmittedCount(bundle, records)} report(s) are pending on this device. {includePending ? 'Preview counts include them and are not the confirmed website leaderboard.' : 'Confirmed counts below exclude them until cloud delivery.'}</Notice><Choice theme={theme} label="Preview pending local reports" selected={includePending} onPress={() => setIncludePending(value => !value)} /></> : null}
