@@ -1,7 +1,7 @@
 import {test} from 'node:test';import assert from 'node:assert/strict';
 import {createWorkspaceCache,chooseWorkspaceEvent,type CacheStore} from './workspace-cache-model';
 import type {EventBundle,Event} from './types';
-function fixture(){const rows=new Map<string,unknown>();const store:CacheStore={async get<T>(s,k,id){return rows.get(`${s}:${k}:${id}`) as T??null;},async put(s,k,id,v){rows.set(`${s}:${k}:${id}`,v)}};return {cache:createWorkspaceCache(store),store};}
+function fixture(){const rows=new Map<string,unknown>();const store:CacheStore={async get<T>(s:string,k:string,id:string){return rows.get(`${s}:${k}:${id}`) as T??null;},async put(s:string,k:string,id:string,v:unknown){rows.set(`${s}:${k}:${id}`,v)}};return {cache:createWorkspaceCache(store),store};}
 const a={scope:'one',event:{id:'a'},entries:[]} as unknown as EventBundle,b={...a,event:{id:'b'}} as unknown as EventBundle;
 test('every downloaded event stays accessible after switching events and restarting the cache',async()=>{const {cache,store}=fixture();await cache.saveBundle(a);await cache.saveBundle(b);const restarted=createWorkspaceCache(store);assert.equal((await restarted.bundle('one','a'))?.event.id,'a');assert.equal((await restarted.bundle('one'))?.event.id,'b');assert.equal(await restarted.bundle('two','a'),null)});
 test('failed networking cannot overwrite last-successful packages or event index',async()=>{const {cache}=fixture();await cache.saveBundle(a);await cache.saveEvents('one',[{id:'a',status:'active'} as Event]);try{await Promise.reject(Error('connection dropped'))}catch{}assert.equal((await cache.bundle('one','a'))?.event.id,'a');assert.equal((await cache.events('one'))?.length,1)});

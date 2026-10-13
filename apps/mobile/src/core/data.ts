@@ -56,4 +56,14 @@ export async function writePicklist(viewer:Viewer,eventId:string,teamId:string,p
  if(error)throw error;
  if(!data?.length)throw Error('The server did not authorize this picklist change.');
 }
+export type PicklistRow={team_id:string;rank:number|null;category_id:string|null;note:string;selected:boolean;tag_ids:string[]};
+/** One request for a multi-team change, like the website's picklist board (upsert on event_id,team_id). */
+export async function writePicklistBulk(viewer:Viewer,eventId:string,rows:PicklistRow[],createdBy:Record<string,string|undefined>={}){
+ if(!rows.length)return;
+ if(!['admin','developer','global_scout','strategist','master'].includes(viewer.role))throw Error('Your role cannot edit the shared picklist.');
+ const payload=rows.map(row=>({organization_id:viewer.organizationId,event_id:eventId,team_id:row.team_id,created_by:createdBy[row.team_id]??viewer.userId,updated_by:viewer.userId,rank:row.rank,category_id:row.category_id,note:row.note,selected:row.selected,tag_ids:row.tag_ids}));
+ const {data,error}=await requireClient().from('shared_picklist_rankings').upsert(payload,{onConflict:'event_id,team_id'}).select('id,team_id');
+ if(error)throw error;
+ if((data?.length??0)!==rows.length)throw Error('The server did not authorize every picklist change. Refresh and try again.');
+}
 export function emptyRebuilt():Payload{return {no_show:false,starting_spot:null,starting_spot_confirmed:false,auto:{shoot:0,ferry:0},teleop:{shoot:0,ferry:0},auto_fuel:0,teleop_fuel:0,fouls:0,defense:false,defense_level:null,defended_teams:[],robot_broke:false,breakage_issues:[],comments:'',report_source:'scheduled',manual_match:null};}
