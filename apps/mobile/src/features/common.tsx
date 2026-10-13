@@ -106,11 +106,11 @@ export function TeamPicker({ theme, teams, value, onChange, markedIds = [], mark
     <View style={{ gap: 8 }}>
       <Text style={{ color: theme.text, fontSize: 14, fontWeight: '600' }}>{label}</Text>
       {selected ? (
-        <Card theme={theme} style={{ padding: 12 }}>
-          <Text style={{ color: theme.text, fontSize: 17, fontWeight: '700' }}>{selected.displayNumber} · {selected.name}</Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: theme.surface, borderRadius: 14, paddingLeft: 14, paddingRight: 6, minHeight: 56 }}>
+          <Text style={{ color: theme.text, fontSize: 17, fontWeight: '700', flex: 1 }} numberOfLines={1}>{selected.displayNumber} · {selected.name}</Text>
           {marked.has(selected.id) && markedLabel ? <Badge theme={theme} tone="success" text={markedLabel} /> : null}
-          {!disabled ? <Pressable accessibilityRole="button" accessibilityLabel={changing ? 'Keep this team' : 'Change team'} onPress={() => setChanging((value) => !value)} style={{ minHeight: 48, justifyContent: 'center' }}><Text style={{ color: theme.tint, fontWeight: '600', fontSize: 15 }}>{changing ? 'Keep this team' : 'Change team'}</Text></Pressable> : null}
-        </Card>
+          {!disabled ? <Pressable accessibilityRole="button" accessibilityLabel={changing ? 'Keep this team' : 'Change team'} onPress={() => setChanging((value) => !value)} style={{ minHeight: 48, paddingHorizontal: 12, justifyContent: 'center' }}><Text style={{ color: theme.tint, fontWeight: '700', fontSize: 15 }}>{changing ? 'Keep' : 'Change'}</Text></Pressable> : null}
+        </View>
       ) : null}
       {!disabled && (!selected || changing) ? (
         <>

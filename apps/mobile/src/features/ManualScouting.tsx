@@ -245,7 +245,6 @@ export function ManualScoutingScreen({ kind, entryId, fieldArt }: { kind: Manual
 
   return (
     <Screen theme={theme} scrollEnabled={!drawing} footer={teamId ? <Button theme={theme} title="Review report" icon="check" disabled={blocked} onPress={() => { if (timer.current) clearTimeout(timer.current); void persist(false); setStep('review'); }} /> : undefined}>
-      <Text style={{ color: theme.muted, fontSize: 15 }}>{bundle.event.name}</Text>
       {editing ? <Notice theme={theme}>The report stays attached to its original team and event.</Notice> : null}
       {preScoutNote ? <Notice theme={theme} tone="warning">{preScoutNote}</Notice> : null}
       {!app.online ? <Notice theme={theme}>Offline · saved on this device</Notice> : null}
@@ -287,11 +286,11 @@ export function ManualScoutingScreen({ kind, entryId, fieldArt }: { kind: Manual
           ) : (
             <>
               <Section theme={theme} title="Drive team">
-                <Text style={{ color: theme.text, fontWeight: '600' }}>Driver experience</Text>
+                <Text style={{ color: theme.text, fontWeight: '600' }}>Driver experience (years)</Text>
                 <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
                   {EXPERIENCE_OPTIONS.map((option) => <Choice key={option.value} theme={theme} label={option.label} selected={fields.driver_experience === option.value} onPress={() => setField('driver_experience', option.value)} />)}
                 </View>
-                <Text style={{ color: theme.text, fontWeight: '600' }}>Operator experience</Text>
+                <Text style={{ color: theme.text, fontWeight: '600' }}>Operator experience (years)</Text>
                 <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
                   {OPERATOR_EXPERIENCE_OPTIONS.map((option) => <Choice key={option.value} theme={theme} label={option.label} selected={fields.operator_experience === option.value} onPress={() => setField('operator_experience', option.value)} />)}
                 </View>
