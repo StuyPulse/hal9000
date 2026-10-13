@@ -6,7 +6,7 @@ import { eventEntries, pendingSubmittedCount } from '../core/report-overlay';
 import { ALL_ROUNDS, leaderboardRows, record as asRecord, scoutDisplayName, type LeaderboardEntry, type LeaderboardSection, type MatchRound } from './stats';
 
 const SECTIONS: { id: LeaderboardSection; label: string }[] = [
-  { id: 'all', label: 'All' }, { id: 'match', label: 'Match scouting' }, { id: 'pit', label: 'Pit scouting' }, { id: 'pre_scout', label: 'Pre scouting' },
+  { id: 'all', label: 'All' }, { id: 'match', label: 'Match' }, { id: 'pit', label: 'Pit' }, { id: 'pre_scout', label: 'Pre-scout' },
 ];
 const ROUNDS: { id: MatchRound; label: string }[] = [{ id: 'practice', label: 'Practice' }, { id: 'qualification', label: 'Qualification' }, { id: 'playoff', label: 'Playoffs' }];
 
@@ -39,7 +39,6 @@ export function LeaderboardScreen() {
 
   return (
     <Screen theme={theme}>
-      <Text style={{ color: theme.muted }}>{bundle.event.name} · submitted scouting reports</Text>
       {bundle.event.status !== 'active' ? null : null}
       {pendingSubmittedCount(bundle, records) && !viewer?.demo ? <><Notice theme={theme} tone="warning">{pendingSubmittedCount(bundle, records)} report(s) are pending on this device. {includePending ? 'Preview counts include them and are not the confirmed website leaderboard.' : 'Confirmed counts below exclude them until cloud delivery.'}</Notice><Choice theme={theme} label="Preview pending local reports" selected={includePending} onPress={() => setIncludePending(value => !value)} /></> : null}
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>

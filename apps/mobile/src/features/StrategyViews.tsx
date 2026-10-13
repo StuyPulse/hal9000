@@ -325,7 +325,7 @@ function CompareView({ analysis, theme }: { analysis: Analysis; theme: Palette }
           </ScrollView>
           {group !== 'summary' ? <ComparisonStatsGraph theme={theme} series={chosen.map((team, index) => ({ label: team.displayNumber, color: index === 0 ? theme.red : theme.blue, stats: stats.get(team.id) ?? EMPTY_STATS }))} /> : null}
         </>
-      ) : <Notice theme={theme}>Choose at least two teams to compare.</Notice>}
+      ) : null}
     </Screen>
   );
 }
@@ -659,6 +659,7 @@ function MatchStrategyView({ analysis, theme }: { analysis: Analysis; theme: Pal
   }, [analysis.bundle.strategyDrawings, app.viewer?.userId]);
   const [strokes, setStrokes] = useState<DrawStroke[]>(saved);
   const [flipped, setFlipped] = useState(false);
+  const [lineupOpen, setLineupOpen] = useState(false);
   const [savingDrawing, setSavingDrawing] = useState(false);
   const [drawingNotice, setDrawingNotice] = useState<{ text: string; error: boolean } | null>(null);
   const [dirtyDrawing, setDirtyDrawing] = useState(false);
@@ -773,9 +774,7 @@ function MatchStrategyView({ analysis, theme }: { analysis: Analysis; theme: Pal
           return (
             <Pressable key={team.id} accessibilityRole="button" accessibilityLabel={`Open team ${team.displayNumber}`} onPress={() => goTeam(router, team.id)} style={{ minHeight: 56, justifyContent: 'center' }}>
               <Text style={{ color: theme.text, fontWeight: '700', fontSize: 16 }}>{team.displayNumber} · {team.name}</Text>
-              <Text style={{ color: theme.muted, fontSize: 13 }}>
-                {value.matches ? `Auto avg ${formatStat(value.autoAvgScored)} · peak ${formatStat(value.autoMaxScored)} | Teleop avg ${formatStat(value.teleopAvgScored)} · peak ${formatStat(value.teleopMaxScored)} (${basis}, ${value.matches} match${value.matches === 1 ? '' : 'es'})` : `No ${basis} scouting yet`}
-              </Text>
+              {value.matches ? <Text style={{ color: theme.muted, fontSize: 13 }}>{`Auto ${formatStat(value.autoAvgScored)} · Teleop ${formatStat(value.teleopAvgScored)} avg · ${value.matches} match${value.matches === 1 ? '' : 'es'}${basis === 'practice' ? ' (practice)' : ''}`}</Text> : null}
             </Pressable>
           );
         })}
@@ -792,13 +791,19 @@ function MatchStrategyView({ analysis, theme }: { analysis: Analysis; theme: Pal
   return (
     <Screen theme={theme} scrollEnabled={!drawing}>
       <SourceNotice theme={theme} analysis={analysis} />
-      <Input theme={theme} label="Choose match" value={query} onChangeText={setQuery} placeholder="Search matches or teams…" autoCorrect={false} />
-      {results.map((match) => <Row key={match.id} theme={theme} title={label(match)} subtitle={`${lineup(match)}${match.scheduled_at ? ` · ${new Date(match.scheduled_at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}` : ''}${match.status === 'played' ? ' · played' : ''}`} onPress={() => chooseMatch(match)} tail={match.id === matchId ? <Badge theme={theme} tone="tint" text="Selected" /> : undefined} />)}
+      {matches.length > 10 ? <TextInput accessibilityLabel="Find a match or team" value={query} onChangeText={setQuery} placeholder="Find a match or team" placeholderTextColor={theme.muted} autoCorrect={false} autoCapitalize="none" style={{ minHeight: 48, borderWidth: 1, borderRadius: 12, paddingHorizontal: 14, fontSize: 16, color: theme.text, backgroundColor: theme.surface, borderColor: theme.line }} /> : null}
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }} style={{ flexGrow: 0 }}>
+        {results.map((match) => <Choice key={match.id} theme={theme} label={`${label(match)}${match.status === 'played' ? ' ✓' : ''}`} selected={selected?.id === match.id && !overrides} onPress={() => chooseMatch(match)} />)}
+      </ScrollView>
       {!matches.length ? <Notice theme={theme}>No matches are downloaded for this event.</Notice> : null}
 
       {draftLoaded ? (
         <>
-          <Section theme={theme} title="Manual event lineup">
+          <Pressable accessibilityRole="button" accessibilityState={{ expanded: lineupOpen || Boolean(overrides) }} onPress={() => setLineupOpen((open) => !open)} style={{ minHeight: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+            <Text style={{ color: theme.tint, fontWeight: '700', fontSize: 15 }}>{overrides ? 'Custom lineup' : 'Edit lineup'}</Text>
+            <Text style={{ color: theme.muted }}>{lineupOpen || overrides ? '▴' : '▾'}</Text>
+          </Pressable>
+          {lineupOpen || overrides ? <Section theme={theme}>
             
             <View style={{ flexDirection: 'row', gap: 8 }}>
               {[0, 1, 2].map((i) => <TextInput key={`r${i}`} accessibilityLabel={`Red alliance team ${i + 1}`} value={manual[i]} onChangeText={(text) => setManual((current) => current.map((item, index) => (index === i ? text.replace(/[^0-9a-z]/gi, '') : item)))} maxLength={8} placeholder={`R${i + 1}`} placeholderTextColor={theme.muted} autoCapitalize="characters" style={{ flex: 1, minHeight: 52, borderWidth: 2, borderColor: theme.red, borderRadius: 12, textAlign: 'center', color: theme.text, backgroundColor: theme.surface, fontSize: 17 }} />)}
@@ -811,7 +816,7 @@ function MatchStrategyView({ analysis, theme }: { analysis: Analysis; theme: Pal
               <Button theme={theme} title="Use lineup" onPress={applyLineup} style={{ flex: 1 }} />
               {overrides ? <Button theme={theme} secondary title="Use scheduled" onPress={() => { setOverrides(null); setError(''); setManual(slotIds(selected).map((id) => analysis.teamsById.get(id)?.displayNumber ?? '')); }} style={{ flex: 1 }} /> : null}
             </View>
-          </Section>
+          </Section> : null}
           {alliance('Red', effective.slice(0, 3).filter(Boolean))}
           {alliance('Blue', effective.slice(3).filter(Boolean))}
           
