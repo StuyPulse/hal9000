@@ -1,5 +1,5 @@
 import React,{useState,useEffect} from 'react';
-import {Text,View,Image,Platform} from 'react-native';
+import {Text,View,Image,Platform,Linking} from 'react-native';
 import {useRouter} from 'expo-router';
 import {useApp} from '../src/core/context';
 import {configured} from '../src/core/client';
@@ -8,12 +8,21 @@ import {normalizedEmail,signupProfile,validatePassword} from '../src/core/auth-m
 import {Screen} from '../src/components/Screen';
 import {Button,Input,Label} from '../src/components/ui';
 export default function Login(){
- const {ready,viewer,bundle,theme,signIn,signUp,startDemo,completeExternalSignIn}=useApp();const router=useRouter();
+ const {ready,viewer,bundle,theme,signIn,signUp,startDemo,completeExternalSignIn,membershipPending,signOut}=useApp();const router=useRouter();
  const [email,setEmail]=useState(''),[password,setPassword]=useState(''),[firstName,setFirstName]=useState(''),[lastName,setLastName]=useState('');
  const [register,setRegister]=useState(false),[busy,setBusy]=useState<string|null>(null),[message,setMessage]=useState(''),[success,setSuccess]=useState(false);
  useEffect(()=>{if(ready&&viewer&&bundle)router.replace('/(tabs)')},[ready,viewer?.userId,bundle?.event.id,router]);
  const run=async(name:string,action:()=>Promise<void>)=>{if(busy)return;setBusy(name);setMessage('');setSuccess(false);try{await action()}catch(e){setMessage((e as Error).message)}finally{setBusy(null)}};
  const login=()=>run(register?'Creating account…':'Signing in…',async()=>{const address=normalizedEmail(email);validatePassword(password);if(register){await signUp(address,password,signupProfile(firstName,lastName));setSuccess(true);setMessage('Check your inbox to confirm your account, then sign in. If you already have an account, sign in or reset your password.')}else{await signIn(address,password);router.replace('/(tabs)')}});
+ if(membershipPending)return <Screen>
+  <View style={{paddingTop:Platform.OS==='ios'?46:30,gap:14}}>
+   <Text accessibilityRole="header" style={{color:theme.text,fontSize:28,fontWeight:'800'}}>Waiting for access</Text>
+   <Label theme={theme}>You are signed in, but an administrator still needs to add you to the organization. Ask an admin to add this email, then check again.</Label>
+   {message?<Label theme={theme} muted>{message}</Label>:null}
+   <Button title={busy?'Checking…':'Check again'} theme={theme} disabled={Boolean(busy)} onPress={()=>void run('Checking…',completeExternalSignIn)}/>
+   <Button title="Sign out" secondary theme={theme} onPress={()=>void signOut()}/>
+  </View>
+ </Screen>;
  return <Screen>
   <View style={{paddingTop:Platform.OS==='ios'?46:30,gap:14,paddingBottom:12}}><Image source={require('../assets/icon.png')} accessibilityLabel="StuyPulse" style={{width:60,height:60,borderRadius:14}}/><Text accessibilityRole="header" style={{color:theme.text,fontSize:38,fontWeight:'800',letterSpacing:-1}}>HAL9000</Text><Text style={{color:theme.text,fontSize:24,fontWeight:'600'}}>{register?'Join your scouting team.':'Ready for the next match.'}</Text><Label theme={theme} muted>Sign in and download your event. Your reports stay on this device when the venue goes offline.</Label></View>
   <Button title={busy==='Opening Google…'?busy:'Continue with Google'} theme={theme} secondary disabled={Boolean(busy)||!configured} onPress={()=>void run('Opening Google…',async()=>{if(await signInWithGoogle()){await completeExternalSignIn();router.replace('/(tabs)')}})}/>
@@ -31,5 +40,9 @@ export default function Login(){
   <View style={{height:1,backgroundColor:theme.line,marginTop:14}}/>
   <Button title="Try local practice" theme={theme} secondary disabled={Boolean(busy)} onPress={()=>void run('Opening practice…',async()=>{await startDemo();router.replace('/(tabs)')})}/>
   <Label theme={theme} muted>Practice is separate from your team. Nothing is uploaded.</Label>
+  <View style={{flexDirection:'row',gap:8}}>
+   <Button title="Terms" secondary theme={theme} style={{flex:1}} onPress={()=>void Linking.openURL('https://hal9000.stuypulse.com/terms').catch(()=>setMessage('Could not open the terms page.'))}/>
+   <Button title="Privacy" secondary theme={theme} style={{flex:1}} onPress={()=>void Linking.openURL('https://hal9000.stuypulse.com/privacy').catch(()=>setMessage('Could not open the privacy page.'))}/>
+  </View>
  </Screen>;
 }

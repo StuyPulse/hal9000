@@ -386,6 +386,42 @@ export function officialForTeam(official: OfficialBundle, teamNumber: number, di
 export const byOfficialRank = (a: { rank: number | null; number: number }, b: { rank: number | null; number: number }) =>
   (a.rank ?? Number.MAX_SAFE_INTEGER) - (b.rank ?? Number.MAX_SAFE_INTEGER) || a.number - b.number;
 
+/** The website's official metric identity and ranking fallback, shared by summary and comparison. */
+export function officialMetrics(official: OfficialBundle, matches: (ScoredMatchLike & { match_type?: string })[], team: { id: string; number: number; displayNumber?: string }) {
+  const tba = officialForTeam(official, team.number, team.displayNumber);
+  const played = matches.filter(match => match.status === 'played');
+  const fuel = officialFuelAverages(played, team.id);
+  const climb = officialClimb(played, team.id);
+  return { rank: tba.rank ?? 99999, opr: tba.opr ?? 0,
+    tbaTotalFuel: fuel?.total ?? tba.sort(/total.*fuel|avg.*match/i) ?? 0,
+    tbaAutoFuel: fuel?.auto ?? tba.sort(/auto.*fuel/i) ?? 0,
+    tbaTeleopFuel: fuel?.teleop ?? tba.sort(/teleop.*fuel/i) ?? 0,
+    tbaTransitionFuel: tba.sort(/transition.*fuel/i) ?? 0,
+    tbaEndgameFuel: tba.sort(/endgame.*fuel/i) ?? 0,
+    autoClimb: climb.autoClimb, autoClimbRate: climb.autoClimbRate,
+    endgameClimb: climb.endgameClimb, endgameClimbRate: climb.endgameClimbRate,
+    record: tba.record ?? '—' };
+}
+
+/** Website defaults and complete sortable field identity. */
+export const STRATEGY_DEFAULT_SORT = 'opr';
+export function latestPreScout(entries: NativeEntry[]) {
+  const latest = new Map<string, NativeEntry>();
+  for (const entry of entries) {
+    if (entry.entry_type !== 'pre_scout' || entry.status !== 'submitted') continue;
+    const current = latest.get(entry.team_id);
+    const stamp = entry.created_at ?? entry.submitted_at ?? entry.updated_at ?? '';
+    if (!current || stamp > (current.created_at ?? current.submitted_at ?? current.updated_at ?? '')) latest.set(entry.team_id, entry);
+  }
+  return latest;
+}
+
+/** A newly played match remains among upcoming choices for the website's five-minute grace period. */
+export function strategyMatchOrder<T extends Match>(matches: T[], observedAt: Record<string, number>, now: number) {
+  const elapsed = (match: T) => match.status === 'played' && (!observedAt[match.id] || now >= observedAt[match.id] + 300000);
+  return [...matches].sort((a, b) => Number(elapsed(a)) - Number(elapsed(b)) || compareMatches(a, b));
+}
+
 /** Prescout assignments are coordination only: they never block a submission. */
 export function prescoutCoordination(assignments: { team_id: string; scout_user_id: string }[] | undefined, userId: string | undefined) {
   const byTeam = new Map<string, string[]>();

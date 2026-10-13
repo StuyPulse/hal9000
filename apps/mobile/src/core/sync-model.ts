@@ -6,7 +6,7 @@ export function acknowledge(latest:LocalSubmission,uploadedRevision:number,updat
 export function updateLocal(current:LocalSubmission,payload:Record<string,unknown>,finalize=false):LocalSubmission {
  const now=new Date().toISOString();
  const entry:NativeEntry={...current.entry,payload,status:finalize?'submitted':current.entry.status,submitted_at:finalize?current.entry.submitted_at??now:current.entry.submitted_at};
- return {...current,entry,revision:current.revision+1,status:entry.status==='submitted'?'pending':'draft',error:null,changedAt:now};
+ return {...current,entry,reviewRequired:!finalize&&current.entry.status==='submitted',revision:current.revision+1,status:entry.status==='submitted'?'pending':'draft',error:null,changedAt:now};
 }
 export function payloadEqual(a:unknown,b:unknown):boolean {
  if(a===b)return true;if(!a||!b||typeof a!=='object'||typeof b!=='object')return false;
@@ -34,6 +34,7 @@ export function reusableDraft(record:LocalSubmission,target:{eventId:string;kind
  return sameManualIdentity(record.entry.payload,target.payload);
 }
 export function shouldUpload(record:LocalSubmission):boolean {
+ if(record.reviewRequired)return false;
  if(record.revision===record.acknowledgedRevision)return false;
  if(record.origin==='relay')return record.entry.status==='submitted'&&Boolean(record.proof);
  return record.entry.status==='draft'||record.entry.status==='submitted';

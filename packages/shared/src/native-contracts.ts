@@ -13,7 +13,7 @@ export const nativeEntrySchema=z.object({
  id:z.string().uuid(),organization_id:z.string().uuid(),event_id:z.string().uuid(),team_id:z.string().uuid(),match_id:z.string().uuid().nullable(),assignment_id:z.string().uuid().nullable(),scout_user_id:z.string().uuid(),
  entry_type:z.enum(['match','pit','pre_scout']),form_version:z.number().int().positive(),payload:z.record(z.string(),z.unknown()),status:z.enum(['draft','submitted']),submitted_at:z.string().datetime({offset:true}).nullable(),updated_at:z.string().optional(),
 });
-export const manualMatchMetadataSchema=z.object({stage:z.enum(['Qualification','Practice','Quarterfinal','Semifinal','Final','Other / exception']),label:z.string().trim().max(30).nullable(),alliance:z.enum(['red','blue'])}).strict().superRefine((value,ctx)=>{if(value.stage!=='Other / exception'&&!/^[1-9]\d{0,5}$/.test(value.label??''))ctx.addIssue({code:'custom',message:'Enter a positive match number (up to six digits).',path:['label']})});
+export const manualMatchMetadataSchema=z.object({stage:z.enum(['Qualification','Practice','Quarterfinal','Semifinal','Final','Other / exception']),label:z.string().trim().max(30).nullable(),alliance:z.enum(['red','blue'])}).strict().superRefine((value,ctx)=>{if(value.stage!=='Other / exception'&&!value.label?.trim())ctx.addIssue({code:'custom',message:'Enter a match number or label.',path:['label']})});
 export function normalizeNativePayload(kind:'match'|'pit'|'pre_scout',payload:Record<string,unknown>){if(kind==='pre_scout'&&payload.average_pieces===''){const {average_pieces:_,...rest}=payload;return rest}return payload;}
 export function validateNativeEntry(value:unknown){
  const entry=nativeEntrySchema.parse(value);

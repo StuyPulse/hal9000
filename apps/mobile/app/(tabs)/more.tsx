@@ -6,7 +6,7 @@ import {Row,Label,Section} from '../../src/components/ui';
 const groups:{title:string;routes:[string,string,string?][]}[]=[
  {title:'Find & review',routes:[['Search downloaded event','/search','Teams, matches and report text · works offline'],['Scouting leaderboard','/leaderboard','Match, pit and prescout contributions']]},
  {title:'Scouting',routes:[['Pit scouting','/pit'],['Pre scouting','/pre-scout'],['Photos & coverage','/photos'],['Global scouting document','/global']]},
- {title:'Strategy',routes:[['Teams & summary','/strategy/summary'],['Team comparison','/strategy/compare'],['Shared picklist','/strategy/picklist'],['Match strategy','/strategy/strategy']]},
+ {title:'Strategy',routes:[['Team directory','/teams','All event teams, sorted by number'],['Teams & summary','/strategy/summary'],['Team comparison','/strategy/compare'],['Shared picklist','/strategy/picklist'],['Match strategy','/strategy/strategy']]},
  {title:'Device & access',routes:[['Settings & event download','/settings','Offline readiness, delivery and signed relay'],['Email access manager','/admin/email-access','Designated managers only · independent of admin role']]},
 ];
 export default function More(){

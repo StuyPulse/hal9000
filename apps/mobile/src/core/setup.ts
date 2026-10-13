@@ -3,7 +3,7 @@ import {requireClient} from './client';
 import {putValue} from './storage';
 import {scopedIdentity} from './sync-model';
 import type {Viewer,EventBundle} from './types';
-import {eventInput,teamInput,matchInput,assignmentInput,requireSetup,validateMatchTeams,roleInput,aliasInput,resultInput,rosterInput,editableFormSchema,planAssignments,assertSetupIdentity} from './setup-model';
+import {eventInput,teamInput,matchInput,manualScheduleInput,manualCompletionPatch,assignmentInput,requireSetup,validateMatchTeams,roleInput,aliasInput,resultInput,rosterInput,editableFormSchema,planAssignments,assertSetupIdentity,eventTeamNumberFromInput,manualLineupNumbers,assertAssignmentSlotOpen,assertBundleAssignmentSlotOpen} from './setup-model';
 import {apiRequest} from './mobile-api';
 
 // Setup changes are intentional online actions, not background-replayed mutations.
@@ -14,10 +14,38 @@ async function setupWrite(viewer:Viewer,kind:string,payload:unknown,write:()=>Pr
  try{const session=await requireClient().auth.getSession();if(session.error)throw session.error;assertSetupIdentity(expectedUserId,session.data.session?.user.id);await write();await putValue(scope,'setup-operation',id,{id,kind,payload,status:'confirmed',createdAt:new Date().toISOString()})}
  catch(e){await putValue(scope,'setup-operation',id,{id,kind,payload,status:'failed',error:(e as Error).message});throw e}
 }
-export async function createManualEvent(viewer:Viewer,input:unknown){const v=eventInput.parse(input);await setupWrite(viewer,'create-event',v,async()=>{const {data,error}=await requireClient().from('events').insert({id:Crypto.randomUUID(),organization_id:viewer.organizationId,name:v.name,event_key:`manual_${Crypto.randomUUID().replaceAll('-','')}`,starts_at:`${v.date}T00:00:00Z`,ends_at:`${v.date}T23:59:59Z`,status:'upcoming',is_manual:true}).select('id');if(error)throw error;if(!data?.length)throw Error('The server did not create the event.')})}
-export async function addEventTeam(viewer:Viewer,bundle:EventBundle,input:unknown){const v=teamInput.parse(input);await setupWrite(viewer,'add-event-team',{eventId:bundle.event.id,...v},async()=>{const c=requireClient();const {data:existing,error:readError}=await c.from('teams').select('id').eq('organization_id',viewer.organizationId).eq('team_number',v.number).maybeSingle();if(readError)throw readError;let teamId=existing?.id;if(!teamId){const {data,error}=await c.from('teams').insert({id:Crypto.randomUUID(),organization_id:viewer.organizationId,team_number:v.number,name:v.name}).select('id').single();if(error)throw error;teamId=data.id}const {data,error}=await c.from('event_teams').upsert({event_id:bundle.event.id,team_id:teamId,is_manual:true},{onConflict:'event_id,team_id'}).select('team_id');if(error)throw error;if(!data?.length)throw Error('The server did not add the team to this event.')})}
+export async function createManualEvent(viewer:Viewer,input:unknown){const v=eventInput.parse(input);await setupWrite(viewer,'create-event',v,async()=>{const {data,error}=await requireClient().from('events').insert({id:Crypto.randomUUID(),organization_id:viewer.organizationId,name:v.name,event_key:`manual_${Crypto.randomUUID().replaceAll('-','')}`,starts_at:`${v.date}T00:00:00Z`,ends_at:`${v.endDate??v.date}T23:59:59Z`,status:'upcoming',is_manual:true}).select('id');if(error)throw error;if(!data?.length)throw Error('The server did not create the event.')})}
+async function ensureEventTeam(viewer:Viewer,bundle:EventBundle,number:number,name=''){
+ const c=requireClient();const {data:existing,error:readError}=await c.from('teams').select('id').eq('organization_id',viewer.organizationId).eq('team_number',number).maybeSingle();if(readError)throw readError;let teamId=existing?.id;
+ if(!teamId){const {data,error}=await c.from('teams').insert({id:Crypto.randomUUID(),organization_id:viewer.organizationId,team_number:number,name:name||`Team ${number}`}).select('id').single();if(error)throw error;teamId=data.id;}
+ const {data,error}=await c.from('event_teams').upsert({event_id:bundle.event.id,team_id:teamId,is_manual:true},{onConflict:'event_id,team_id'}).select('team_id');if(error)throw error;if(!data?.length)throw Error('The server did not add the team to this event.');return teamId as string;
+}
+export async function addEventTeam(viewer:Viewer,bundle:EventBundle,input:unknown){const v=teamInput.parse(input),number=eventTeamNumberFromInput(v.number,bundle);await setupWrite(viewer,'add-event-team',{eventId:bundle.event.id,...v,number},async()=>{await ensureEventTeam(viewer,bundle,number,v.name)})}
+export async function createManualMatchByNumbers(viewer:Viewer,bundle:EventBundle,input:{number:string;type:'qualification'|'playoff'|'practice';red:string;blue:string}){
+ const numbers=manualLineupNumbers(input.red,input.blue,bundle),target=manualScheduleInput.parse(input);
+ await setupWrite(viewer,'create-match',{eventId:bundle.event.id,...input},async()=>{
+  const ids=new Map<number,string>();for(const number of [...numbers.red,...numbers.blue])ids.set(number,await ensureEventTeam(viewer,bundle,number));
+  const {data,error}=await requireClient().from('matches').insert({id:Crypto.randomUUID(),event_id:bundle.event.id,tba_match_key:`manual_${Crypto.randomUUID()}`,match_number:target.number,match_type:target.type,red_teams:numbers.red.map(n=>ids.get(n)!),blue_teams:numbers.blue.map(n=>ids.get(n)!),status:'scheduled',scheduled_at:null}).select('id');if(error)throw error;if(!data?.length)throw Error('The server did not create this match.');
+ });
+}
+export async function editManualMatchByNumbers(viewer:Viewer,bundle:EventBundle,matchId:string,input:{number:string;type:'qualification'|'playoff'|'practice';red:string;blue:string;scheduledAt:string|null}){
+ const match=bundle.matches.find(m=>m.id===matchId);if(!match||(!bundle.event.is_manual&&!match.tba_match_key?.startsWith('manual_')))throw Error('Only manual matches can be edited.');
+ const numbers=manualLineupNumbers(input.red,input.blue,bundle),target=manualScheduleInput.parse(input);
+ await setupWrite(viewer,'resolve-manual-lineup',{eventId:bundle.event.id,matchId,...input},async()=>{
+  const teams=[...bundle.teams];for(const number of [...numbers.red,...numbers.blue])if(!teams.some(t=>t.number===number)){const id=await ensureEventTeam(viewer,bundle,number);teams.push({id,number,displayNumber:String(number),name:`Team ${number}`});}
+  await editNativeMatch(viewer,{...bundle,teams},matchId,{...target,red:numbers.red.map(n=>teams.find(t=>t.number===n)!.id),blue:numbers.blue.map(n=>teams.find(t=>t.number===n)!.id)});
+ });
+}
 export async function createManualMatch(viewer:Viewer,bundle:EventBundle,input:unknown){const v=matchInput.parse(input);validateMatchTeams(v,bundle);await setupWrite(viewer,'create-match',{eventId:bundle.event.id,...v},async()=>{const {data,error}=await requireClient().from('matches').insert({id:Crypto.randomUUID(),event_id:bundle.event.id,tba_match_key:`manual_${Crypto.randomUUID()}`,match_number:v.number,match_type:v.type,red_teams:v.red,blue_teams:v.blue,status:'scheduled',scheduled_at:v.scheduledAt??null}).select('id');if(error)throw error;if(!data?.length)throw Error('The server did not create this match.')})}
-export async function assignScout(viewer:Viewer,bundle:EventBundle,input:unknown){const v=assignmentInput.parse(input);const match=bundle.matches.find(m=>m.id===v.matchId);if(!match||![...match.red_teams,...match.blue_teams].includes(v.teamId))throw Error('Choose a team in the selected match.');await setupWrite(viewer,'assign-scout',v,async()=>{const c=requireClient();const {data:member,error:memberError}=await c.from('organization_members').select('user_id').eq('organization_id',viewer.organizationId).eq('user_id',v.scoutId).in('role',['scout','global_scout','admin','developer']).maybeSingle();if(memberError)throw memberError;if(!member)throw Error('Choose an eligible scout in this organization.');const {data:existing,error:readError}=await c.from('scouting_assignments').select('id').eq('match_id',v.matchId).eq('team_id',v.teamId).eq('scout_user_id',v.scoutId).eq('assignment_type','objective').maybeSingle();if(readError)throw readError;if(existing)return;const {data,error}=await c.from('scouting_assignments').insert({id:Crypto.randomUUID(),match_id:v.matchId,team_id:v.teamId,scout_user_id:v.scoutId,assignment_type:'objective',status:'pending'}).select('id');if(error)throw error;if(!data?.length)throw Error('The server did not create this assignment.')})}
+export async function assignScout(viewer:Viewer,bundle:EventBundle,input:unknown){
+ const v=assignmentInput.parse(input);const match=bundle.matches.find(m=>m.id===v.matchId);if(!match||![...match.red_teams,...match.blue_teams].includes(v.teamId))throw Error('Choose a team in the selected match.');assertBundleAssignmentSlotOpen(bundle,v.matchId,v.teamId);
+ await setupWrite(viewer,'assign-scout',v,async()=>{const c=requireClient();const {data:member,error:memberError}=await c.from('organization_members').select('user_id').eq('organization_id',viewer.organizationId).eq('user_id',v.scoutId).in('role',['scout','global_scout','admin','developer']).maybeSingle();if(memberError)throw memberError;if(!member)throw Error('Choose an eligible scout in this organization.');
+  const {data:existing,error:readError}=await c.from('scouting_assignments').select('id,status,scout_user_id').eq('match_id',v.matchId).eq('team_id',v.teamId).eq('assignment_type','objective');if(readError)throw readError;
+  const ids=(existing??[]).map(a=>a.id);const checks=ids.length?await Promise.all([c.from('scouting_entries').select('assignment_id').in('assignment_id',ids).eq('status','submitted'),c.from('match_submissions').select('assignment_id').in('assignment_id',ids)]):[];for(const q of checks)if(q.error)throw q.error;
+  assertAssignmentSlotOpen(existing??[],new Set(checks.flatMap(q=>(q.data??[]).map(r=>r.assignment_id!))));if(existing?.some(a=>a.scout_user_id===v.scoutId))return;
+  const {data,error}=await c.from('scouting_assignments').insert({id:Crypto.randomUUID(),match_id:v.matchId,team_id:v.teamId,scout_user_id:v.scoutId,assignment_type:'objective',status:'pending'}).select('id');if(error)throw error;if(!data?.length)throw Error('The server did not create this assignment.');
+ });
+}
 export async function loadScoutOptions(viewer:Viewer){requireSetup(viewer);const c=requireClient();const {data,error}=await c.from('organization_members').select('user_id,profiles(display_name)').eq('organization_id',viewer.organizationId).in('role',['scout','global_scout','admin','developer']);if(error)throw error;return (data??[]).map((r:any)=>({id:r.user_id,name:r.profiles?.display_name||'Unnamed scout'}));}
 
 export type SetupMember={id:string;name:string;role:string;email?:string};
@@ -31,10 +59,6 @@ export async function loadSetupState(viewer:Viewer):Promise<SetupState>{
  ]);if(members.error)throw members.error;if(rosters.error)throw rosters.error;
  return {members:(members.data??[]).map((r:any)=>({id:r.user_id,name:r.profiles?.display_name??'Unnamed member',role:r.role})),rosters:(rosters.data??[]).map((r:any)=>({id:r.id,name:r.name,userIds:(r.scout_assignment_roster_members??[]).map((m:any)=>m.user_id)})),canManageEmailAccess:access.data===true,emails:[]};
 }
-export async function updateEventDetails(viewer:Viewer,eventId:string,input:{name:string;startsAt:string;endsAt:string;status:'upcoming'|'completed'}){
- const v=eventInput.parse({name:input.name,date:input.startsAt});eventInput.parse({name:input.name,date:input.endsAt});if(input.endsAt<input.startsAt)throw Error('End date cannot be before start date.');
- await setupWrite(viewer,'update-event',{eventId,...input},async()=>{const {data,error}=await requireClient().from('events').update({name:v.name,starts_at:`${input.startsAt}T00:00:00Z`,ends_at:`${input.endsAt}T23:59:59Z`,status:input.status}).eq('id',eventId).eq('organization_id',viewer.organizationId).select('id');if(error)throw error;if(data?.length!==1)throw Error('Event was not updated. Refresh and check permissions.');});
-}
 export async function activateEvent(viewer:Viewer,eventId:string){const identity={expectedUserId:viewer.userId,expectedOrganizationId:viewer.organizationId};
  await setupWrite(viewer,'activate-event',{eventId},async()=>{await apiRequest('/api/mobile/admin/activation','POST',{eventId},identity);});
 }
@@ -46,6 +70,10 @@ export async function updateTeamAlias(viewer:Viewer,bundle:EventBundle,teamId:st
 export async function saveManualResult(viewer:Viewer,bundle:EventBundle,matchId:string,input:unknown){
  const v=resultInput.parse(input),match=bundle.matches.find(m=>m.id===matchId);if(!match||(!bundle.event.is_manual&&!match.tba_match_key?.startsWith('manual_')))throw Error('Official match scores come from TBA. Choose a manual match.');
  await setupWrite(viewer,'manual-result',{matchId,...v},async()=>{const {data,error}=await requireClient().from('matches').update({red_score:v.redScore,blue_score:v.blueScore,status:'played'}).eq('id',matchId).eq('event_id',bundle.event.id).select('id');if(error)throw error;if(data?.length!==1)throw Error('Scores were not saved. Refresh and try again.');});
+}
+export async function completeNativeMatch(viewer:Viewer,bundle:EventBundle,matchId:string){
+ const match=bundle.matches.find(m=>m.id===matchId);if(!match||(!bundle.event.is_manual&&!match.tba_match_key?.startsWith('manual_')))throw Error('Only manual matches can be marked complete.');
+ await setupWrite(viewer,'complete-match',{eventId:bundle.event.id,matchId},async()=>{const {data,error}=await requireClient().from('matches').update(manualCompletionPatch()).eq('id',matchId).eq('event_id',bundle.event.id).select('id');if(error)throw error;if(data?.length!==1)throw Error('The match was not marked complete. Refresh and try again.');});
 }
 export async function setNativeRole(viewer:Viewer,input:unknown){const identity={expectedUserId:viewer.userId,expectedOrganizationId:viewer.organizationId};const v=roleInput.parse(input);await setupWrite(viewer,'member-role',v,async()=>{await apiRequest('/api/mobile/admin/members','PATCH',v,identity);});}
 export async function publishNativeForm(viewer:Viewer,input:unknown){
