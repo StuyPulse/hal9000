@@ -663,12 +663,17 @@ function MatchStrategyView({ analysis, theme }: { analysis: Analysis; theme: Pal
   const draftKey = `strategy-sketch:${analysis.bundle.event.id}:${app.viewer?.userId}`;
   useEffect(() => {
     let active = true;
+    // Event/user changed: never carry the previous event's strokes or dirty flag across the boundary.
+    dirtyRef.current = false; sketchRevision.current += 1;
+    setDraftLoaded(false); setDirtyDrawing(false); setDrawingNotice(null); setPendingUpload(false);
+    setStrokes(parseStrokes((analysis.bundle.strategyDrawings ?? []).find((item) => item.user_id === app.viewer?.userId)?.strokes));
     void getValue<DrawStroke[]>(analysis.bundle.scope, 'working-sketch', draftKey).then(draft => {
       if (!active) return;
       if (draft) { setStrokes(parseStrokes(draft)); setDirtyDrawing(true); dirtyRef.current = true; }
       setDraftLoaded(true);
     });
     return () => { active = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [analysis.bundle.scope, draftKey]);
   useEffect(() => { if (draftLoaded && !dirtyRef.current) setStrokes(saved); }, [saved, draftLoaded]);
   function changeSketch(next: DrawStroke[]) {

@@ -81,7 +81,13 @@ export function AppProvider({children}:{children:React.ReactNode}){
   }).catch(e=>setError(e.message)).finally(()=>{if(active)setReady(true)});
   return()=>{active=false};
  },[]);
- useEffect(()=>NetInfo.addEventListener(s=>setOnline(s.isConnected!==false&&s.isInternetReachable!==false)),[]);
+ const wasOnline=useRef(true);
+ useEffect(()=>NetInfo.addEventListener(s=>{const connected=s.isConnected!==false&&s.isInternetReachable!==false;connectionRef.current=connected;setOnline(connected)}),[]);
+ // Reconnect: upload local work (sync effect) AND promptly refresh membership, assignments and reports.
+ useEffect(()=>{
+  const reconnected=online&&!wasOnline.current;wasOnline.current=online;
+  if(reconnected&&ready&&viewer&&!viewer.demo)void backgroundRefresh.current(viewer).catch(e=>setError(e instanceof Error?e.message:'Could not refresh after reconnecting.'));
+ },[online]);
  useEffect(()=>{const sub=Appearance.addChangeListener(({colorScheme})=>setSystemDark(colorScheme==='dark'));return()=>sub.remove()},[]);
  useEffect(()=>{void reloadLocal()},[reloadLocal]);
  const sync=useCallback(async()=>{
