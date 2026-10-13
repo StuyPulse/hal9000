@@ -1,20 +1,18 @@
 import { z } from "zod";
-import { validateNativeEntry } from "@wildcard/shared/src/native-contracts";
+import { validateNativeEntry, manualMatchMetadataSchema } from "@wildcard/shared/src/native-contracts";
 import { canDelete, MobileError, scopedEvent, strictPayload, type Actor, type MobileDatabase } from "./operations";
 
-const metadataSchema = z.object({ stage: z.enum(["Qualification", "Practice", "Quarterfinal", "Semifinal", "Final", "Other / exception"]), label: z.string().trim().max(30).nullable(), alliance: z.enum(["red", "blue"]) }).strict().superRefine((value, context) => {
-  if (value.stage !== "Other / exception" && !/^[1-9]\d{0,5}$/.test(value.label ?? "")) context.addIssue({ code: "custom", message: "A numbered stage needs a positive numeric match label." });
-});
+const metadataSchema = manualMatchMetadataSchema;
 const inputSchema = z.object({ entryId: z.string().uuid(), eventId: z.string().uuid(), teamId: z.string().uuid(), payload: z.record(z.string(), z.unknown()), expectedUpdatedAt: z.string().datetime({ offset: true }) }).strict();
 export type ManualMetadata = z.infer<typeof metadataSchema>;
 export type ManualCandidate = { id: string; match_number: number; match_type: string; tba_match_key: string | null; red_teams: string[]; blue_teams: string[] };
 export function manualCandidate(matches: ManualCandidate[], teamId: string, metadata: ManualMetadata) {
-  if (metadata.stage === "Other / exception") return null;
+  if (metadata.stage === "Other / exception" || !/^\d+$/.test(metadata.label?.trim() ?? "")) return null;
   const label = Number(metadata.label); const stage = metadata.stage.toLowerCase();
-  const keySuffix = stage === "qualification" ? `_qm${label}` : stage === "practice" ? `_pm${label}` : stage === "quarterfinal" ? `_qf${label}m1` : stage === "semifinal" ? `_sf${label}m1` : `_f1m${label}`;
   const type = ["qualification", "practice"].includes(stage) ? stage : "playoff";
-  const candidates = matches.filter(match => (match.tba_match_key ? match.tba_match_key.endsWith(keySuffix) : match.match_type === type && match.match_number === label) && [...match.red_teams, ...match.blue_teams].includes(teamId));
-  if (candidates.some(match => !(metadata.alliance === "red" ? match.red_teams : match.blue_teams).includes(teamId))) throw new MobileError(422, "wrong_alliance", "This team is scheduled on the other alliance for that match.");
+  // Match the website fallback: only an unambiguous stage/type + number + robot
+  // identifies a scheduled slot. The original manual alliance is an observation.
+  const candidates = matches.filter(match => match.match_type === type && match.match_number === label && [...match.red_teams, ...match.blue_teams].includes(teamId));
   return candidates.length === 1 ? candidates[0] : null;
 }
 export async function correctManualReport(database: MobileDatabase, actor: Actor, value: unknown) {

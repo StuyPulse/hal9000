@@ -4,7 +4,7 @@ import NetInfo from '@react-native-community/netinfo';
 import * as Crypto from 'expo-crypto';
 import {client,requireClient} from './client';
 import {putValue,getValue,listRecords,listPhotos,acknowledgeStored,failStored,removeValue} from './storage';
-import {loadViewer,loadEvents,loadBundle,uploadSnapshot,emptyRebuilt,writePicklist} from './data';
+import {loadViewer,loadEvents,loadBundle,uploadSnapshot,emptyRebuilt,writePicklist,MembershipPendingError} from './data';
 import {DEMO_VIEWER,demoBundle} from './demo';
 import {scopedIdentity,updateLocal,reusableDraft,shouldUpload} from './sync-model';
 import {canEditReport,seedServerEdit} from './report-editing';
@@ -15,6 +15,8 @@ import {apiRequest} from './mobile-api';
 import {serializeWrite,excludeSync} from './write-coordination';
 import {canonicalJson,validateSignedProof,type SignedRelayProof} from '@wildcard/shared/src/relay-contract';
 import {normalizeNativePayload,validateNativeEntry} from '@wildcard/shared/src/native-contracts';
+import {workspaceCache} from './workspace-cache';
+import {chooseWorkspaceEvent,type WorkspaceMode} from './workspace-cache-model';
 import type {FeatureContext,Viewer,EventBundle,Event,LocalSubmission,LocalPhoto,Payload,EntryKind,Palette,PicklistRanking,NativeEntry} from './types';
 
 export type AppContextValue=FeatureContext&{ready:boolean;events:Event[];appearance:'light'|'dark'|'system';setAppearance:(v:'light'|'dark'|'system')=>void;signIn:(email:string,password:string)=>Promise<void>;signUp:(email:string,password:string,profile?:{firstName:string;lastName:string})=>Promise<void>;completeExternalSignIn:()=>Promise<void>;startDemo:()=>Promise<void>;signOut:()=>Promise<void>;selectEvent:(id:string)=>Promise<void>;dismissError:()=>void;receiveEntry:(entry:NativeEntry,revision:number,proof?:SignedRelayProof)=>Promise<void>;deleteLocalDraft:(id:string)=>Promise<void>;saveGlobalDocument:(url:string)=>Promise<void>;claimReport:(id:string)=>Promise<LocalSubmission>;updatePractice:(next:EventBundle)=>Promise<void>;deleteReport:(id:string)=>Promise<void>;saveManualIdentity:(id:string,teamId:string,metadata:{stage:string;label:string|null;alliance:'red'|'blue'})=>Promise<void>};
@@ -26,30 +28,56 @@ export function AppProvider({children}:{children:React.ReactNode}){
  const [ready,setReady]=useState(false),[viewer,setViewer]=useState<Viewer|null>(null),[bundle,setBundle]=useState<EventBundle|null>(null),[events,setEvents]=useState<Event[]>([]),[records,setRecords]=useState<LocalSubmission[]>([]),[photos,setPhotos]=useState<LocalPhoto[]>([]),[online,setOnline]=useState(true),[syncing,setSyncing]=useState(false),[error,setError]=useState<string|null>(null),[appearance,setAppearanceState]=useState<'light'|'dark'|'system'>('system'),[systemDark,setSystemDark]=useState(Appearance.getColorScheme()==='dark');
  const writeChain=useRef(Promise.resolve()),syncLock=useRef(false),scopeRef=useRef<string|null>(null);
  const autosaveTimer=useRef<ReturnType<typeof setTimeout>|null>(null);
+ const [workspaceMode,setWorkspaceMode]=useState<WorkspaceMode>('active'),[membershipPending,setMembershipPending]=useState(false);
+ const modeRef=useRef<WorkspaceMode>('active'),eventRef=useRef<string|undefined>(undefined),eventEpoch=useRef(0),connectionRef=useRef(true),refreshLock=useRef(false);
+ connectionRef.current=online;
  const scope=viewer?scopedIdentity(viewer.userId,viewer.organizationId,viewer.demo):null;
  scopeRef.current=scope;
  const theme=appearance==='dark'||appearance==='system'&&systemDark?dark:light;
  const exclusiveReportMutation=<T,>(operation:()=>Promise<T>)=>excludeSync(syncLock,operation);
  const serializeLocalWrite=<T,>(operation:()=>Promise<T>)=>serializeWrite(writeChain,operation);
  const reloadLocal=useCallback(async()=>{if(!scope){setRecords([]);setPhotos([]);return}const [r,p]=await Promise.all([listRecords(scope),listPhotos(scope)]);if(scopeRef.current===scope){setRecords(r.sort((a,b)=>b.changedAt.localeCompare(a.changedAt)));setPhotos(p)}},[scope]);
- const saveBundle=useCallback(async(incoming:EventBundle)=>{const next=await overlayPendingDrawings(incoming);await putValue(next.scope,'meta','bundle',next);await putValue(next.scope,'meta','event',next.event.id);if(scopeRef.current===next.scope)setBundle(next)},[]);
- const activate=useCallback(async(v:Viewer,connected=online)=>{
+ const saveBundle=useCallback(async(incoming:EventBundle)=>{const next=await overlayPendingDrawings(incoming);await workspaceCache.saveBundle(next);if(scopeRef.current===next.scope){eventRef.current=next.event.id;setBundle(next)}},[]);
+ const activate=useCallback(async(v:Viewer)=>{
   const s=scopedIdentity(v.userId,v.organizationId,v.demo);scopeRef.current=s;
-  setViewer(v);setBundle(null);setRecords([]);setPhotos([]);setEvents([]);setSyncing(false);
+  setViewer(v);setMembershipPending(false);setBundle(null);setRecords([]);setPhotos([]);setEvents([]);setSyncing(false);eventEpoch.current++;
   await putValue('device','meta','viewer',v);
-  const [cached,localRecords,localPhotos]=await Promise.all([getValue<EventBundle>(s,'meta','bundle'),listRecords(s),listPhotos(s)]);if(scopeRef.current!==s)return;
+  const [cached,localRecords,localPhotos,eventRows,mode]=await Promise.all([workspaceCache.bundle(s),listRecords(s),listPhotos(s),workspaceCache.events(s),getValue<WorkspaceMode>(s,'meta','workspace-mode')]);if(scopeRef.current!==s)return;
+  modeRef.current=mode??'active';setWorkspaceMode(modeRef.current);
   setRecords(localRecords.sort((a,b)=>b.changedAt.localeCompare(a.changedAt)));setPhotos(localPhotos);
-  if(cached){setBundle(cached);setEvents([cached.event])}
+  setEvents(eventRows??(cached?[cached.event]:[]));
+  if(cached){eventRef.current=cached.event.id;setBundle(cached)}else eventRef.current=undefined;
   if(v.demo){const b={...(cached??demoBundle()),profiles:{...cached?.profiles,[v.userId]:v.displayName}};await saveBundle(b);if(scopeRef.current===s)setEvents([b.event]);}
-  else if(connected){const eventRows=await loadEvents(v);if(scopeRef.current!==s)return;setEvents(eventRows);const chosen=eventRows.find(e=>e.id===cached?.event.id)??eventRows.find(e=>e.status==='active')??eventRows[0];if(chosen)await saveBundle(await loadBundle(v,chosen));}
- },[online,saveBundle]);
+ },[saveBundle]);
+ const refreshOnline=useCallback(async(v:Viewer)=>{
+  if(v.demo||!connectionRef.current||refreshLock.current)return;
+  refreshLock.current=true;const epoch=eventEpoch.current;
+  try{
+   const fresh=await loadViewer();if(fresh.userId!==v.userId||fresh.organizationId!==v.organizationId)throw Error('Your online account or organization changed. Sign in to that workspace before syncing.');
+   const s=scopedIdentity(v.userId,v.organizationId);if(scopeRef.current!==s)return;
+   setViewer(fresh);await putValue('device','meta','viewer',fresh);
+   const eventRows=await loadEvents(fresh);if(scopeRef.current!==s)return;
+   await workspaceCache.saveEvents(s,eventRows);setEvents(eventRows);
+   const chosen=chooseWorkspaceEvent(eventRows,eventRef.current,modeRef.current);
+   if(!chosen){if(epoch===eventEpoch.current){setBundle(null);eventRef.current=undefined;}return;}
+   const cached=await workspaceCache.bundle(s,chosen.id);
+   if(cached&&epoch===eventEpoch.current)await saveBundle({...cached,event:chosen});
+   const next=await loadBundle(fresh,chosen,cached);
+   if(scopeRef.current!==s)return;
+   if(epoch===eventEpoch.current){await saveBundle(next);setError(null);}else await workspaceCache.saveBundle(next,false);
+  }catch(e){if(e instanceof MembershipPendingError){setMembershipPending(true);setViewer(null);setBundle(null);scopeRef.current=null;}throw e;}
+  finally{refreshLock.current=false;}
+ },[saveBundle]);
+ const backgroundRefresh=useRef<(v:Viewer)=>Promise<void>>(refreshOnline);backgroundRefresh.current=refreshOnline;
  useEffect(()=>{
   let active=true;
   Promise.all([getValue<Viewer>('device','meta','viewer'),getValue<'light'|'dark'|'system'>('device','meta','appearance')]).then(async([cached,mode])=>{
    if(!active)return;
    if(mode)setAppearanceState(mode);
-   if(cached?.demo)await activate(cached);
-   else if(cached){const connection=await NetInfo.fetch();if(connection.isConnected===false||connection.isInternetReachable===false){setOnline(false);await activate(cached,false)}else{const session=await client?.auth.getSession();if(session?.data.session?.user.id===cached.userId)await activate(cached);}}
+   if(cached)await activate(cached);
+   if(active)setReady(true);
+   // Cache is already interactive before reachability/Auth/network is consulted.
+   if(cached&&!cached.demo)void NetInfo.fetch().then(connection=>{if(!active)return;const connected=connection.isConnected!==false&&connection.isInternetReachable!==false;connectionRef.current=connected;setOnline(connected);if(connected)return backgroundRefresh.current(cached)}).catch(e=>{if(active)setError('Using downloaded data. '+e.message)});
   }).catch(e=>setError(e.message)).finally(()=>{if(active)setReady(true)});
   return()=>{active=false};
  },[]);

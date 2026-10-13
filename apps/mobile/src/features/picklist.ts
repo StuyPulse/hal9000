@@ -12,11 +12,11 @@ export type RankPatch = { teamId: string; rank: number; category_id: string | nu
 export const databaseCategory = (tierId: string) => (tierId === UNSORTED ? null : tierId);
 
 /** Teams in a tier ordered by saved rank (unranked last) then team number. */
-export function teamsInTier<T extends { id: string; number: number }>(teams: T[], rankings: Map<string, PicklistRanking>, tierId: string): T[] {
+export function teamsInTier<T extends { id: string; number: number; opr?: number | null }>(teams: T[], rankings: Map<string, PicklistRanking>, tierId: string): T[] {
   const category = databaseCategory(tierId);
   return teams
     .filter((team) => (rankings.get(team.id)?.category_id ?? null) === category)
-    .sort((a, b) => (rankings.get(a.id)?.rank ?? Number.MAX_SAFE_INTEGER) - (rankings.get(b.id)?.rank ?? Number.MAX_SAFE_INTEGER) || a.number - b.number);
+    .sort((a, b) => (rankings.get(a.id)?.rank ?? Number.MAX_SAFE_INTEGER) - (rankings.get(b.id)?.rank ?? Number.MAX_SAFE_INTEGER) || (b.opr ?? 0) - (a.opr ?? 0) || a.number - b.number);
 }
 
 /**

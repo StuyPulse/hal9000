@@ -2,7 +2,7 @@ import type {LocalSubmission,NativeEntry,Viewer} from './types';
 
 export function canEditReport(viewer:Viewer|null,entry:NativeEntry,local?:LocalSubmission):boolean {
  if(!viewer||entry.organization_id!==viewer.organizationId||local?.origin==='relay')return false;
- if(['admin','developer','global_scout'].includes(viewer.role)||entry.entry_type==='pit')return true;
+ if(['admin','developer'].includes(viewer.role)||entry.entry_type==='pit')return true;
  if(entry.scout_user_id!==viewer.userId)return false;
  return entry.status==='draft'||entry.status==='submitted';
 }

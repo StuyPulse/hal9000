@@ -74,6 +74,9 @@ export function splitPayload(payload: Payload): { fields: Record<string, string>
   return { fields, extras };
 }
 export const joinPayload = (fields: Record<string, string>, extras: Payload): Payload => ({ ...extras, ...fields });
+export function mergeManualPayload(saved:Payload,fields:Record<string,string>,extras:Payload):Payload {
+ return {...saved,...extras,...fields};
+}
 
 export function setDimensions(fields: Record<string, string>, length: number, width: number): Record<string, string> {
   const safeLength = snap(DRIVETRAIN_LENGTH, length);

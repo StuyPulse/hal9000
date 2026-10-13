@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { Text, View } from 'react-native';
 import { Choice, Card } from '../components/ui';
 import { Notice, Screen, useFeatureApp } from './common';
+import { eventEntries, pendingSubmittedCount } from '../core/report-overlay';
 import { ALL_ROUNDS, leaderboardRows, record as asRecord, scoutDisplayName, type LeaderboardEntry, type LeaderboardSection, type MatchRound } from './stats';
 
 const SECTIONS: { id: LeaderboardSection; label: string }[] = [
@@ -14,14 +15,13 @@ export function LeaderboardScreen() {
   const { theme, bundle, records, viewer } = useFeatureApp();
   const [section, setSection] = useState<LeaderboardSection>('all');
   const [rounds, setRounds] = useState<MatchRound[]>(ALL_ROUNDS);
+  const [includePending, setIncludePending] = useState(false);
 
   const entries = useMemo<LeaderboardEntry[]>(() => {
     if (!bundle) return [];
     const types = new Map(bundle.matches.map((match) => [match.id, match.match_type]));
-    const byId = new Map(bundle.entries.filter((entry) => entry.event_id === bundle.event.id && entry.status === 'submitted').map((entry) => [entry.id, entry]));
-    // Reports submitted on this device but not yet uploaded still count toward the scout who wrote them.
-    for (const item of records) if (item.entry.event_id === bundle.event.id && item.entry.status === 'submitted') byId.set(item.entry.id, item.entry);
-    return [...byId.values()].map((entry) => {
+    const reports = includePending || viewer?.demo ? eventEntries(bundle, records) : bundle.entries;
+    return reports.filter(entry => entry.status === 'submitted').map((entry) => {
       const manual = asRecord(entry.payload.manual_match);
       return {
         id: entry.id, type: entry.entry_type, scoutUserId: entry.scout_user_id,
@@ -31,7 +31,7 @@ export function LeaderboardScreen() {
         manualMatchKey: typeof manual.stage === 'string' && 'label' in manual ? `${manual.stage}|${typeof manual.label === 'string' ? manual.label : ''}` : null,
       };
     });
-  }, [bundle, records]);
+  }, [bundle, records, viewer, includePending]);
 
   const result = useMemo(() => leaderboardRows(entries, section, rounds), [entries, section, rounds]);
   if (!bundle) return <Screen theme={theme}><Notice theme={theme} tone="warning">Download the active event to see the leaderboard.</Notice></Screen>;
@@ -41,6 +41,8 @@ export function LeaderboardScreen() {
     <Screen theme={theme}>
       <Text accessibilityRole="header" style={{ color: theme.text, fontSize: 26, fontWeight: '700' }}>Leaderboard</Text>
       <Text style={{ color: theme.muted }}>{bundle.event.name} · submitted scouting reports</Text>
+      {bundle.event.status !== 'active' ? <Notice theme={theme}>Reviewing this downloaded event, not the organization’s active-event leaderboard.</Notice> : null}
+      {pendingSubmittedCount(bundle, records) && !viewer?.demo ? <><Notice theme={theme} tone="warning">{pendingSubmittedCount(bundle, records)} report(s) are pending on this device. {includePending ? 'Preview counts include them and are not the confirmed website leaderboard.' : 'Confirmed counts below exclude them until cloud delivery.'}</Notice><Choice theme={theme} label="Preview pending local reports" selected={includePending} onPress={() => setIncludePending(value => !value)} /></> : null}
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
         {SECTIONS.map((item) => <Choice key={item.id} theme={theme} label={item.label} selected={section === item.id} onPress={() => setSection(item.id)} />)}
       </View>

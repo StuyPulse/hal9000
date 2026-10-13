@@ -3,9 +3,44 @@ import { test } from 'node:test';
 import { appendPoint, strokesToSvg, svgToStrokes, type Stroke } from './autoPath';
 import { dimensionsLabel, joinPayload, setDimensions, snap, splitPayload, toggleTraversal, validateManual, HOPPER_CAPACITY, reviewRows } from './manualFields';
 import { planInsert, planMove, planMoveToTier, teamsInTier, UNSORTED } from './picklist';
-import { breakageIssues, calculateScoutStats, compareMatches, matchLabel, matchReportKey, selectedMatchReportEntries, statsForTeam, type ReportEntry } from './stats';
+import { breakageIssues, calculateScoutStats, compareMatches, latestPreScout, officialMetrics, STRATEGY_DEFAULT_SORT, strategyMatchOrder, matchLabel, matchReportKey, selectedMatchReportEntries, statsForTeam, type ReportEntry } from './stats';
+import type { Match, NativeEntry } from '../core/types';
 
-const entry = (id: string, team: string, payload: Record<string, unknown>, match: string | null = null): ReportEntry => ({ id, team_id: team, match_id: match, payload });
+test('website strategist defaults sort by OPR and unranked picklist order uses OPR before number', () => {
+  assert.equal(STRATEGY_DEFAULT_SORT, 'opr');
+  const teams = [{ id: 'a', number: 1, opr: 10 }, { id: 'b', number: 2, opr: 50 }, { id: 'c', number: 3, opr: 20 }];
+  assert.deepEqual(teamsInTier(teams, new Map(), UNSORTED).map(team => team.id), ['b', 'c', 'a']);
+});
+
+test('official fuel prefers played alliance observations then falls back to TBA ranking sort fields', () => {
+  const official = { rankings: [{ team_key: 'frc694', rank: 2, sort_orders: [150, 40, 80, 20, 10] }], sortInfo: ['Total fuel','Auto fuel','Teleop fuel','Transition fuel','Endgame fuel'].map(name => ({ name })), oprs: { frc694: 77 } };
+  const team = { id: 'team', number: 694 };
+  const fallback = officialMetrics(official, [], team);
+  assert.equal(fallback.tbaTotalFuel, 150);
+  assert.equal(fallback.tbaTransitionFuel, 20);
+  assert.equal(fallback.tbaEndgameFuel, 10);
+  assert.equal(fallback.opr, 77);
+  const observed = officialMetrics(official, [{ red_teams: ['team'], blue_teams: [], status: 'played', tba_score_breakdown: { red: { hubScore: { totalCount: 200, autoCount: 60, teleopCount: 140 } } } }], team);
+  assert.equal(observed.tbaTotalFuel, 200);
+  assert.equal(observed.tbaAutoFuel, 60);
+  assert.equal(observed.tbaTeleopFuel, 140);
+});
+
+test('pre-scout sheet follows creation time, not later submission time', () => {
+  const first = { ...entry('first', 'team', {}), entry_type: 'pre_scout', status: 'submitted', created_at: '2026-01-01', submitted_at: '2026-01-03' } as NativeEntry;
+  const second = { ...first, id: 'second', created_at: '2026-01-02', submitted_at: '2026-01-02' };
+  assert.equal(latestPreScout([first, second]).get('team')?.id, 'second');
+});
+
+test('strategy picker retains newly played matches for five minutes then demotes them', () => {
+  const played = { id: 'q1', match_type: 'qualification', match_number: 1, status: 'played' } as Match;
+  const pending = { ...played, id: 'q2', match_number: 2, status: 'scheduled' };
+  assert.deepEqual(strategyMatchOrder([played, pending], { q1: 1000 }, 2000).map(match => match.id), ['q1', 'q2']);
+  assert.deepEqual(strategyMatchOrder([played, pending], { q1: 1000 }, 301000).map(match => match.id), ['q2', 'q1']);
+  assert.deepEqual(strategyMatchOrder([played, pending], {}, 2000).map(match => match.id), ['q2', 'q1']);
+});
+
+function entry(id: string, team: string, payload: Record<string, unknown>, match: string | null = null): ReportEntry { return { id, team_id: team, match_id: match, payload }; }
 
 test('stats keep scored and ferried separate and average within a match', () => {
   const a = entry('a', 't', { auto: { shoot: 4, ferry: 10 }, teleop: { shoot: 10, ferry: 0 }, fouls: 2 }, 'm1');

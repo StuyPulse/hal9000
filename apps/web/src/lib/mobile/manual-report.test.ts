@@ -31,11 +31,20 @@ test("generic correction freezes stage/label/alliance/source and indirect linkin
   assertFixedManualMetadata({}, {manual_match:null,report_source:"scheduled"});
   assertFixedManualMetadata(payload,{...payload,comments:"score-only correction"});
 });
-test("manual matching uses stage-specific TBA keys and correct alliance", () => {
+test("manual matching follows website stage/type, number and unambiguous robot slot", () => {
   assert.equal(manualCandidate([match],entry.team_id,metadata)?.id,match.id);
   assert.equal(manualCandidate([match],entry.team_id,{...metadata,stage:"Final"}),null);
   assert.equal(manualCandidate([match, {...match,id:id(10)}],entry.team_id,metadata),null);
-  assert.throws(()=>manualCandidate([match],entry.team_id,{...metadata,alliance:"blue"}),errorStatus(422));
+  assert.equal(manualCandidate([match],entry.team_id,{...metadata,alliance:"blue"})?.id,match.id);
+  assert.equal(manualCandidate([match],entry.team_id,{...metadata,stage:"Semifinal",label:"2–1"}),null);
+});
+test("manual correction retains website playoff labels without inventing a schedule link",async()=>{
+ const results=ready();const correctedPayload={...payload,manual_match:{...metadata,stage:"Semifinal",label:"2–1"}};
+ results.mobile_correct_manual_report=[{data:{entry:{...entry,payload:correctedPayload}}}];
+ const {database,writes}=fake(results);
+ await correctManualReport(database,actor,{...request,payload:correctedPayload});
+ assert.equal(writes[0].args.corrected_match_id,null);
+ assert.equal(writes[0].args.corrected_payload.manual_match.label,"2–1");
 });
 test("manual correction preserves author/event/UUID and returns post-trigger readback", async () => {
   const {database,writes}=fake(ready());

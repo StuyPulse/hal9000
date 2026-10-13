@@ -21,3 +21,13 @@ Server paths are `/api/mobile/admin/members`, `/email-access`, `/activation`, `/
 Verification: mobile and web TypeScript pass; 7 native setup validation/planning tests and 8 server assignment tests pass. Authenticated live operations and native UI verification are separate parent-agent tasks.
 
 Remaining caveat: assignment clear/restore retain the website's multi-statement sequencing, not a transaction; failures report partial outcome and undo point. Full competition workflow testing and concurrent-device testing remain required.
+# Website-flow parity corrections — October 13
+
+- Organization setup can create/import the first event without an existing downloaded package (`EventBootstrap`). Organization-only users/forms/roster tooling still uses the existing event-backed AdminTools surface; this separate no-event limitation is not claimed resolved.
+- Admin assignment lists depend on the provider's event-wide manager load; Today must filter those rows to the signed-in scout. Adding a scout checks completed/submitted existing slots both in cache and freshly on the server.
+- Round-robin preview uses the mobile backend's scheduled-time/ID and sorted scout-ID order. Backend remains authoritative when data changes after preview.
+- Manual match number/alias input automatically resolves permanent team IDs and links missing numeric teams for creation and editing. Optional team names use the website fallback; submitted/local reports retain their existing protections.
+- Manual completion is status-only and never invents scores. The unsupported event-details mutation was removed. Unused currently selected events can be deleted with cloud/local scouting-data guards.
+- Invitation and role-edit choices match website controls; existing developer memberships remain visible but are not newly offered for assignment. Password recovery preserves strict PKCE/recovery proof and signs out after a successful change.
+- These changes have source/pure-model regression coverage, not production admin-write, email, recovery-link, or device-flow verification. No server deployment, migration, invitation, or live record mutation was performed during this pass.
+

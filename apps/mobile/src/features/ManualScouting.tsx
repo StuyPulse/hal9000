@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Image, Text, View, type ImageSourcePropType } from 'react-native';
 import { useRouter } from 'expo-router';
-import * as ImagePicker from 'expo-image-picker';
+import {PhotoSubmissionQueue} from '../components/PhotoSubmissionQueue';
 import { SvgXml } from 'react-native-svg';
 import type { LocalSubmission, Payload } from '../core/types';
 import { Button, Card, Choice, Input, Row, Section } from '../components/ui';
@@ -11,7 +11,7 @@ import { prescoutBlocked, prescoutCoordination } from './stats';
 import {
   DRIVETRAIN_LENGTH, DRIVETRAIN_WIDTH, EXPERIENCE_OPTIONS, HOPPER_CAPACITY, MANUAL_TITLES, OPERATOR_EXPERIENCE_OPTIONS,
   PIT_TEXT_FIELDS, PRE_SCOUT_TEXT_FIELDS, ROBOT_WEIGHT, TRAVERSAL_OPTIONS, joinPayload, parseTraversal, perimeterOf, reviewRows,
-  setDimensions, splitPayload, toggleTraversal, unknownKeys, validateManual, PERIMETER_LIMIT, type ManualKind, type TextField,
+  setDimensions, splitPayload, toggleTraversal, unknownKeys, validateManual, mergeManualPayload, PERIMETER_LIMIT, type ManualKind, type TextField,
 } from './manualFields';
 
 type Step = 'form' | 'review' | 'done';
@@ -43,6 +43,7 @@ export function ManualScoutingScreen({ kind, entryId, fieldArt }: { kind: Manual
   const dirty = useRef(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const loadedEntry = useRef<string | null>(null);
+  const basePayload = useRef<Payload>({});
 
   const title = MANUAL_TITLES[kind];
   const eventId = bundle?.event.id;
@@ -50,6 +51,7 @@ export function ManualScoutingScreen({ kind, entryId, fieldArt }: { kind: Manual
 
   const adoptRecord = useCallback((record: LocalSubmission) => {
     const split = splitPayload(record.entry.payload);
+    basePayload.current = record.entry.payload;
     recordIdRef.current = record.entry.id;
     creating.current = Promise.resolve(record.entry.id);
     setRecordId(record.entry.id);
@@ -75,17 +77,19 @@ export function ManualScoutingScreen({ kind, entryId, fieldArt }: { kind: Manual
       if (!recordIdRef.current) {
         // createDraft returns an existing own draft for this team. Keep its saved fields as the base
         // so starting a fresh form never silently erases earlier work.
-        const existing = app.records.find((item) => item.origin === 'own' && item.entry.entry_type === kind && item.entry.team_id === team && item.entry.event_id === eventId && item.status === 'draft');
+        const existing = app.records.find((item) => item.origin === 'own' && item.entry.entry_type === kind && item.entry.team_id === team && item.entry.event_id === eventId && item.entry.status === 'draft');
         const base = existing ? joinPayload({ ...splitPayload(existing.entry.payload).fields, ...current }, { ...splitPayload(existing.entry.payload).extras, ...other }) : payload;
         creating.current ??= app.createDraft(kind, team, null, null, base).then((created) => {
+          basePayload.current = created.entry.payload;
           recordIdRef.current = created.entry.id;
           setRecordId(created.entry.id);
           return created.entry.id;
         });
       }
       const id = await creating.current!;
-      const saved = app.records.find((item) => item.entry.id === id);
-      await app.saveDraft(id, saved && !recordIdRef.current ? joinPayload({ ...splitPayload(saved.entry.payload).fields, ...current }, { ...splitPayload(saved.entry.payload).extras, ...other }) : payload, finalize);
+      const next = mergeManualPayload(basePayload.current, current, other);
+      await app.saveDraft(id, next, finalize);
+      basePayload.current = next;
       dirty.current = false;
       setSaveError(null);
       setSavedAt(new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', second: '2-digit' }));
@@ -121,7 +125,12 @@ export function ManualScoutingScreen({ kind, entryId, fieldArt }: { kind: Manual
     return [...submitted];
   }, [bundle?.entries, records, kind, eventId]);
 
-  const drafts = useMemo(() => records.filter((record) => record.entry.entry_type === kind && record.entry.event_id === eventId && record.status === 'draft' && record.origin === 'own' && record.entry.id !== recordId), [records, kind, eventId, recordId]);
+  const drafts = useMemo(() => records.filter((record) => record.entry.entry_type === kind && record.entry.event_id === eventId && record.entry.status === 'draft' && record.origin === 'own' && record.entry.id !== recordId), [records, kind, eventId, recordId]);
+  const chooseTeam = (id:string) => {
+    const existing = drafts.find(item=>item.entry.team_id===id);
+    if(existing)adoptRecord(existing);
+    else {setTeamId(id);setPhotoTeamId(id);}
+  };
 
   const photoCoverage = useMemo(() => {
     const photographed = new Set<string>();
@@ -166,24 +175,8 @@ export function ManualScoutingScreen({ kind, entryId, fieldArt }: { kind: Manual
     creating.current = null;
     dirty.current = false;
     loadedEntry.current = null;
+    basePayload.current = {};
     setRecordId(null); setTeamId(null); setFields({}); setExtras({}); setSavedAt(null); setSaveError(null); setStep('form');
-  }
-
-  async function addPhotos(source: 'camera' | 'library') {
-    const target = photoTeamId ?? teamId;
-    if (!target) { setPhotoMessage({ text: 'Choose a team before adding photos.', error: true }); return; }
-    try {
-      const permission = source === 'camera' ? await ImagePicker.requestCameraPermissionsAsync() : await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (!permission.granted) { setPhotoMessage({ text: `Allow ${source === 'camera' ? 'camera' : 'photo'} access in Settings to add pit photos.`, error: true }); return; }
-      const result = source === 'camera'
-        ? await ImagePicker.launchCameraAsync({ mediaTypes: ['images'], quality: 0.85 })
-        : await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], allowsMultipleSelection: true, quality: 0.85 });
-      if (result.canceled) return;
-      for (const asset of result.assets) await app.addPhoto(target, asset.uri);
-      setPhotoMessage({ text: `${result.assets.length} photo${result.assets.length === 1 ? '' : 's'} saved on this device and queued for upload.`, error: false });
-    } catch (error) {
-      setPhotoMessage({ text: error instanceof Error ? error.message : 'Photos could not be added.', error: true });
-    }
   }
 
   // ---- done ----
@@ -271,12 +264,12 @@ export function ManualScoutingScreen({ kind, entryId, fieldArt }: { kind: Manual
           <Text style={{ color: theme.muted, fontSize: 13 }}>Assignments help coordinate coverage. You can still report any event team.</Text>
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
             {bundle.teams.filter((team) => coordination.mine.has(team.id)).sort((a, b) => a.number - b.number).map((team) => (
-              <Choice key={team.id} theme={theme} label={`${team.displayNumber}${markedTeamIds.includes(team.id) ? ' ✓' : ''}`} selected={teamId === team.id} onPress={() => { setTeamId(team.id); setPhotoTeamId(team.id); }} />
+              <Choice key={team.id} theme={theme} label={`${team.displayNumber}${markedTeamIds.includes(team.id) ? ' ✓' : ''}`} selected={teamId === team.id} onPress={() => chooseTeam(team.id)} />
             ))}
           </View>
         </View>
       ) : null}
-      <TeamPicker theme={theme} teams={bundle.teams} value={teamId} disabled={editing || Boolean(recordId)} markedIds={markedTeamIds} markedLabel={kind === 'pit' ? 'Pit report submitted' : 'Pre-scout report submitted'} onChange={(id) => { setTeamId(id); setPhotoTeamId(id); }} />
+      <TeamPicker theme={theme} teams={bundle.teams} value={teamId} disabled={editing || Boolean(recordId)} markedIds={markedTeamIds} markedLabel={kind === 'pit' ? 'Pit report submitted' : 'Pre-scout report submitted'} onChange={chooseTeam} />
       {recordId && !editing ? <Button theme={theme} secondary title="Change team (start a new report)" onPress={startAnother} /> : null}
       {kind === 'pre_scout' && teamId ? (() => {
         const scouts = coordination.byTeam.get(teamId) ?? [];
@@ -336,7 +329,7 @@ export function ManualScoutingScreen({ kind, entryId, fieldArt }: { kind: Manual
 
           {validation.errors.map((message) => <Notice key={message} theme={theme} tone="danger">{message}</Notice>)}
           <Text style={{ color: saveError ? theme.danger : theme.muted, fontSize: 13 }}>
-            {saveError ?? (savedAt ? `Draft saved on this device at ${savedAt}${record && record.status !== 'draft' ? ` · ${record.status}` : ''}` : 'Nothing saved yet. Edits save automatically.')}
+            {saveError ?? (savedAt ? `${editing?'Working changes':'Draft'} saved on this device at ${savedAt}${editing?' · Save changes to publish':''}` : 'Nothing saved yet. Edits save automatically on this device.')}
           </Text>
           <Button theme={theme} title="Review report" icon="check" disabled={blocked} onPress={() => { if (timer.current) clearTimeout(timer.current); void persist(false); setStep('review'); }} />
         </>
@@ -345,11 +338,7 @@ export function ManualScoutingScreen({ kind, entryId, fieldArt }: { kind: Manual
       {kind === 'pit' ? (
         <Section theme={theme} title="Photos & coverage">
           <Text style={{ color: theme.muted, fontSize: 14, lineHeight: 20 }}>Photos are compressed on this device, kept locally, and uploaded to the private pit-photo store when online.</Text>
-          <TeamPicker theme={theme} label="Photo team" teams={bundle.teams} value={photoTarget} onChange={setPhotoTeamId} />
-          <View style={{ flexDirection: 'row', gap: 10 }}>
-            <Button theme={theme} title="Take photo" icon="camera" onPress={() => { void addPhotos('camera'); }} style={{ flex: 1 }} />
-            <Button theme={theme} secondary title="Choose photos" onPress={() => { void addPhotos('library'); }} style={{ flex: 1 }} />
-          </View>
+          <PhotoSubmissionQueue initialTeamId={photoTarget}/>
           {photoMessage ? <Notice theme={theme} tone={photoMessage.error ? 'danger' : 'success'}>{photoMessage.text}</Notice> : null}
           {teamPhotos.length || syncedPhotos.length ? (
             <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>

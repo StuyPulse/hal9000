@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Image, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SvgXml } from 'react-native-svg';
@@ -6,6 +6,9 @@ import type { Category, EventBundle, Match, NativeEntry, Palette, PicklistRankin
 import type { BundleExtras, ScoredMatch } from './common';
 import { StrategyCanvas } from './StrategyCanvas';
 import { drawingQueue } from '../core/strategy-sync';
+import { eventEntries } from '../core/report-overlay';
+import { getValue, putValue, removeValue } from '../core/storage';
+import { ComparisonStatsGraph, MetricChart } from './MetricChart';
 import { parseStrokes, type DrawStroke } from './strategyDrawing';
 import { Button, Card, Choice, Input, Row, Section } from '../components/ui';
 import { Badge, Notice, Screen, TeamPicker, useFeatureApp } from './common';
@@ -13,7 +16,7 @@ import { PIT_TEXT_FIELDS, PRE_SCOUT_TEXT_FIELDS } from './manualFields';
 import { META_COLORS, UNSORTED, canEditPicklistRole, describeChange, groupRevisions, isHexColor, planMove, planMoveToTier, planRemoveTier, planRestore, teamsInTier, validateMetaName, type FullRanking, type RankPatch } from './picklist';
 import {
   EMPTY_STATS, breakageIssues, compareMatches, formatStat, heatColor, manualMatchLabel, matchLabel, matchOutcome, matchReportKey,
-  officialClimb, officialFeedStatus, officialFuelAverages, officialForTeam, teamRecord, readableSpot, record as asRecord, reportValues, selectedMatchReportEntries, statsForTeam, type ScoutStats, type StatsBasis,
+  officialClimb, officialFeedStatus, officialFuelAverages, officialForTeam, officialMetrics, latestPreScout as selectLatestPreScout, STRATEGY_DEFAULT_SORT, strategyMatchOrder, teamRecord, readableSpot, record as asRecord, reportValues, selectedMatchReportEntries, statsForTeam, type ScoutStats, type StatsBasis,
 } from './stats';
 
 const FIELD_ART = require('../../assets/2026-field-map.png') as number;
@@ -34,13 +37,11 @@ function useAnalysis(): Analysis | null {
   const { bundle, records } = useFeatureApp();
   return useMemo(() => {
     if (!bundle) return null;
-    const byId = new Map<string, NativeEntry>();
-    for (const entry of bundle.entries) if (entry.event_id === bundle.event.id && entry.status === 'submitted') byId.set(entry.id, entry);
+    const submitted = eventEntries(bundle, records).filter(entry => entry.status === 'submitted');
     let localUnsynced = 0;
     for (const item of records) {
       if (item.entry.event_id !== bundle.event.id || item.entry.status !== 'submitted') continue;
-      byId.set(item.entry.id, item.entry);
-      if (item.status !== 'synced' && item.entry.entry_type === 'match') localUnsynced += 1;
+      if (item.status !== 'synced' && !item.reviewRequired && item.entry.entry_type === 'match') localUnsynced += 1;
     }
     const played = new Set<string>();
     for (const match of bundle.matches) {
@@ -49,7 +50,7 @@ function useAnalysis(): Analysis | null {
     return {
       bundle,
       matchTypes: new Map(bundle.matches.map((match) => [match.id, match.match_type])),
-      entries: [...byId.values()],
+      entries: submitted,
       matchesById: new Map(bundle.matches.map((match) => [match.id, match])),
       playedQualification: played,
       localUnsynced,
@@ -75,32 +76,59 @@ function useStatsByTeam(analysis: Analysis | null, basis: StatsBasis) {
   }, [analysis, basis]);
 }
 
-type Metric = { key: keyof ScoutStats; label: string; reverse?: boolean; format?: (value: number) => string };
+type OfficialValues = ReturnType<typeof officialMetrics>;
+type MetricKey = keyof ScoutStats | keyof OfficialValues | 'team';
+type Metric = { key: MetricKey; label: string; reverse?: boolean; format?: (value: number) => string; sortable?: boolean };
+function metricValue(stats: ScoutStats, official: OfficialValues, key: MetricKey, number = 0): number | string {
+  if (key === 'team') return number;
+  return key in stats ? stats[key as keyof ScoutStats] : official[key as keyof OfficialValues];
+}
+function displayMetric(value: number | string, metric: Metric) { return typeof value === 'number' ? (metric.format ?? formatStat)(value) : value; }
+const OFFICIAL_KEYS = new Set<MetricKey>(['rank','opr','tbaTotalFuel','tbaAutoFuel','tbaTeleopFuel','tbaTransitionFuel','tbaEndgameFuel','autoClimb','autoClimbRate','endgameClimb','endgameClimbRate','record']);
 const count = (value: number) => String(Math.round(value));
-const percent = (value: number) => `${value.toFixed(0)}%`;
+const percent = (value: number) => `${value.toFixed(2)}%`;
 const METRIC_GROUPS: { id: string; label: string; metrics: Metric[] }[] = [
   { id: 'summary', label: 'Summary', metrics: [
-    { key: 'totalFuel', label: 'Avg fuel scored' }, { key: 'peakFuel', label: 'Peak fuel scored' },
+    { key: 'opr', label: 'OPR' }, { key: 'tbaTotalFuel', label: 'Total fuel' }, { key: 'tbaAutoFuel', label: 'Auto fuel' }, { key: 'tbaTeleopFuel', label: 'Teleop fuel' },
+    { key: 'autoMaxScored', label: 'Auto max scored' }, { key: 'autoMaxFerried', label: 'Auto max ferried' },
     { key: 'autoAvgScored', label: 'Auto avg scored' }, { key: 'autoAvgFerried', label: 'Auto avg ferried' },
+    { key: 'teleopMaxScored', label: 'Teleop max scored' }, { key: 'teleopMaxFerried', label: 'Teleop max ferried' },
     { key: 'teleopAvgScored', label: 'Teleop avg scored' }, { key: 'teleopAvgFerried', label: 'Teleop avg ferried' },
     { key: 'avgFouls', label: 'Avg fouls', reverse: true }, { key: 'defense', label: 'Defense level' },
     { key: 'brokenPercent', label: '% matches broken', reverse: true, format: percent },
   ] },
+  { id: 'performance', label: 'Performance', metrics: [
+    { key: 'rank', label: 'Rank', format: count }, { key: 'autoClimb', label: 'Auto climb', sortable: false }, { key: 'autoClimbRate', label: 'Auto %', format: percent },
+    { key: 'endgameClimb', label: 'End climb', sortable: false }, { key: 'endgameClimbRate', label: 'End %', format: percent },
+    { key: 'peakFuel', label: 'Max fuel' }, { key: 'autoMaxFerried', label: 'Auto ferry' }, { key: 'teleopMaxFerried', label: 'Tele ferry' },
+    { key: 'avgFouls', label: 'Fouls' }, { key: 'defense', label: 'Defense' }, { key: 'brokenPercent', label: 'Broken', format: percent },
+  ] },
   { id: 'auton', label: 'Auton', metrics: [
+    { key: 'rank', label: 'Rank', format: count },
     { key: 'autoMaxScored', label: 'Max scored' }, { key: 'autoMaxFerried', label: 'Max ferried' },
     { key: 'autoAvgScored', label: 'Avg scored' }, { key: 'autoAvgFerried', label: 'Avg ferried' },
+    { key: 'autoFuel', label: 'Fuel' },
   ] },
   { id: 'teleop', label: 'Teleop', metrics: [
+    { key: 'rank', label: 'Rank', format: count },
     { key: 'teleopMaxScored', label: 'Max scored' }, { key: 'teleopMaxFerried', label: 'Max ferried' },
     { key: 'teleopAvgScored', label: 'Avg scored' }, { key: 'teleopAvgFerried', label: 'Avg ferried' },
+    { key: 'teleopFuel', label: 'Fuel' },
   ] },
   { id: 'reliability', label: 'Reliability', metrics: [
+    { key: 'rank', label: 'Rank', format: count },
     { key: 'matches', label: 'Matches scouted', format: count }, { key: 'entries', label: 'Reports', format: count },
     { key: 'avgFouls', label: 'Avg fouls', reverse: true }, { key: 'defense', label: 'Defense level' },
     { key: 'brokenPercent', label: '% matches broken', reverse: true, format: percent },
   ] },
 ];
-const SORT_OPTIONS: Metric[] = [{ key: 'totalFuel', label: 'Avg fuel' }, { key: 'peakFuel', label: 'Peak fuel' }, { key: 'autoAvgScored', label: 'Auto' }, { key: 'teleopAvgScored', label: 'Teleop' }, { key: 'brokenPercent', label: '% broken' }, { key: 'matches', label: 'Matches' }];
+const SORT_OPTIONS: Metric[] = ([{ key: 'team', label: 'Team number', format: count }, ...METRIC_GROUPS.flatMap(group => group.metrics.filter(metric => metric.sortable !== false).map(metric => ({ ...metric, label: `${group.label} · ${metric.label}` })))] as Metric[]).filter((metric, index, items) => items.findIndex(item => item.key === metric.key) === index);
+const COMPARE_GROUPS = METRIC_GROUPS.map(group => group.id === 'summary' ? { ...group, metrics: [
+  { key: 'rank', label: 'Rank', format: count }, { key: 'record', label: 'W–L–T', sortable: false }, { key: 'opr', label: 'OPR' },
+  { key: 'tbaTotalFuel', label: 'TBA total fuel' }, { key: 'tbaAutoFuel', label: 'TBA auto fuel' }, { key: 'tbaTransitionFuel', label: 'TBA transition fuel' },
+  { key: 'tbaTeleopFuel', label: 'TBA teleop fuel' }, { key: 'tbaEndgameFuel', label: 'TBA endgame fuel' },
+  { key: 'matches', label: 'Matches', format: count }, { key: 'entries', label: 'Reports', format: count }, { key: 'totalFuel', label: 'Scout total fuel' },
+] as Metric[] } : { ...group, metrics: group.metrics.filter(metric => metric.key !== 'rank') });
 
 const MEANINGS: string[] = [
   'Scored = fuel scored into the HUB. Ferried = fuel moved without scoring. They are never added together.',
@@ -147,12 +175,14 @@ function SummaryView({ analysis, theme }: { analysis: Analysis; theme: Palette }
   const stats = useStatsByTeam(analysis, 'competitive');
   const [group, setGroup] = useState('summary');
   const [filter, setFilter] = useState('');
-  const [sortKey, setSortKey] = useState<keyof ScoutStats | 'rank' | 'opr'>('totalFuel');
+  const [sortKey, setSortKey] = useState<MetricKey>(STRATEGY_DEFAULT_SORT);
+  const officialValues = useMemo(() => new Map(analysis.bundle.teams.map(team => [team.id, officialMetrics(analysis.bundle.official, analysis.bundle.matches, team)])), [analysis.bundle]);
   const official = useMemo(() => new Map(analysis.bundle.teams.map((team) => [team.id, officialForTeam(analysis.bundle.official, team.number, team.displayNumber)])), [analysis.bundle]);
   const hasOfficial = Boolean(analysis.bundle.official && (analysis.bundle.official.rankings.length || Object.keys(analysis.bundle.official.oprs).length));
   const [direction, setDirection] = useState<'asc' | 'desc'>('desc');
   const [glossary, setGlossary] = useState(false);
   const [preScoutOpen, setPreScoutOpen] = useState<string | null>(null);
+  const [layout, setLayout] = useState('cards');
   const active = METRIC_GROUPS.find((item) => item.id === group) ?? METRIC_GROUPS[0];
 
   const rows = useMemo(() => {
@@ -160,26 +190,20 @@ function SummaryView({ analysis, theme }: { analysis: Analysis; theme: Palette }
     return analysis.bundle.teams
       .filter((team) => !needle || `${team.number} ${team.displayNumber} ${team.name}`.toLowerCase().includes(needle))
       .sort((a, b) => {
-        const read = (id: string) => (sortKey === 'rank' ? official.get(id)?.rank ?? 99999 : sortKey === 'opr' ? official.get(id)?.opr ?? -1 : stats.get(id)?.[sortKey] ?? 0);
+        const read = (id: string) => Number(metricValue(stats.get(id) ?? EMPTY_STATS, officialValues.get(id)!, sortKey, analysis.teamsById.get(id)?.number));
         const delta = read(a.id) - read(b.id);
         return delta === 0 ? a.number - b.number : delta * (direction === 'asc' ? 1 : -1);
       });
-  }, [analysis.bundle.teams, filter, sortKey, direction, stats, official]);
+  }, [analysis, filter, sortKey, direction, stats, officialValues]);
 
   const columnValues = useMemo(() => {
     const result = new Map<string, number[]>();
-    for (const metric of active.metrics) result.set(metric.key, analysis.bundle.teams.map((team) => stats.get(team.id)?.[metric.key] ?? 0));
+    for (const metric of active.metrics) result.set(metric.key, analysis.bundle.teams.map(team => Number(metricValue(stats.get(team.id) ?? EMPTY_STATS, officialValues.get(team.id)!, metric.key))).filter(Number.isFinite));
     return result;
-  }, [active, analysis.bundle.teams, stats]);
+  }, [active, analysis.bundle.teams, stats, officialValues]);
 
   const latestPreScout = useMemo(() => {
-    const latest = new Map<string, NativeEntry>();
-    for (const entry of analysis.entries.filter((item) => item.entry_type === 'pre_scout')) {
-      const current = latest.get(entry.team_id);
-      const stamp = entry.submitted_at ?? entry.updated_at ?? '';
-      if (!current || stamp > (current.submitted_at ?? current.updated_at ?? '')) latest.set(entry.team_id, entry);
-    }
-    return latest;
+    return selectLatestPreScout(analysis.entries);
   }, [analysis.entries]);
 
   return (
@@ -191,14 +215,22 @@ function SummaryView({ analysis, theme }: { analysis: Analysis; theme: Palette }
       <Input theme={theme} label="Filter teams" value={filter} onChangeText={setFilter} placeholder="Search number or name…" autoCorrect={false} />
       <Text style={{ color: theme.text, fontWeight: '600' }}>Sort by</Text>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
-        {[...SORT_OPTIONS, ...(hasOfficial ? [{ key: 'rank', label: 'TBA rank' }, { key: 'opr', label: 'OPR' }] : [])].map((option) => <Choice key={option.key} theme={theme} label={option.label} selected={sortKey === option.key} onPress={() => { setSortKey(option.key as typeof sortKey); if (option.key === 'rank') setDirection('asc'); else if (option.key === 'opr') setDirection('desc'); }} />)}
+        {SORT_OPTIONS.map(option => <Choice key={option.key} theme={theme} label={option.label} selected={sortKey === option.key} onPress={() => { setSortKey(option.key); setDirection(option.key === 'rank' || option.key === 'team' ? 'asc' : 'desc'); }} />)}
         <Choice theme={theme} label={direction === 'desc' ? 'High → low' : 'Low → high'} selected={false} onPress={() => setDirection((value) => (value === 'desc' ? 'asc' : 'desc'))} />
       </ScrollView>
       <Button theme={theme} secondary title={glossary ? 'Hide what these numbers mean' : 'What these numbers mean'} onPress={() => setGlossary((value) => !value)} />
       {glossary ? <Card theme={theme}>{MEANINGS.map((line) => <Text key={line} style={{ color: theme.text, fontSize: 14, lineHeight: 20 }}>• {line}</Text>)}</Card> : null}
       <Text style={{ color: theme.muted }}>{rows.length} of {analysis.bundle.teams.length} teams</Text>
+      <Tabs theme={theme} value={layout} onChange={setLayout} items={[{ id: 'cards', label: 'Cards' }, { id: 'table', label: 'Table' }]} />
+      {layout === 'table' ? <>
+        <Text style={{ color: theme.muted }}>Swipe sideways to see every selected metric.</Text>
+        <ScrollView horizontal><View>
+          <View style={{ flexDirection: 'row', backgroundColor: theme.panel }}><Text style={{ color: theme.text, width: 100, padding: 10, fontWeight: '700' }}>Team</Text>{active.metrics.map(metric => <Text key={metric.key} style={{ color: theme.text, width: 140, padding: 10, fontWeight: '700' }}>{metric.label}</Text>)}</View>
+          {rows.map(team => <View key={team.id} style={{ flexDirection: 'row', borderBottomWidth: 1, borderColor: theme.line }}><Pressable accessibilityRole="button" accessibilityLabel={`Open team ${team.displayNumber}`} onPress={() => goTeam(router, team.id)} style={{ width: 100, minHeight: 52, padding: 10, justifyContent: 'center' }}><Text style={{ color: theme.tint, fontWeight: '700' }}>{team.displayNumber}</Text></Pressable>{active.metrics.map(metric => { const value = metricValue(stats.get(team.id) ?? EMPTY_STATS, officialValues.get(team.id)!, metric.key); return <Text key={metric.key} style={{ color: theme.text, width: 140, padding: 10 }}>{metric.key === 'rank' && value === 99999 ? '—' : displayMetric(value, metric)}</Text>; })}</View>)}
+        </View></ScrollView>
+      </> : null}
 
-      {rows.map((team) => {
+      {layout === 'cards' ? rows.map((team) => {
         const value = stats.get(team.id) ?? EMPTY_STATS;
         return (
           <Pressable key={team.id} accessibilityRole="button" accessibilityLabel={`Team ${team.displayNumber} ${team.name}. ${value.matches} scouted matches. Open team profile.`} onPress={() => goTeam(router, team.id)} style={{ backgroundColor: theme.surface, borderRadius: 16, padding: 14, gap: 10 }}>
@@ -212,22 +244,27 @@ function SummaryView({ analysis, theme }: { analysis: Analysis; theme: Palette }
             })() : null}
             <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
               {active.metrics.map((metric) => {
-                const raw = value[metric.key];
-                const background = value.matches && metric.key !== 'matches' && metric.key !== 'entries' ? rgba(heatColor(raw, columnValues.get(metric.key) ?? [], metric.reverse)) : undefined;
+                const raw = metricValue(value, officialValues.get(team.id)!, metric.key);
+                const background = typeof raw === 'number' && (value.matches || OFFICIAL_KEYS.has(metric.key)) && metric.key !== 'matches' && metric.key !== 'entries' ? rgba(heatColor(raw, columnValues.get(metric.key) ?? [], metric.reverse)) : undefined;
                 return (
                   <View key={metric.key} style={{ minWidth: '30%', flexGrow: 1, padding: 8, borderRadius: 10, backgroundColor: background ?? theme.panel }}>
                     <Text style={{ color: theme.muted, fontSize: 12 }}>{metric.label}</Text>
-                    <Text style={{ color: theme.text, fontSize: 17, fontWeight: '700' }}>{value.matches || metric.key === 'matches' || metric.key === 'entries' ? (metric.format ?? formatStat)(raw) : '—'}</Text>
+                    <Text style={{ color: theme.text, fontSize: 17, fontWeight: '700' }}>{metric.key === 'rank' && raw === 99999 ? '—' : displayMetric(raw, metric)}</Text>
                   </View>
                 );
               })}
             </View>
           </Pressable>
         );
-      })}
+      }) : null}
 
       <Section theme={theme} title="Pre-scout sheet">
         <Text style={{ color: theme.muted, fontSize: 14 }}>Each team’s latest submitted pre-scout report.</Text>
+        <Text style={{ color: theme.muted }}>Swipe sideways to compare the complete sheet.</Text>
+        <ScrollView horizontal><View>
+          <View style={{ flexDirection: 'row', backgroundColor: theme.panel }}>{[['team', 'Team'], ['autos', 'Auto'], ['active_shift', 'Active HUB'], ['inactive_shift', 'Inactive HUB'], ['traversal', 'Traversal'], ['average_pieces', 'Average fuel'], ['with_them', 'With them'], ['against_them', 'Against them']].map(([key, title]) => <Text key={key} style={{ color: theme.text, width: key === 'team' ? 160 : 230, padding: 12, fontWeight: '700' }}>{title}</Text>)}</View>
+          {[...analysis.bundle.teams].sort((a, b) => a.number - b.number).map(team => <View key={team.id} style={{ flexDirection: 'row', borderBottomWidth: 1, borderColor: theme.line }}><Text style={{ color: theme.text, width: 160, padding: 12 }}>{team.displayNumber} · {team.name}</Text>{['autos', 'active_shift', 'inactive_shift', 'traversal', 'average_pieces', 'with_them', 'against_them'].map(key => <Text key={key} style={{ color: theme.text, width: 230, padding: 12 }}>{String(latestPreScout.get(team.id)?.payload[key] ?? '—')}</Text>)}</View>)}
+        </View></ScrollView>
         {analysis.bundle.teams.slice().sort((a, b) => a.number - b.number).map((team) => {
           const entry = latestPreScout.get(team.id);
           const open = preScoutOpen === team.id;
@@ -249,53 +286,28 @@ function CompareView({ analysis, theme }: { analysis: Analysis; theme: Palette }
   const app = useFeatureApp();
   const router = useRouter();
   const stats = useStatsByTeam(analysis, 'competitive');
-  const [selected, setSelected] = useState<string[]>([]);
+  const [selected, setSelected] = useState<string[]>(['', '']);
   const [group, setGroup] = useState('summary');
-  const active = METRIC_GROUPS.find((item) => item.id === group) ?? METRIC_GROUPS[0];
-  const official = group === 'official';
+  const active = COMPARE_GROUPS.find((item) => item.id === group) ?? COMPARE_GROUPS[0];
+  const officialValues = useMemo(() => new Map(analysis.bundle.teams.map(team => [team.id, officialMetrics(analysis.bundle.official, analysis.bundle.matches, team)])), [analysis.bundle]);
   const chosen = selected.map((id) => analysis.teamsById.get(id)).filter((team): team is Team => Boolean(team));
   const photoFor = (teamId: string) => {
     const local = app.photos.find((photo) => photo.team_id === teamId && photo.localUri);
     if (local) return local.localUri;
     return analysis.bundle.photos.find((photo) => photo.team_id === teamId && (photo.signedUrl || photo.localUri))?.signedUrl ?? analysis.bundle.photos.find((photo) => photo.team_id === teamId)?.localUri;
   };
-  const officialRows = useMemo(() => {
-    const matches = analysis.bundle.matches as ScoredMatch[];
-    const per = chosen.map((team) => {
-      const mine = matches.filter((match) => [...match.red_teams, ...match.blue_teams].includes(team.id));
-      const played = mine.filter((match) => match.status === 'played' && match.match_type !== 'practice');
-      return { record: teamRecord(mine, team.id), fuel: officialFuelAverages(played, team.id), climb: officialClimb(played, team.id) };
-    });
-    const tba = chosen.map((team) => officialForTeam(analysis.bundle.official, team.number, team.displayNumber));
-    return [
-      { label: 'TBA rank', cells: tba.map((item) => (item.rank ? `#${item.rank}` : '—')) },
-      { label: 'TBA record', cells: tba.map((item) => item.record ?? '—') },
-      { label: 'OPR', cells: tba.map((item) => (item.opr !== null ? formatStat(item.opr) : '—')) },
-      { label: 'Record W-L-T', cells: per.map((item) => `${item.record.wins}-${item.record.losses}-${item.record.ties}`) },
-      { label: 'Alliance fuel avg', cells: per.map((item) => (item.fuel ? formatStat(item.fuel.total) : '—')) },
-      { label: 'Alliance auto fuel', cells: per.map((item) => (item.fuel ? formatStat(item.fuel.auto) : '—')) },
-      { label: 'Alliance teleop fuel', cells: per.map((item) => (item.fuel ? formatStat(item.fuel.teleop) : '—')) },
-      { label: 'Typical auto climb', cells: per.map((item) => item.climb.autoClimb) },
-      { label: 'Auto climb success', cells: per.map((item) => (item.climb.matches ? `${item.climb.autoClimbRate.toFixed(0)}%` : '—')) },
-      { label: 'Typical endgame climb', cells: per.map((item) => item.climb.endgameClimb) },
-      { label: 'Endgame climb success', cells: per.map((item) => (item.climb.matches ? `${item.climb.endgameClimbRate.toFixed(0)}%` : '—')) },
-    ];
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [analysis.bundle.matches, selected]);
-  const add = (id: string) => setSelected((current) => (current.includes(id) || current.length >= 4 ? current : [...current, id]));
 
   return (
     <Screen theme={theme}>
       <Text accessibilityRole="header" style={{ color: theme.text, fontSize: 26, fontWeight: '700' }}>Compare teams</Text>
       <SourceNotice theme={theme} analysis={analysis} />
-      <Text style={{ color: theme.muted }}>Pick two to four teams. {selected.length >= 4 ? 'Maximum reached — remove one to add another.' : ''}</Text>
+      <Text style={{ color: theme.muted }}>Choose two event teams to compare.</Text>
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-        {chosen.map((team) => <Choice key={team.id} theme={theme} label={`${team.displayNumber} ✕`} selected onPress={() => setSelected((current) => current.filter((id) => id !== team.id))} />)}
+        {[0, 1].map(index => <View key={index} style={{ flex: 1, minWidth: 140 }}><TeamPicker theme={theme} teams={analysis.bundle.teams.filter(team => team.id !== selected[1 - index])} value={selected[index] || null} onChange={id => setSelected(current => current.map((value, slot) => slot === index ? id : value))} label={index === 0 ? 'Team A' : 'Team B'} /></View>)}
       </View>
-      {selected.length < 4 ? <TeamPicker theme={theme} teams={analysis.bundle.teams.filter((team) => !selected.includes(team.id))} value={null} onChange={add} label="Add a team" /> : null}
       {chosen.length >= 2 ? (
         <>
-          <Tabs theme={theme} value={group} onChange={setGroup} items={[...METRIC_GROUPS.map((item) => ({ id: item.id, label: item.label })), { id: 'official', label: 'Official' }]} />
+          <Tabs theme={theme} value={group} onChange={setGroup} items={COMPARE_GROUPS.map(item => ({ id: item.id, label: item.label }))} />
           <ScrollView horizontal>
             <View style={{ backgroundColor: theme.surface, borderRadius: 16, padding: 12, gap: 10, minWidth: '100%' }}>
               <View style={{ flexDirection: 'row' }}>
@@ -311,32 +323,26 @@ function CompareView({ analysis, theme }: { analysis: Analysis; theme: Palette }
                   );
                 })}
               </View>
-              {official ? officialRows.map((row) => (
-                <View key={row.label} style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 6, borderTopWidth: 1, borderColor: theme.line }}>
-                  <Text style={{ color: theme.muted, width: 150, fontSize: 14 }}>{row.label}</Text>
-                  {row.cells.map((cell, index) => <Text key={chosen[index].id} style={{ width: 112, textAlign: 'center', fontSize: 16, fontWeight: '600', color: theme.text }}>{cell}</Text>)}
-                </View>
-              )) : null}
-              {official ? null : (
               <>
               {active.metrics.map((metric) => {
-                const values = chosen.map((team) => stats.get(team.id)?.[metric.key] ?? 0);
-                const best = metric.key === 'matches' || metric.key === 'entries' ? NaN : metric.reverse ? Math.min(...values) : Math.max(...values);
+                const values = chosen.map(team => metricValue(stats.get(team.id) ?? EMPTY_STATS, officialValues.get(team.id)!, metric.key));
+                const numeric = values.map(Number);
+                const best = metric.key === 'matches' || metric.key === 'entries' || !numeric.every(Number.isFinite) ? NaN : metric.reverse ? Math.min(...numeric) : Math.max(...numeric);
                 return (
                   <View key={metric.key} style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 6, borderTopWidth: 1, borderColor: theme.line }}>
                     <Text style={{ color: theme.muted, width: 150, fontSize: 14 }}>{metric.label}</Text>
                     {chosen.map((team, index) => {
                       const has = (stats.get(team.id)?.matches ?? 0) > 0;
-                      const isBest = has && values[index] === best && new Set(values).size > 1;
-                      return <Text key={team.id} style={{ width: 112, textAlign: 'center', fontSize: 17, fontWeight: isBest ? '800' : '600', color: isBest ? theme.success : theme.text }}>{has || metric.key === 'matches' || metric.key === 'entries' ? (metric.format ?? formatStat)(values[index]) : '—'}</Text>;
+                      const isBest = (has || OFFICIAL_KEYS.has(metric.key)) && numeric[index] === best && new Set(values).size > 1;
+                      return <Text key={team.id} style={{ width: 112, textAlign: 'center', fontSize: 17, fontWeight: isBest ? '800' : '600', color: isBest ? theme.success : theme.text }}>{metric.key === 'rank' && values[index] === 99999 ? '—' : displayMetric(values[index], metric)}</Text>;
                     })}
                   </View>
                 );
               })}
               </>
-              )}
             </View>
           </ScrollView>
+          {group !== 'summary' ? <ComparisonStatsGraph theme={theme} series={chosen.map((team, index) => ({ label: team.displayNumber, color: index === 0 ? theme.red : theme.blue, stats: stats.get(team.id) ?? EMPTY_STATS }))} /> : null}
         </>
       ) : <Notice theme={theme}>Choose at least two teams to compare.</Notice>}
     </Screen>
@@ -364,13 +370,15 @@ function PicklistView({ analysis, theme }: { analysis: Analysis; theme: Palette 
 
   const roleCanEdit = canEditPicklistRole(app.viewer?.role);
   const writer = app.savePicklistRanking;
+  const bulkWriter = app.savePicklistRankings;
   const canEdit = roleCanEdit && typeof writer === 'function';
 
   const rankings = useMemo(() => new Map(bundle.rankings.map((ranking) => [ranking.team_id, ranking])), [bundle.rankings]);
+  const orderedTeams = useMemo(() => bundle.teams.map(team => ({ ...team, opr: officialForTeam(bundle.official, team.number, team.displayNumber).opr ?? 0 })).sort((a, b) => b.opr - a.opr || a.number - b.number), [bundle]);
   const categories = useMemo(() => [...bundle.categories].sort((a, b) => a.sort_order - b.sort_order || a.name.localeCompare(b.name)), [bundle.categories]);
   const tags = useMemo(() => [...bundle.tags].sort((a, b) => a.sort_order - b.sort_order || a.name.localeCompare(b.name)), [bundle.tags]);
   const tiers: { id: string; name: string; color: string }[] = useMemo(() => [{ id: UNSORTED, name: 'Unsorted', color: '#64748b' }, ...categories.map((category: Category) => ({ id: category.id, name: category.name, color: category.color }))], [categories]);
-  const tierOrders = useMemo(() => Object.fromEntries(tiers.map((tier) => [tier.id, teamsInTier(bundle.teams, rankings, tier.id).map((team) => ({ teamId: team.id, rank: rankings.get(team.id)?.rank ?? null }))])), [tiers, bundle.teams, rankings]);
+  const tierOrders = useMemo(() => Object.fromEntries(tiers.map((tier) => [tier.id, teamsInTier(orderedTeams, rankings, tier.id).map((team) => ({ teamId: team.id, rank: rankings.get(team.id)?.rank ?? null }))])), [tiers, orderedTeams, rankings]);
   const tierIds = tiers.map((tier) => tier.id);
   const revisions = useMemo(() => groupRevisions(bundle.picklistHistory ?? []), [bundle.picklistHistory]);
 
@@ -383,7 +391,7 @@ function PicklistView({ analysis, theme }: { analysis: Analysis; theme: Palette 
     setBusy(patches[0]?.teamId ?? 'all');
     setNotice(null);
     try {
-      for (const item of patches) await writer(item.teamId, item.patch);
+      await bulkWriter(patches);
       setNotice({ text: success, error: false });
     } catch (error) {
       setNotice({ text: error instanceof Error ? error.message : 'That change was not saved. Check your connection and role, then retry.', error: true });
@@ -437,14 +445,12 @@ function PicklistView({ analysis, theme }: { analysis: Analysis; theme: Palette 
     const name = categoryName(id);
     const originals = (tierOrders[id] ?? []).map((item) => ({ teamId: item.teamId, rank: item.rank, category_id: id }));
     await guarded(async () => {
-      for (const item of plan.patches) await writer(item.teamId, { rank: item.rank, category_id: item.category_id });
+      await bulkWriter(toPatches(plan.patches));
       try {
         await metaDeleter('category', id);
       } catch (error) {
         // Deleting failed (for example only the creator or an admin may delete a tier): put the teams back.
-        for (const original of originals) {
-          try { await writer(original.teamId, { rank: original.rank, category_id: original.category_id }); } catch { /* best effort */ }
-        }
+        try { await bulkWriter(originals.map(original => ({ teamId: original.teamId, patch: { rank: original.rank, category_id: original.category_id } }))); } catch { /* best effort; original failure remains visible */ }
         throw error;
       }
     }, `${name} tier removed; its teams moved to ${categoryName(plan.fallback)}.`);
@@ -457,14 +463,14 @@ function PicklistView({ analysis, theme }: { analysis: Analysis; theme: Palette 
   async function restore(index: number) {
     if (!writer) return;
     const current = new Map<string, FullRanking>(bundle.rankings.map((ranking) => [ranking.team_id, { rank: ranking.rank, category_id: ranking.category_id, note: ranking.note ?? '', selected: ranking.selected, tag_ids: ranking.tag_ids }]));
-    const order = [...bundle.teams].sort((a, b) => a.number - b.number).map((team) => team.id);
+    const order = orderedTeams.map(team => team.id);
     const plan = planRestore(current, revisions, index, order);
     if (!plan.length) { setNotice({ text: 'The picklist already matches this version.', error: false }); return; }
-    await guarded(async () => { for (const item of plan) await writer(item.teamId, item.state); }, `Restored ${plan.length} team${plan.length === 1 ? '' : 's'} to the ${new Date(revisions[index].createdAt).toLocaleString()} version.`);
+    await guarded(() => bulkWriter(plan.map(item => ({ teamId: item.teamId, patch: item.state }))), `Restored ${plan.length} team${plan.length === 1 ? '' : 's'} to the ${new Date(revisions[index].createdAt).toLocaleString()} version.`);
   }
   const toPatches = (plan: RankPatch[]) => plan.map((item) => ({ teamId: item.teamId, patch: { rank: item.rank, category_id: item.category_id } }));
   const visible = (teamId: string) => !activeTags.length || (rankings.get(teamId)?.tag_ids ?? []).some((id) => activeTags.includes(id));
-  let overall = 0;
+  const overallByTeam = new Map(tierIds.flatMap(id => tierOrders[id].map(item => item.teamId)).map((id, index) => [id, index + 1]));
 
   return (
     <Screen theme={theme}>
@@ -487,7 +493,7 @@ function PicklistView({ analysis, theme }: { analysis: Analysis; theme: Palette 
       ) : null}
 
       {tiers.map((tier) => {
-        const members = teamsInTier(bundle.teams, rankings, tier.id);
+        const members = teamsInTier(orderedTeams, rankings, tier.id);
         const shown = members.filter((team) => visible(team.id));
         const header = (
           <View key={`${tier.id}-head`} style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 8 }}>
@@ -500,7 +506,7 @@ function PicklistView({ analysis, theme }: { analysis: Analysis; theme: Palette 
           <View key={tier.id} style={{ gap: 8 }}>
             {header}
             {shown.length ? shown.map((team) => {
-              overall += 1;
+              const overall = overallByTeam.get(team.id) ?? 0;
               const ranking = rankings.get(team.id);
               const value = stats.get(team.id) ?? EMPTY_STATS;
               const open = expanded === team.id;
@@ -650,14 +656,43 @@ function MatchStrategyView({ analysis, theme }: { analysis: Analysis; theme: Pal
   const [drawingNotice, setDrawingNotice] = useState<{ text: string; error: boolean } | null>(null);
   const [dirtyDrawing, setDirtyDrawing] = useState(false);
   const [pendingUpload, setPendingUpload] = useState(false);
+  const [draftLoaded, setDraftLoaded] = useState(false);
+  const dirtyRef = useRef(false);
+  const sketchRevision = useRef(0);
+  const draftWrites = useRef(Promise.resolve());
+  const draftKey = `strategy-sketch:${analysis.bundle.event.id}:${app.viewer?.userId}`;
+  useEffect(() => {
+    let active = true;
+    void getValue<DrawStroke[]>(analysis.bundle.scope, 'working-sketch', draftKey).then(draft => {
+      if (!active) return;
+      if (draft) { setStrokes(parseStrokes(draft)); setDirtyDrawing(true); dirtyRef.current = true; }
+      setDraftLoaded(true);
+    });
+    return () => { active = false; };
+  }, [analysis.bundle.scope, draftKey]);
+  useEffect(() => { if (draftLoaded && !dirtyRef.current) setStrokes(saved); }, [saved, draftLoaded]);
+  function changeSketch(next: DrawStroke[]) {
+    sketchRevision.current += 1;
+    dirtyRef.current = true;
+    setStrokes(next); setDirtyDrawing(true); setDrawingNotice(null);
+    const scope = analysis.bundle.scope;
+    draftWrites.current = draftWrites.current.catch(() => {}).then(() => putValue(scope, 'working-sketch', draftKey, next));
+    void draftWrites.current.catch(error => setDrawingNotice({ text: `Could not retain this sketch: ${error.message}`, error: true }));
+  }
   const writeDrawing = app.saveStrategyDrawing;
   async function saveDrawing() {
     if (!writeDrawing) return;
     setSavingDrawing(true);
     setDrawingNotice(null);
+    const revision = sketchRevision.current;
     try {
       await writeDrawing(strokes);
-      setDirtyDrawing(false);
+      await draftWrites.current;
+      if (revision === sketchRevision.current) {
+        await removeValue(analysis.bundle.scope, 'working-sketch', draftKey);
+        dirtyRef.current = false;
+        setDirtyDrawing(false);
+      }
       // The context resolves once the drawing is safe on this device; ask the queue whether the upload finished.
       const waiting = analysis.bundle.scope && !app.viewer?.demo ? (await drawingQueue(analysis.bundle.scope).pending()).some((item) => item.event_id === analysis.bundle.event.id) : false;
       setPendingUpload(waiting);
@@ -669,10 +704,19 @@ function MatchStrategyView({ analysis, theme }: { analysis: Analysis; theme: Pal
     }
   }
   const stats = useStatsByTeam(analysis, 'auto');
-  const matches = useMemo(() => [...analysis.bundle.matches].sort(compareMatches), [analysis.bundle.matches]);
-  const [matchId, setMatchId] = useState<string | null>(null);
+  const [now, setNow] = useState(Date.now);
+  const [observedAt, setObservedAt] = useState<Record<string, number>>({});
+  const previousStatuses = useRef(new Map(analysis.bundle.matches.map(match => [match.id, match.status])));
+  useEffect(() => { const timer = setInterval(() => setNow(Date.now()), 30000); return () => clearInterval(timer); }, []);
+  useEffect(() => {
+    const newlyPlayed = analysis.bundle.matches.filter(match => match.status === 'played' && previousStatuses.current.get(match.id) !== 'played');
+    if (newlyPlayed.length) setObservedAt(current => ({ ...current, ...Object.fromEntries(newlyPlayed.map(match => [match.id, Date.now()])) }));
+    previousStatuses.current = new Map(analysis.bundle.matches.map(match => [match.id, match.status]));
+  }, [analysis.bundle.matches]);
+  const matches = useMemo(() => strategyMatchOrder(analysis.bundle.matches, observedAt, now), [analysis.bundle.matches, observedAt, now]);
+  const [matchId, setMatchId] = useState<string | null>(matches[0]?.id ?? null);
   const [query, setQuery] = useState('');
-  const [manual, setManual] = useState<string[]>(['', '', '', '', '', '']);
+  const [manual, setManual] = useState<string[]>(() => { const first = matches[0]; return [0, 1, 2].map(index => analysis.teamsById.get(first?.red_teams[index] ?? '')?.displayNumber ?? '').concat([0, 1, 2].map(index => analysis.teamsById.get(first?.blue_teams[index] ?? '')?.displayNumber ?? '')); });
   const [overrides, setOverrides] = useState<string[] | null>(null);
   const [error, setError] = useState('');
   const [drawing, setDrawing] = useState(false);
@@ -680,7 +724,7 @@ function MatchStrategyView({ analysis, theme }: { analysis: Analysis; theme: Pal
   const selected = matches.find((match) => match.id === matchId);
   const label = (match: Match) => matchLabel(match);
   const lineup = (match: Match) => `${match.red_teams.map((id) => analysis.teamsById.get(id)?.displayNumber ?? '—').join(' ')} vs ${match.blue_teams.map((id) => analysis.teamsById.get(id)?.displayNumber ?? '—').join(' ')}`;
-  const results = matches.filter((match) => `${label(match)} ${lineup(match)}`.toLowerCase().includes(query.trim().toLowerCase())).slice(0, 8);
+  const results = matches.filter((match) => `${label(match)} ${lineup(match)}`.toLowerCase().includes(query.trim().toLowerCase()));
 
   const slotIds = (match: Match | undefined) => [0, 1, 2].map((i) => match?.red_teams[i] ?? '').concat([0, 1, 2].map((i) => match?.blue_teams[i] ?? ''));
   const effective = overrides ?? slotIds(selected);
@@ -741,7 +785,7 @@ function MatchStrategyView({ analysis, theme }: { analysis: Analysis; theme: Pal
       {results.map((match) => <Row key={match.id} theme={theme} title={label(match)} subtitle={`${lineup(match)}${match.scheduled_at ? ` · ${new Date(match.scheduled_at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}` : ''}${match.status === 'played' ? ' · played' : ''}`} onPress={() => chooseMatch(match)} tail={match.id === matchId ? <Badge theme={theme} tone="tint" text="Selected" /> : undefined} />)}
       {!matches.length ? <Notice theme={theme}>No matches are downloaded for this event.</Notice> : null}
 
-      {selected ? (
+      {draftLoaded ? (
         <>
           <Section theme={theme} title="Manual event lineup">
             <Text style={{ color: theme.muted, fontSize: 14 }}>Override the scheduled lineup with event team numbers (aliases like 254B work).</Text>
@@ -762,7 +806,8 @@ function MatchStrategyView({ analysis, theme }: { analysis: Analysis; theme: Pal
           <Notice theme={theme}>Totals sum each team’s average and peak scored fuel (ferried excluded). A team uses competitive reports once it has played a qualification, otherwise practice reports; the two are never combined.</Notice>
           <Section theme={theme} title="Strategy drawing">
             <Text style={{ color: theme.muted, fontSize: 14 }}>Your personal sketch for this event. It is private to you and shared across matches.</Text>
-            <StrategyCanvas theme={theme} strokes={strokes} flipped={flipped} onChange={(next) => { setStrokes(next); setDirtyDrawing(true); setDrawingNotice(null); }} fieldArt={FIELD_ART} onDrawingChange={setDrawing} />
+            {dirtyDrawing ? <Notice theme={theme}>Unsaved sketch retained privately on this device for this event. Save drawing to publish it to your other devices.</Notice> : null}
+            <StrategyCanvas theme={theme} strokes={strokes} flipped={flipped} onChange={changeSketch} fieldArt={FIELD_ART} onDrawingChange={setDrawing} />
             <View style={{ flexDirection: 'row', gap: 10 }}>
               <Button theme={theme} secondary title={flipped ? 'Alliance view: flipped' : 'Flip alliance view'} onPress={() => setFlipped((value) => !value)} style={{ flex: 1 }} />
               <Button theme={theme} title={savingDrawing ? 'Saving…' : dirtyDrawing ? 'Save drawing' : 'Saved'} disabled={!writeDrawing || savingDrawing || !dirtyDrawing} onPress={() => { void saveDrawing(); }} style={{ flex: 1 }} />
@@ -826,6 +871,7 @@ export function TeamProfileScreen({ teamId }: { teamId: string }) {
   const [robotNotice, setRobotNotice] = useState<{ text: string; error: boolean } | null>(null);
   const [sourceBusy, setSourceBusy] = useState<string | null>(null);
   const [sourceNotice, setSourceNotice] = useState<{ text: string; error: boolean } | null>(null);
+  const [chartMetrics, setChartMetrics] = useState(['totalFuel', 'autoFuel', 'teleopFuel']);
   if (!analysis) return <NoEvent theme={theme} />;
   const team = analysis.teamsById.get(teamId);
   if (!team) return <Screen theme={theme}><Notice theme={theme} tone="warning">That team is not part of the downloaded event.</Notice></Screen>;
@@ -854,12 +900,24 @@ export function TeamProfileScreen({ teamId }: { teamId: string }) {
     const stage = typeof manual.stage === 'string' ? manual.stage.trim().toLowerCase() : 'other';
     slots.push({ key, label: manualMatchLabel(manual), type: stage === 'qualification' || stage === 'practice' ? stage : ['quarterfinal', 'semifinal', 'final', 'playoff'].includes(stage) ? 'playoff' : 'other', alliance: manual.alliance === 'blue' ? 'blue' : manual.alliance === 'red' ? 'red' : null, status: 'manual', order: 1, reports });
   }
+  const round = (slot: Slot) => slot.type === 'practice' ? 0 : slot.type === 'qualification' ? 1 : slot.label.startsWith('Semifinal') ? 3 : slot.label.startsWith('Final') ? 4 : slot.label.startsWith('Tiebreaker') ? 5 : slot.type === 'playoff' ? 2 : 6;
+  slots.sort((a, b) => round(a) - round(b) || a.label.localeCompare(b.label, undefined, { numeric: true }));
   const visibleSlots = slots.filter((slot) => scope === 'all' || (scope === 'practice' ? slot.type === 'practice' : slot.type === 'qualification' || slot.type === 'playoff'));
-
-  const entriesFor = (kind: 'pit' | 'pre_scout') => [
-    ...app.bundle!.entries.filter((entry) => entry.entry_type === kind && entry.team_id === teamId),
-    ...app.records.filter((item) => item.entry.entry_type === kind && item.entry.team_id === teamId && item.entry.event_id === analysis.bundle.event.id && !app.bundle!.entries.some((entry) => entry.id === item.entry.id)).map((item) => item.entry),
+  const timelineMetrics = [
+    { key: 'totalFuel', label: 'Avg fuel', color: theme.red }, { key: 'autoFuel', label: 'Auto fuel', color: '#c79314' }, { key: 'teleopFuel', label: 'Teleop fuel', color: theme.blue },
+    { key: 'ferried', label: 'Avg ferried', color: '#1498a8' }, { key: 'autoFerried', label: 'Auto ferried', color: '#d78227' }, { key: 'teleopFerried', label: 'Teleop ferried', color: '#639627' },
+    { key: 'fouls', label: 'Fouls', color: '#ad77d3' }, { key: 'defense', label: 'Defense', color: theme.success }, { key: 'broken', label: 'Broken', color: '#d9668c' },
   ];
+  const timelineValue = (slot: Slot, key: string) => {
+    const reports = selectedMatchReportEntries(slot.reports, sources);
+    if (!reports.length) return null;
+    const values = reports.map(report => reportValues(report.payload));
+    const read = (value: ReturnType<typeof reportValues>) => key === 'totalFuel' ? value.autoFuel + value.teleopFuel : key === 'ferried' ? value.autoFerried + value.teleopFerried : key === 'autoFerried' ? value.autoFerried : key === 'teleopFerried' ? value.teleopFerried : value[key as keyof typeof value];
+    if (key === 'broken') return Math.max(...values.map(read));
+    return values.reduce((sum, value) => sum + read(value), 0) / values.length;
+  };
+
+  const entriesFor = (kind: 'pit' | 'pre_scout') => eventEntries(analysis.bundle, app.records).filter(entry => entry.entry_type === kind && entry.team_id === teamId);
   const pit = entriesFor('pit');
   const pre = entriesFor('pre_scout');
   const photos = [
@@ -952,6 +1010,10 @@ export function TeamProfileScreen({ teamId }: { teamId: string }) {
       <Section theme={theme} title="Match timeline">
         <Tabs theme={theme} value={scope} onChange={(id) => { setScope(id as typeof scope); setOpenMatch(null); }} items={[{ id: 'competitive', label: 'Qualifications + playoffs' }, { id: 'practice', label: 'Practice' }, { id: 'all', label: 'All' }]} />
         <Text style={{ color: theme.muted }}>{visibleSlots.filter((slot) => slot.reports.length).length} / {visibleSlots.length} scouted</Text>
+        {visibleSlots.some(slot => slot.reports.length) ? <>
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>{timelineMetrics.map(metric => <Choice key={metric.key} theme={theme} label={metric.label} selected={chartMetrics.includes(metric.key)} onPress={() => setChartMetrics(current => current.includes(metric.key) ? current.length === 1 ? current : current.filter(key => key !== metric.key) : [...current, metric.key].slice(-4))} />)}</View>
+          <MetricChart theme={theme} labels={visibleSlots.map(slot => slot.label.replace('Qualification ', 'Q').replace('Practice ', 'P').replace('Playoff Match ', 'M'))} series={timelineMetrics.filter(metric => chartMetrics.includes(metric.key)).map(metric => ({ label: metric.label, color: metric.color, values: visibleSlots.map(slot => timelineValue(slot, metric.key)) }))} />
+        </> : <Text style={{ color: theme.muted }}>No submitted reports yet in this scope. Scheduled results still appear below.</Text>}
         {sourceNotice ? <Notice theme={theme} tone={sourceNotice.error ? 'danger' : 'success'}>{sourceNotice.text}</Notice> : null}
         {visibleSlots.length ? visibleSlots.map((slot) => {
           const selectedId = sources.find((source) => source.match_key === slot.key)?.selected_entry_id;
@@ -1042,7 +1104,7 @@ export function StrategyScreen({ mode }: { mode: 'summary' | 'compare' | 'pickli
   if (!analysis) return <NoEvent theme={theme} />;
   if (mode === 'compare') return <CompareView analysis={analysis} theme={theme} />;
   if (mode === 'picklist') return <PicklistView analysis={analysis} theme={theme} />;
-  if (mode === 'strategy') return <MatchStrategyView analysis={analysis} theme={theme} />;
+  if (mode === 'strategy') return <MatchStrategyView key={`${analysis.bundle.scope}:${analysis.bundle.event.id}`} analysis={analysis} theme={theme} />;
   return <SummaryView analysis={analysis} theme={theme} />;
 }
 
