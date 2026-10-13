@@ -1,5 +1,5 @@
 import React,{useState,useEffect} from 'react';
-import {Text,View,Image,Platform} from 'react-native';
+import {Text,View,Image,Platform,Linking} from 'react-native';
 import {useRouter} from 'expo-router';
 import {useApp} from '../src/core/context';
 import {configured} from '../src/core/client';
@@ -40,5 +40,9 @@ export default function Login(){
   <View style={{height:1,backgroundColor:theme.line,marginTop:14}}/>
   <Button title="Try local practice" theme={theme} secondary disabled={Boolean(busy)} onPress={()=>void run('Opening practice…',async()=>{await startDemo();router.replace('/(tabs)')})}/>
   <Label theme={theme} muted>Practice is separate from your team. Nothing is uploaded.</Label>
+  <View style={{flexDirection:'row',gap:8}}>
+   <Button title="Terms" secondary theme={theme} style={{flex:1}} onPress={()=>void Linking.openURL('https://hal9000.stuypulse.com/terms').catch(()=>setMessage('Could not open the terms page.'))}/>
+   <Button title="Privacy" secondary theme={theme} style={{flex:1}} onPress={()=>void Linking.openURL('https://hal9000.stuypulse.com/privacy').catch(()=>setMessage('Could not open the privacy page.'))}/>
+  </View>
  </Screen>;
 }

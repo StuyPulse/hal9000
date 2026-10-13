@@ -140,4 +140,7 @@ Evidence key: **src** = read in source; **test** = covered by a unit test; no ro
 | S9–S11 | resolved | src: created_at ordering, sorted manual rows, pending preview toggle |
 | A1–A6, A10, A12, A13 | resolved | src: see AdminTools/setup/admin files |
 | A11 membership waiting | resolved | src: login waiting state with check again/sign out |
-| A7 event-details editor, A8 delete current event, A9 lineup entry | **not re-verified** | |
+| A7 event-details editor | resolved | src: no event-details update path remains; only create/activate/delete/alias |
+| A8 delete current unused event | resolved | src: `deleteNativeEvent` protects only events with data |
+| A9 lineup/team entry | resolved | src: `manualLineupNumbers` resolves/creates numbers; optional alias |
+| Terms link (website `/terms`) | resolved | src: Settings and sign-in link to `/terms` and `/privacy` |

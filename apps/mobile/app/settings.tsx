@@ -69,5 +69,6 @@ export default function Settings(){
   </Section>
   <Button title="Sign out · keep local work" theme={theme} secondary disabled={busy} onPress={()=>{const captured=scope;Alert.alert('Sign out?','Local reports remain protected under this account and reappear when you sign back in. Pending work is not deleted.',[{text:'Keep working',style:'cancel'},{text:'Sign out',onPress:()=>{if(!valid(captured))return;void action(async()=>{await signOut();if(mounted.current)router.replace('/login')})}}])}}/>
   <Button title="Privacy policy" theme={theme} secondary onPress={()=>void Linking.openURL('https://hal9000.stuypulse.com/privacy').catch(e=>{if(mounted.current)setMessage(e.message)})}/>
+  <Button title="Terms of service" theme={theme} secondary onPress={()=>void Linking.openURL('https://hal9000.stuypulse.com/terms').catch(e=>{if(mounted.current)setMessage(e.message)})}/>
  </Screen>;
 }
