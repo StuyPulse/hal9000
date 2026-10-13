@@ -108,3 +108,36 @@ All paths are repository-relative. P1 means correctness/data/task failure; P2 me
 5. No push, deployment, new production migration or OTA publication in this correction pass without new release authorization. A queued older TestFlight build does not include these fixes.
 
 Status: **audit complete; fixes pending at the moment this document was written.** Per-finding resolution evidence will be appended rather than deleting the original audit.
+
+## Resolution evidence (appended 2026-10-13; source and pure-test level, not device)
+
+Evidence key: **src** = read in source; **test** = covered by a unit test; no row is device-verified.
+
+| Finding | Status | Evidence |
+| --- | --- | --- |
+| O1 cached startup | resolved | src: `context.tsx` activates cached viewer/bundle before `NetInfo`/Auth |
+| O2 per-event cache | resolved | src+test: `workspace-cache(-model).ts`, `workspace-cache.test.ts` |
+| O3 failed fetch ≠ empty | resolved | src: `data.ts` no blanket catch |
+| O4 authoritative overlay | resolved | src+test: `report-overlay.ts` used by StrategyViews, Leaderboard, Submissions |
+| O5 refresh on reconnect | resolved | src: reconnect effect calls `refreshOnline` (context.tsx) |
+| O6 photo files cached | **open** | signed URLs only |
+| C1 draft overwrite | resolved | src: `ManualScouting.tsx` adopts existing own draft; base merge |
+| C2 explicit publish | resolved | src: working edits local; "Save changes" publishes |
+| C3 legacy breakage | resolved | src: `rebuilt.ts` hydrates break_tag/break_timestamp |
+| C4 manual labels | resolved | src: creation and `saveManualIdentity` accept `2–1` |
+| C5 global scout edit | resolved | src: `report-editing.ts` admin/developer only |
+| C6 photo staging | resolved | src: `photo-selection.ts`, photos screen |
+| C7–C10 defaults/flow/scoring/start spot | resolved | src: schedule match-first, Qualification default, simultaneous Auto/Teleop, toggle-off start |
+| C11 breakage default | resolved | src: blank observation |
+| C12 Submissions review | resolved | src: `app/submissions.tsx` filters |
+| C13 drawing in detail | resolved | src: SVG rendered in report detail |
+| C14 assignment queue | resolved | src: Today lists all pending |
+| S1 drawing scope | resolved | src: state reset and hydrated per event/user |
+| S2 bulk picklist | resolved | src: `writePicklistBulk` single upsert |
+| S3–S6 strategy metrics/slots/match selection | resolved (needs device review) | src: Performance group, OPR default, two compare slots, MetricChart |
+| S7 team directory | resolved | src: `app/teams/index.tsx` |
+| S8 Google `/u/N/d/` links | resolved | test: `document-link.test.ts` |
+| S9–S11 | resolved | src: created_at ordering, sorted manual rows, pending preview toggle |
+| A1–A6, A10, A12, A13 | resolved | src: see AdminTools/setup/admin files |
+| A11 membership waiting | resolved | src: login waiting state with check again/sign out |
+| A7 event-details editor, A8 delete current event, A9 lineup entry | **not re-verified** | |
