@@ -928,12 +928,12 @@ export function TeamProfileScreen({ teamId }: { teamId: string }) {
   }
 
   const tiles: { label: string; value: string; detail: string }[] = [
-    { label: 'Scouted matches', value: String(value.matches), detail: value.entries ? `${value.entries} submitted report${value.entries === 1 ? '' : 's'}` : 'no match data yet' },
+    { label: 'Scouted matches', value: String(value.matches), detail: value.entries ? `${value.entries} report${value.entries === 1 ? '' : 's'}` : '' },
     { label: 'Auto', value: `Avg ${formatStat(value.autoAvgScored)}`, detail: `Peak ${formatStat(value.autoMaxScored)} scored · avg ${formatStat(value.autoAvgFerried)} ferried` },
     { label: 'Teleop', value: `Avg ${formatStat(value.teleopAvgScored)}`, detail: `Peak ${formatStat(value.teleopMaxScored)} scored · avg ${formatStat(value.teleopAvgFerried)} ferried` },
     { label: 'Reliability', value: `${value.brokenPercent.toFixed(0)}% broken`, detail: `${formatStat(value.avgFouls)} fouls · defense ${formatStat(value.defense)}` },
     { label: 'TBA rank', value: tbaTeam.rank ? `#${tbaTeam.rank}` : '—', detail: tbaTeam.record ? `${tbaTeam.record} record${tbaTeam.opr !== null ? ` · OPR ${formatStat(tbaTeam.opr)}` : ''}` : analysis.bundle.official?.apiError ? 'TBA unavailable' : 'not published' },
-    { label: 'Official record', value: `${record.wins}-${record.losses}-${record.ties}`, detail: 'W-L-T from final scores' },
+    { label: 'Official record', value: `${record.wins}-${record.losses}-${record.ties}`, detail: 'W-L-T' },
     ...(fuel ? [{ label: 'Official alliance fuel', value: `${formatStat(fuel.total)} avg`, detail: `Auto ${formatStat(fuel.auto)} · teleop ${formatStat(fuel.teleop)} · alliance totals over ${fuel.matches} match${fuel.matches === 1 ? '' : 'es'}` }] : []),
     ...(climb.matches ? [{ label: 'Official climb', value: `Endgame ${climb.endgameClimb}`, detail: `${climb.endgameClimbRate.toFixed(0)}% endgame · auto ${climb.autoClimb} (${climb.autoClimbRate.toFixed(0)}%) · ${climb.matches} match${climb.matches === 1 ? '' : 'es'}` }] : []),
   ];
@@ -941,7 +941,7 @@ export function TeamProfileScreen({ teamId }: { teamId: string }) {
   return (
     <Screen theme={theme}>
       <Text accessibilityRole="header" style={{ color: theme.text, fontSize: 26, fontWeight: '700' }}>{team.displayNumber} · {team.name}</Text>
-      <Text style={{ color: theme.muted }}>{analysis.bundle.event.name}{team.displayNumber !== String(team.number) ? ` · team ${team.number}` : ''}</Text>
+      {team.displayNumber !== String(team.number) ? <Text style={{ color: theme.muted }}>Team {team.number}</Text> : null}
 
       {current ? (
         <View style={{ gap: 8 }}>
@@ -955,22 +955,22 @@ export function TeamProfileScreen({ teamId }: { teamId: string }) {
           ) : null}
           {current.pending ? <Badge theme={theme} tone="warning" text="Photo not uploaded yet" /> : null}
         </View>
-      ) : <Notice theme={theme}>No pit photos yet.</Notice>}
+      ) : null}
 
       <SourceNotice theme={theme} analysis={analysis} />
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
         {tiles.map((tile) => (
-          <Card key={tile.label} theme={theme} style={{ flexGrow: 1, minWidth: '45%', padding: 12, gap: 4 }}>
+          <Card key={tile.label} theme={theme} style={{ width: '48%', flexGrow: 0, padding: 12, gap: 2 }}>
             <Text style={{ color: theme.muted, fontSize: 12, fontWeight: '600' }}>{tile.label}</Text>
             <Text style={{ color: theme.text, fontSize: 19, fontWeight: '700' }}>{tile.value}</Text>
-            <Text style={{ color: theme.muted, fontSize: 12 }}>{tile.detail}</Text>
+            {tile.detail ? <Text style={{ color: theme.muted, fontSize: 12 }}>{tile.detail}</Text> : null}
           </Card>
         ))}
       </View>
       
 
       <Section theme={theme} title="Robot profile">
-        {robotRows.length ? <Card theme={theme}>{robotRows.map(([key, v]) => <Text key={key} style={{ color: theme.text, fontSize: 15 }}>{titleCase(key.replace(/_type$/, ''))}: {String(v)}</Text>)}</Card> : <Text style={{ color: theme.muted }}>Drivetrain and shooter are not recorded.</Text>}
+        {robotRows.length ? <Card theme={theme}>{robotRows.map(([key, v]) => <Text key={key} style={{ color: theme.text, fontSize: 15 }}>{titleCase(key.replace(/_type$/, ''))}: {String(v)}</Text>)}</Card> : null}
         {canEditRobot ? (
           <Card theme={theme}>
             <Text style={{ color: theme.text, fontWeight: '600' }}>Drivetrain</Text>
