@@ -1,0 +1,8 @@
+import test from 'node:test';import assert from 'node:assert/strict';
+import {canonicalJson,type SignedRelayEnvelope} from '@wildcard/shared/src/relay-contract';
+import {signRelay,verifyRelaySignature,relayPublicKey,bytesToBase64,base64ToBytes} from './relay-signing';
+const secret=new Uint8Array(32).fill(7);
+const envelope:SignedRelayEnvelope={version:1,deviceId:'00000000-0000-4000-8000-000000000099',createdAt:'2026-10-13T00:00:00Z',entry:{id:'00000000-0000-4000-8000-000000000001',organization_id:'00000000-0000-4000-8000-000000000002',event_id:'00000000-0000-4000-8000-000000000003',team_id:'00000000-0000-4000-8000-000000000004',scout_user_id:'00000000-0000-4000-8000-000000000005',match_id:null,assignment_id:null,entry_type:'pit',form_version:2,payload:{notes:'test'},status:'submitted',submitted_at:'2026-10-13T00:00:00Z'}};
+test('signed reports verify and tampering is rejected',()=>{const proof=signRelay(envelope,secret),key=relayPublicKey(secret);assert.equal(verifyRelaySignature(proof,key),true);assert.equal(verifyRelaySignature({...proof,envelope:{...envelope,entry:{...envelope.entry,payload:{notes:'changed'}}}},key),false);assert.equal(verifyRelaySignature(proof,relayPublicKey(new Uint8Array(32).fill(8))),false)});
+test('canonical JSON is independent of key order and rejects non-JSON data',()=>{assert.equal(canonicalJson({b:[2,3],a:1}),canonicalJson({a:1,b:[2,3]}));assert.throws(()=>canonicalJson({a:undefined}));assert.throws(()=>canonicalJson({a:NaN}));assert.throws(()=>canonicalJson(new Date()))});
+test('base64 preserves binary key bytes',()=>{assert.deepEqual(base64ToBytes(bytesToBase64(secret)),secret)});

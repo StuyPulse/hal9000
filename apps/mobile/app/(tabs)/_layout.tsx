@@ -1,0 +1,7 @@
+import React from 'react';
+import {Platform,View} from 'react-native';
+import {Tabs,Redirect} from 'expo-router';
+import {useApp} from '../../src/core/context';
+import {AppIcon} from '../../src/components/ui';
+import {Loading} from '../../src/components/Screen';
+export default function TabLayout(){const {ready,viewer,theme,records}=useApp();if(!ready)return <Loading/>;if(!viewer)return <Redirect href="/login"/>;return <Tabs screenOptions={{headerStyle:{backgroundColor:theme.bg},headerTintColor:theme.text,headerShadowVisible:false,tabBarStyle:{backgroundColor:theme.bg,borderTopColor:theme.line},tabBarActiveTintColor:theme.tint,tabBarInactiveTintColor:theme.muted,tabBarLabelStyle:{fontSize:11},tabBarIcon:({color,focused})=><View style={{backgroundColor:focused&&Platform.OS==='android'?theme.selection:'transparent',paddingHorizontal:Platform.OS==='android'?16:0,paddingVertical:4,borderRadius:22}}><AppIcon name="home" color={color}/></View>}}>{[['index','Today','home'],['schedule','Schedule','schedule'],['outbox','Outbox','outbox'],['more','More','more']].map(([name,title,icon])=><Tabs.Screen key={name} name={name} options={{title,tabBarBadge:name==='outbox'?(records.filter(r=>r.status!=='synced'&&r.entry.status==='submitted').length||undefined):undefined,tabBarIcon:({color,focused})=><View style={{backgroundColor:focused&&Platform.OS==='android'?theme.selection:'transparent',paddingHorizontal:Platform.OS==='android'?16:0,paddingVertical:4,borderRadius:22}}><AppIcon name={icon} color={color}/></View>}}/>)}</Tabs>}

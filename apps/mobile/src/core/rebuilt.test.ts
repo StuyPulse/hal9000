@@ -1,0 +1,5 @@
+import {test} from 'node:test';import assert from 'node:assert/strict';
+import {normalizeRebuilt} from './rebuilt';
+test('scored/ferried stay distinct while compatibility totals are derived',()=>{const p=normalizeRebuilt({auto:{shoot:7,ferry:10},teleop:{shoot:30,ferry:5}});assert.deepEqual(p.auto,{shoot:7,ferry:10});assert.equal(p.auto_fuel,17);assert.equal(p.teleop_fuel,35)});
+test('no-show suppresses scoring, defense and breakage but retains comments',()=>{const p=normalizeRebuilt({no_show:true,auto:{shoot:10,ferry:20},teleop:{shoot:2,ferry:3},fouls:2,defense:true,defended_teams:['team'],robot_broke:true,breakage_issues:[{issue:'Electrical',timestamp:'0:05'}],comments:'Did not arrive'});assert.deepEqual(p.auto,{shoot:0,ferry:0});assert.equal(p.fouls,0);assert.equal(p.defense,false);assert.deepEqual(p.breakage_issues,[]);assert.equal(p.comments,'Did not arrive')});
+test('legacy breakage mirrors the first actual issue',()=>{const p=normalizeRebuilt({robot_broke:true,breakage_issues:[{timestamp:'1:20',issue:'Chain slipped'}]});assert.equal(p.break_tag,'Chain slipped');assert.equal(p.break_timestamp,'1:20')});

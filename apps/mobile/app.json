@@ -1,0 +1,61 @@
+{
+  "expo": {
+    "name": "HAL9000",
+    "slug": "hal9000",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "automatic",
+    "scheme": "hal9000",
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "org.stuypulse.hal9000.scout",
+      "appleTeamId": "5ZT9Z3LA8Q"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#E6F4FE",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": true,
+      "package": "org.stuypulse.hal9000.scout",
+      "permissions": [
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO"
+      ]
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-sqlite",
+      "expo-secure-store",
+      "expo-sharing",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Allow HAL9000 to scan scout QR reports."
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow HAL9000 to choose robot pit photos.",
+          "cameraPermission": "Allow HAL9000 to take robot pit photos."
+        }
+      ],
+      "expo-web-browser",
+      "./plugins/withIos27SceneDelegate"
+    ],
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "457274cf-7bbf-4cb9-a251-47394933cfac"
+      }
+    },
+    "owner": "stuypulseit"
+  }
+}

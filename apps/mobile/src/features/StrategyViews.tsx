@@ -1,0 +1,1049 @@
+import React, { useMemo, useState } from 'react';
+import { Image, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
+import { useRouter } from 'expo-router';
+import { SvgXml } from 'react-native-svg';
+import type { Category, EventBundle, Match, NativeEntry, Palette, PicklistRanking, Team } from '../core/types';
+import type { BundleExtras, ScoredMatch } from './common';
+import { StrategyCanvas } from './StrategyCanvas';
+import { drawingQueue } from '../core/strategy-sync';
+import { parseStrokes, type DrawStroke } from './strategyDrawing';
+import { Button, Card, Choice, Input, Row, Section } from '../components/ui';
+import { Badge, Notice, Screen, TeamPicker, useFeatureApp } from './common';
+import { PIT_TEXT_FIELDS, PRE_SCOUT_TEXT_FIELDS } from './manualFields';
+import { META_COLORS, UNSORTED, canEditPicklistRole, describeChange, groupRevisions, isHexColor, planMove, planMoveToTier, planRemoveTier, planRestore, teamsInTier, validateMetaName, type FullRanking, type RankPatch } from './picklist';
+import {
+  EMPTY_STATS, breakageIssues, compareMatches, formatStat, heatColor, manualMatchLabel, matchLabel, matchOutcome, matchReportKey,
+  officialClimb, officialFeedStatus, officialFuelAverages, officialForTeam, teamRecord, readableSpot, record as asRecord, reportValues, selectedMatchReportEntries, statsForTeam, type ScoutStats, type StatsBasis,
+} from './stats';
+
+const FIELD_ART = require('../../assets/2026-field-map.png') as number;
+
+// ------------------------------------------------------------------ shared analysis
+
+type Analysis = {
+  bundle: EventBundle & BundleExtras;
+  matchTypes: Map<string, string>;
+  entries: NativeEntry[];
+  matchesById: Map<string, Match>;
+  playedQualification: Set<string>;
+  localUnsynced: number;
+  teamsById: Map<string, Team>;
+};
+
+function useAnalysis(): Analysis | null {
+  const { bundle, records } = useFeatureApp();
+  return useMemo(() => {
+    if (!bundle) return null;
+    const byId = new Map<string, NativeEntry>();
+    for (const entry of bundle.entries) if (entry.event_id === bundle.event.id && entry.status === 'submitted') byId.set(entry.id, entry);
+    let localUnsynced = 0;
+    for (const item of records) {
+      if (item.entry.event_id !== bundle.event.id || item.entry.status !== 'submitted') continue;
+      byId.set(item.entry.id, item.entry);
+      if (item.status !== 'synced' && item.entry.entry_type === 'match') localUnsynced += 1;
+    }
+    const played = new Set<string>();
+    for (const match of bundle.matches) {
+      if (match.match_type === 'qualification' && match.status === 'played') [...match.red_teams, ...match.blue_teams].forEach((id) => played.add(id));
+    }
+    return {
+      bundle,
+      matchTypes: new Map(bundle.matches.map((match) => [match.id, match.match_type])),
+      entries: [...byId.values()],
+      matchesById: new Map(bundle.matches.map((match) => [match.id, match])),
+      playedQualification: played,
+      localUnsynced,
+      teamsById: new Map(bundle.teams.map((team) => [team.id, team])),
+    };
+  }, [bundle, records]);
+}
+
+function matchEntries(analysis: Analysis) {
+  return analysis.entries.filter((entry) => entry.entry_type === 'match');
+}
+
+function teamStats(analysis: Analysis, teamId: string, basis: StatsBasis): ScoutStats {
+  return statsForTeam(teamId, matchEntries(analysis), analysis.bundle.reportSources, analysis.matchTypes, basis, analysis.playedQualification.has(teamId));
+}
+
+function useStatsByTeam(analysis: Analysis | null, basis: StatsBasis) {
+  return useMemo(() => {
+    const result = new Map<string, ScoutStats>();
+    if (!analysis) return result;
+    for (const team of analysis.bundle.teams) result.set(team.id, teamStats(analysis, team.id, basis));
+    return result;
+  }, [analysis, basis]);
+}
+
+type Metric = { key: keyof ScoutStats; label: string; reverse?: boolean; format?: (value: number) => string };
+const count = (value: number) => String(Math.round(value));
+const percent = (value: number) => `${value.toFixed(0)}%`;
+const METRIC_GROUPS: { id: string; label: string; metrics: Metric[] }[] = [
+  { id: 'summary', label: 'Summary', metrics: [
+    { key: 'totalFuel', label: 'Avg fuel scored' }, { key: 'peakFuel', label: 'Peak fuel scored' },
+    { key: 'autoAvgScored', label: 'Auto avg scored' }, { key: 'autoAvgFerried', label: 'Auto avg ferried' },
+    { key: 'teleopAvgScored', label: 'Teleop avg scored' }, { key: 'teleopAvgFerried', label: 'Teleop avg ferried' },
+    { key: 'avgFouls', label: 'Avg fouls', reverse: true }, { key: 'defense', label: 'Defense level' },
+    { key: 'brokenPercent', label: '% matches broken', reverse: true, format: percent },
+  ] },
+  { id: 'auton', label: 'Auton', metrics: [
+    { key: 'autoMaxScored', label: 'Max scored' }, { key: 'autoMaxFerried', label: 'Max ferried' },
+    { key: 'autoAvgScored', label: 'Avg scored' }, { key: 'autoAvgFerried', label: 'Avg ferried' },
+  ] },
+  { id: 'teleop', label: 'Teleop', metrics: [
+    { key: 'teleopMaxScored', label: 'Max scored' }, { key: 'teleopMaxFerried', label: 'Max ferried' },
+    { key: 'teleopAvgScored', label: 'Avg scored' }, { key: 'teleopAvgFerried', label: 'Avg ferried' },
+  ] },
+  { id: 'reliability', label: 'Reliability', metrics: [
+    { key: 'matches', label: 'Matches scouted', format: count }, { key: 'entries', label: 'Reports', format: count },
+    { key: 'avgFouls', label: 'Avg fouls', reverse: true }, { key: 'defense', label: 'Defense level' },
+    { key: 'brokenPercent', label: '% matches broken', reverse: true, format: percent },
+  ] },
+];
+const SORT_OPTIONS: Metric[] = [{ key: 'totalFuel', label: 'Avg fuel' }, { key: 'peakFuel', label: 'Peak fuel' }, { key: 'autoAvgScored', label: 'Auto' }, { key: 'teleopAvgScored', label: 'Teleop' }, { key: 'brokenPercent', label: '% broken' }, { key: 'matches', label: 'Matches' }];
+
+const MEANINGS: string[] = [
+  'Scored = fuel scored into the HUB. Ferried = fuel moved without scoring. They are never added together.',
+  'Reports from several scouts for the same match are averaged first, so a heavily scouted match counts once.',
+  'Avg = mean across a team’s matches. Peak/Max = best single match. % broken = share of matches where any scout saw the robot break.',
+  'Defense level = average 1–10 rating over matches (0 when defense was not played).',
+  'Only qualification and playoff reports are used. Practice reports are used only on Match strategy, and only before a team has played a qualification.',
+  'TBA rank, record and OPR come from the official feed downloaded with the event; they are shown only when that download succeeded.',
+];
+
+const rgba = (rgb: [number, number, number] | null) => (rgb ? `rgba(${rgb[0]},${rgb[1]},${rgb[2]},0.32)` : undefined);
+const goTeam = (router: ReturnType<typeof useRouter>, id: string) => router.push(`/teams/${id}` as never);
+
+function NoEvent({ theme }: { theme: Palette }) {
+  return <Screen theme={theme}><Notice theme={theme} tone="warning">No event data is downloaded yet. Open Outbox or More → Event to download the active event.</Notice></Screen>;
+}
+
+function Tabs({ theme, items, value, onChange }: { theme: Palette; items: { id: string; label: string }[]; value: string; onChange: (id: string) => void }) {
+  return (
+    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
+      {items.map((item) => <Choice key={item.id} theme={theme} label={item.label} selected={item.id === value} onPress={() => onChange(item.id)} />)}
+    </ScrollView>
+  );
+}
+
+function SourceNotice({ theme, analysis }: { theme: Palette; analysis: Analysis }) {
+  const selected = analysis.bundle.reportSources.filter((source) => source.selected_entry_id).length;
+  const feed = officialFeedStatus(analysis.bundle.official, analysis.bundle.event.is_manual);
+  return (
+    <View style={{ gap: 8 }}>
+      <Text style={{ color: theme.muted, fontSize: 13 }}>
+        {matchEntries(analysis).length} submitted match reports · {selected} admin-selected report source{selected === 1 ? '' : 's'} applied · data downloaded {new Date(analysis.bundle.downloadedAt).toLocaleString()}
+      </Text>
+      {feed.message ? <Notice theme={theme} tone={feed.state === 'error' ? 'warning' : 'muted'}>{feed.message}</Notice> : null}
+      {analysis.localUnsynced ? <Notice theme={theme} tone="warning">{analysis.localUnsynced} report{analysis.localUnsynced === 1 ? '' : 's'} on this device {analysis.localUnsynced === 1 ? 'has' : 'have'} not uploaded yet and {analysis.localUnsynced === 1 ? 'is' : 'are'} included in these numbers.</Notice> : null}
+    </View>
+  );
+}
+
+// ------------------------------------------------------------------ summary
+
+function SummaryView({ analysis, theme }: { analysis: Analysis; theme: Palette }) {
+  const router = useRouter();
+  const stats = useStatsByTeam(analysis, 'competitive');
+  const [group, setGroup] = useState('summary');
+  const [filter, setFilter] = useState('');
+  const [sortKey, setSortKey] = useState<keyof ScoutStats | 'rank' | 'opr'>('totalFuel');
+  const official = useMemo(() => new Map(analysis.bundle.teams.map((team) => [team.id, officialForTeam(analysis.bundle.official, team.number, team.displayNumber)])), [analysis.bundle]);
+  const hasOfficial = Boolean(analysis.bundle.official && (analysis.bundle.official.rankings.length || Object.keys(analysis.bundle.official.oprs).length));
+  const [direction, setDirection] = useState<'asc' | 'desc'>('desc');
+  const [glossary, setGlossary] = useState(false);
+  const [preScoutOpen, setPreScoutOpen] = useState<string | null>(null);
+  const active = METRIC_GROUPS.find((item) => item.id === group) ?? METRIC_GROUPS[0];
+
+  const rows = useMemo(() => {
+    const needle = filter.trim().toLowerCase();
+    return analysis.bundle.teams
+      .filter((team) => !needle || `${team.number} ${team.displayNumber} ${team.name}`.toLowerCase().includes(needle))
+      .sort((a, b) => {
+        const read = (id: string) => (sortKey === 'rank' ? official.get(id)?.rank ?? 99999 : sortKey === 'opr' ? official.get(id)?.opr ?? -1 : stats.get(id)?.[sortKey] ?? 0);
+        const delta = read(a.id) - read(b.id);
+        return delta === 0 ? a.number - b.number : delta * (direction === 'asc' ? 1 : -1);
+      });
+  }, [analysis.bundle.teams, filter, sortKey, direction, stats, official]);
+
+  const columnValues = useMemo(() => {
+    const result = new Map<string, number[]>();
+    for (const metric of active.metrics) result.set(metric.key, analysis.bundle.teams.map((team) => stats.get(team.id)?.[metric.key] ?? 0));
+    return result;
+  }, [active, analysis.bundle.teams, stats]);
+
+  const latestPreScout = useMemo(() => {
+    const latest = new Map<string, NativeEntry>();
+    for (const entry of analysis.entries.filter((item) => item.entry_type === 'pre_scout')) {
+      const current = latest.get(entry.team_id);
+      const stamp = entry.submitted_at ?? entry.updated_at ?? '';
+      if (!current || stamp > (current.submitted_at ?? current.updated_at ?? '')) latest.set(entry.team_id, entry);
+    }
+    return latest;
+  }, [analysis.entries]);
+
+  return (
+    <Screen theme={theme}>
+      <Text accessibilityRole="header" style={{ color: theme.text, fontSize: 26, fontWeight: '700' }}>Scouting summary</Text>
+      <Text style={{ color: theme.muted }}>{analysis.bundle.event.name}</Text>
+      <SourceNotice theme={theme} analysis={analysis} />
+      <Tabs theme={theme} value={group} onChange={setGroup} items={METRIC_GROUPS.map((item) => ({ id: item.id, label: item.label }))} />
+      <Input theme={theme} label="Filter teams" value={filter} onChangeText={setFilter} placeholder="Search number or name…" autoCorrect={false} />
+      <Text style={{ color: theme.text, fontWeight: '600' }}>Sort by</Text>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
+        {[...SORT_OPTIONS, ...(hasOfficial ? [{ key: 'rank', label: 'TBA rank' }, { key: 'opr', label: 'OPR' }] : [])].map((option) => <Choice key={option.key} theme={theme} label={option.label} selected={sortKey === option.key} onPress={() => { setSortKey(option.key as typeof sortKey); if (option.key === 'rank') setDirection('asc'); else if (option.key === 'opr') setDirection('desc'); }} />)}
+        <Choice theme={theme} label={direction === 'desc' ? 'High → low' : 'Low → high'} selected={false} onPress={() => setDirection((value) => (value === 'desc' ? 'asc' : 'desc'))} />
+      </ScrollView>
+      <Button theme={theme} secondary title={glossary ? 'Hide what these numbers mean' : 'What these numbers mean'} onPress={() => setGlossary((value) => !value)} />
+      {glossary ? <Card theme={theme}>{MEANINGS.map((line) => <Text key={line} style={{ color: theme.text, fontSize: 14, lineHeight: 20 }}>• {line}</Text>)}</Card> : null}
+      <Text style={{ color: theme.muted }}>{rows.length} of {analysis.bundle.teams.length} teams</Text>
+
+      {rows.map((team) => {
+        const value = stats.get(team.id) ?? EMPTY_STATS;
+        return (
+          <Pressable key={team.id} accessibilityRole="button" accessibilityLabel={`Team ${team.displayNumber} ${team.name}. ${value.matches} scouted matches. Open team profile.`} onPress={() => goTeam(router, team.id)} style={{ backgroundColor: theme.surface, borderRadius: 16, padding: 14, gap: 10 }}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+              <Text style={{ color: theme.text, fontSize: 18, fontWeight: '700', flex: 1 }} numberOfLines={1}>{team.displayNumber} · {team.name}</Text>
+              <Badge theme={theme} tone={value.matches ? 'tint' : 'muted'} text={value.matches ? `${value.matches} match${value.matches === 1 ? '' : 'es'}` : 'No data'} />
+            </View>
+            {hasOfficial ? (() => {
+              const info = official.get(team.id);
+              return <Text style={{ color: theme.muted, fontSize: 13 }}>TBA {info?.rank ? `rank #${info.rank}` : 'unranked'}{info?.record ? ` · ${info.record}` : ''}{info?.opr !== null && info?.opr !== undefined ? ` · OPR ${formatStat(info.opr)}` : ''}</Text>;
+            })() : null}
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+              {active.metrics.map((metric) => {
+                const raw = value[metric.key];
+                const background = value.matches && metric.key !== 'matches' && metric.key !== 'entries' ? rgba(heatColor(raw, columnValues.get(metric.key) ?? [], metric.reverse)) : undefined;
+                return (
+                  <View key={metric.key} style={{ minWidth: '30%', flexGrow: 1, padding: 8, borderRadius: 10, backgroundColor: background ?? theme.panel }}>
+                    <Text style={{ color: theme.muted, fontSize: 12 }}>{metric.label}</Text>
+                    <Text style={{ color: theme.text, fontSize: 17, fontWeight: '700' }}>{value.matches || metric.key === 'matches' || metric.key === 'entries' ? (metric.format ?? formatStat)(raw) : '—'}</Text>
+                  </View>
+                );
+              })}
+            </View>
+          </Pressable>
+        );
+      })}
+
+      <Section theme={theme} title="Pre-scout sheet">
+        <Text style={{ color: theme.muted, fontSize: 14 }}>Each team’s latest submitted pre-scout report.</Text>
+        {analysis.bundle.teams.slice().sort((a, b) => a.number - b.number).map((team) => {
+          const entry = latestPreScout.get(team.id);
+          const open = preScoutOpen === team.id;
+          return (
+            <View key={team.id} style={{ borderBottomWidth: 1, borderColor: theme.line }}>
+              <Row theme={theme} title={`${team.displayNumber} · ${team.name}`} subtitle={entry ? `Average fuel ${asRecord(entry.payload).average_pieces ?? '—'}` : 'Not pre-scouted'} onPress={entry ? () => setPreScoutOpen(open ? null : team.id) : undefined} tail={entry ? <Text style={{ color: theme.tint, fontWeight: '600' }}>{open ? 'Hide' : 'View'}</Text> : undefined} />
+              {open && entry ? <View style={{ paddingBottom: 12 }}><PayloadList theme={theme} payload={entry.payload} /></View> : null}
+            </View>
+          );
+        })}
+      </Section>
+    </Screen>
+  );
+}
+
+// ------------------------------------------------------------------ compare
+
+function CompareView({ analysis, theme }: { analysis: Analysis; theme: Palette }) {
+  const app = useFeatureApp();
+  const router = useRouter();
+  const stats = useStatsByTeam(analysis, 'competitive');
+  const [selected, setSelected] = useState<string[]>([]);
+  const [group, setGroup] = useState('summary');
+  const active = METRIC_GROUPS.find((item) => item.id === group) ?? METRIC_GROUPS[0];
+  const official = group === 'official';
+  const chosen = selected.map((id) => analysis.teamsById.get(id)).filter((team): team is Team => Boolean(team));
+  const photoFor = (teamId: string) => {
+    const local = app.photos.find((photo) => photo.team_id === teamId && photo.localUri);
+    if (local) return local.localUri;
+    return analysis.bundle.photos.find((photo) => photo.team_id === teamId && (photo.signedUrl || photo.localUri))?.signedUrl ?? analysis.bundle.photos.find((photo) => photo.team_id === teamId)?.localUri;
+  };
+  const officialRows = useMemo(() => {
+    const matches = analysis.bundle.matches as ScoredMatch[];
+    const per = chosen.map((team) => {
+      const mine = matches.filter((match) => [...match.red_teams, ...match.blue_teams].includes(team.id));
+      const played = mine.filter((match) => match.status === 'played' && match.match_type !== 'practice');
+      return { record: teamRecord(mine, team.id), fuel: officialFuelAverages(played, team.id), climb: officialClimb(played, team.id) };
+    });
+    const tba = chosen.map((team) => officialForTeam(analysis.bundle.official, team.number, team.displayNumber));
+    return [
+      { label: 'TBA rank', cells: tba.map((item) => (item.rank ? `#${item.rank}` : '—')) },
+      { label: 'TBA record', cells: tba.map((item) => item.record ?? '—') },
+      { label: 'OPR', cells: tba.map((item) => (item.opr !== null ? formatStat(item.opr) : '—')) },
+      { label: 'Record W-L-T', cells: per.map((item) => `${item.record.wins}-${item.record.losses}-${item.record.ties}`) },
+      { label: 'Alliance fuel avg', cells: per.map((item) => (item.fuel ? formatStat(item.fuel.total) : '—')) },
+      { label: 'Alliance auto fuel', cells: per.map((item) => (item.fuel ? formatStat(item.fuel.auto) : '—')) },
+      { label: 'Alliance teleop fuel', cells: per.map((item) => (item.fuel ? formatStat(item.fuel.teleop) : '—')) },
+      { label: 'Typical auto climb', cells: per.map((item) => item.climb.autoClimb) },
+      { label: 'Auto climb success', cells: per.map((item) => (item.climb.matches ? `${item.climb.autoClimbRate.toFixed(0)}%` : '—')) },
+      { label: 'Typical endgame climb', cells: per.map((item) => item.climb.endgameClimb) },
+      { label: 'Endgame climb success', cells: per.map((item) => (item.climb.matches ? `${item.climb.endgameClimbRate.toFixed(0)}%` : '—')) },
+    ];
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [analysis.bundle.matches, selected]);
+  const add = (id: string) => setSelected((current) => (current.includes(id) || current.length >= 4 ? current : [...current, id]));
+
+  return (
+    <Screen theme={theme}>
+      <Text accessibilityRole="header" style={{ color: theme.text, fontSize: 26, fontWeight: '700' }}>Compare teams</Text>
+      <SourceNotice theme={theme} analysis={analysis} />
+      <Text style={{ color: theme.muted }}>Pick two to four teams. {selected.length >= 4 ? 'Maximum reached — remove one to add another.' : ''}</Text>
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+        {chosen.map((team) => <Choice key={team.id} theme={theme} label={`${team.displayNumber} ✕`} selected onPress={() => setSelected((current) => current.filter((id) => id !== team.id))} />)}
+      </View>
+      {selected.length < 4 ? <TeamPicker theme={theme} teams={analysis.bundle.teams.filter((team) => !selected.includes(team.id))} value={null} onChange={add} label="Add a team" /> : null}
+      {chosen.length >= 2 ? (
+        <>
+          <Tabs theme={theme} value={group} onChange={setGroup} items={[...METRIC_GROUPS.map((item) => ({ id: item.id, label: item.label })), { id: 'official', label: 'Official' }]} />
+          <ScrollView horizontal>
+            <View style={{ backgroundColor: theme.surface, borderRadius: 16, padding: 12, gap: 10, minWidth: '100%' }}>
+              <View style={{ flexDirection: 'row' }}>
+                <View style={{ width: 150 }} />
+                {chosen.map((team) => {
+                  const photo = photoFor(team.id);
+                  return (
+                    <Pressable key={team.id} accessibilityRole="button" accessibilityLabel={`Open team ${team.displayNumber}`} onPress={() => goTeam(router, team.id)} style={{ width: 112, alignItems: 'center', gap: 6 }}>
+                      {photo ? <Image source={{ uri: photo }} accessibilityLabel={`Team ${team.displayNumber} robot`} style={{ width: 96, height: 72, borderRadius: 10, backgroundColor: theme.panel }} /> : <View style={{ width: 96, height: 72, borderRadius: 10, backgroundColor: theme.panel, alignItems: 'center', justifyContent: 'center' }}><Text style={{ color: theme.muted, fontSize: 11 }}>No pit photo</Text></View>}
+                      <Text style={{ color: theme.text, fontWeight: '700' }}>{team.displayNumber}</Text>
+                      <Text style={{ color: theme.muted, fontSize: 12 }} numberOfLines={1}>{team.name}</Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+              {official ? officialRows.map((row) => (
+                <View key={row.label} style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 6, borderTopWidth: 1, borderColor: theme.line }}>
+                  <Text style={{ color: theme.muted, width: 150, fontSize: 14 }}>{row.label}</Text>
+                  {row.cells.map((cell, index) => <Text key={chosen[index].id} style={{ width: 112, textAlign: 'center', fontSize: 16, fontWeight: '600', color: theme.text }}>{cell}</Text>)}
+                </View>
+              )) : null}
+              {official ? null : (
+              <>
+              {active.metrics.map((metric) => {
+                const values = chosen.map((team) => stats.get(team.id)?.[metric.key] ?? 0);
+                const best = metric.key === 'matches' || metric.key === 'entries' ? NaN : metric.reverse ? Math.min(...values) : Math.max(...values);
+                return (
+                  <View key={metric.key} style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 6, borderTopWidth: 1, borderColor: theme.line }}>
+                    <Text style={{ color: theme.muted, width: 150, fontSize: 14 }}>{metric.label}</Text>
+                    {chosen.map((team, index) => {
+                      const has = (stats.get(team.id)?.matches ?? 0) > 0;
+                      const isBest = has && values[index] === best && new Set(values).size > 1;
+                      return <Text key={team.id} style={{ width: 112, textAlign: 'center', fontSize: 17, fontWeight: isBest ? '800' : '600', color: isBest ? theme.success : theme.text }}>{has || metric.key === 'matches' || metric.key === 'entries' ? (metric.format ?? formatStat)(values[index]) : '—'}</Text>;
+                    })}
+                  </View>
+                );
+              })}
+              </>
+              )}
+            </View>
+          </ScrollView>
+        </>
+      ) : <Notice theme={theme}>Choose at least two teams to compare.</Notice>}
+    </Screen>
+  );
+}
+
+// ------------------------------------------------------------------ picklist
+
+function PicklistView({ analysis, theme }: { analysis: Analysis; theme: Palette }) {
+  const app = useFeatureApp();
+  const router = useRouter();
+  const stats = useStatsByTeam(analysis, 'competitive');
+  const { bundle } = analysis;
+  const [activeTags, setActiveTags] = useState<string[]>([]);
+  const [expanded, setExpanded] = useState<string | null>(null);
+  const [busy, setBusy] = useState<string | null>(null);
+  const [notice, setNotice] = useState<{ text: string; error: boolean } | null>(null);
+  const [notes, setNotes] = useState<Record<string, string>>({});
+  const [manage, setManage] = useState<'category' | 'tag' | null>(null);
+  const [newName, setNewName] = useState('');
+  const [newColor, setNewColor] = useState<string>(META_COLORS[0]);
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [historyLimit, setHistoryLimit] = useState(15);
+  const [openRevision, setOpenRevision] = useState<string | null>(null);
+
+  const roleCanEdit = canEditPicklistRole(app.viewer?.role);
+  const writer = app.savePicklistRanking;
+  const canEdit = roleCanEdit && typeof writer === 'function';
+
+  const rankings = useMemo(() => new Map(bundle.rankings.map((ranking) => [ranking.team_id, ranking])), [bundle.rankings]);
+  const categories = useMemo(() => [...bundle.categories].sort((a, b) => a.sort_order - b.sort_order || a.name.localeCompare(b.name)), [bundle.categories]);
+  const tags = useMemo(() => [...bundle.tags].sort((a, b) => a.sort_order - b.sort_order || a.name.localeCompare(b.name)), [bundle.tags]);
+  const tiers: { id: string; name: string; color: string }[] = useMemo(() => [{ id: UNSORTED, name: 'Unsorted', color: '#64748b' }, ...categories.map((category: Category) => ({ id: category.id, name: category.name, color: category.color }))], [categories]);
+  const tierOrders = useMemo(() => Object.fromEntries(tiers.map((tier) => [tier.id, teamsInTier(bundle.teams, rankings, tier.id).map((team) => ({ teamId: team.id, rank: rankings.get(team.id)?.rank ?? null }))])), [tiers, bundle.teams, rankings]);
+  const tierIds = tiers.map((tier) => tier.id);
+  const revisions = useMemo(() => groupRevisions(bundle.picklistHistory ?? []), [bundle.picklistHistory]);
+
+  if (!bundle.canViewPicklist) {
+    return <Screen theme={theme}><Notice theme={theme} tone="warning">Picklist access is restricted for your account. Ask an administrator if you need it.</Notice></Screen>;
+  }
+
+  async function write(patches: { teamId: string; patch: Partial<PicklistRanking> }[], success: string) {
+    if (!writer) return;
+    setBusy(patches[0]?.teamId ?? 'all');
+    setNotice(null);
+    try {
+      for (const item of patches) await writer(item.teamId, item.patch);
+      setNotice({ text: success, error: false });
+    } catch (error) {
+      setNotice({ text: error instanceof Error ? error.message : 'That change was not saved. Check your connection and role, then retry.', error: true });
+    } finally {
+      setBusy(null);
+    }
+  }
+  const metaWriter = app.savePicklistMeta;
+  const metaDeleter = app.deletePicklistMeta;
+  const canManage = canEdit && typeof metaWriter === 'function' && typeof metaDeleter === 'function';
+  const nameOf = (id: string) => analysis.teamsById.get(id)?.displayNumber ?? 'Team';
+  const categoryName = (id: unknown) => (typeof id === 'string' ? categories.find((item) => item.id === id)?.name ?? 'Unsorted' : 'Unsorted');
+  const tagName = (id: string) => tags.find((item) => item.id === id)?.name;
+
+  async function guarded(task: () => Promise<void>, success: string) {
+    setBusy('meta');
+    setNotice(null);
+    try {
+      await task();
+      setNotice({ text: success, error: false });
+    } catch (error) {
+      setNotice({ text: error instanceof Error ? error.message : 'That change was not saved.', error: true });
+    } finally {
+      setBusy(null);
+    }
+  }
+  async function addMeta(kind: 'category' | 'tag') {
+    if (!metaWriter) return;
+    const list = kind === 'category' ? categories : tags;
+    const problem = validateMetaName(newName, list.map((item) => item.name));
+    if (problem) { setNotice({ text: problem, error: true }); return; }
+    if (!isHexColor(newColor)) { setNotice({ text: 'Choose a color.', error: true }); return; }
+    const name = newName.trim();
+    await guarded(async () => { await metaWriter(kind, { name, color: newColor, sort_order: list.length }); setNewName(''); }, `${name} ${kind === 'category' ? 'tier' : 'tag'} added.`);
+  }
+  async function moveTier(id: string, direction: -1 | 1) {
+    if (!metaWriter) return;
+    const index = categories.findIndex((item) => item.id === id);
+    const other = categories[index + direction];
+    if (index < 0 || !other) return;
+    const current = categories[index];
+    await guarded(async () => {
+      await metaWriter('category', { id: current.id, name: current.name, color: current.color, sort_order: other.sort_order });
+      await metaWriter('category', { id: other.id, name: other.name, color: other.color, sort_order: current.sort_order });
+    }, 'Tier order saved.');
+  }
+  async function removeTier(id: string) {
+    if (!metaDeleter || !writer) return;
+    const plan = planRemoveTier(id, tierIds, tierOrders);
+    if (!plan.fallback) { setNotice({ text: 'Keep at least one tier.', error: true }); return; }
+    const name = categoryName(id);
+    const originals = (tierOrders[id] ?? []).map((item) => ({ teamId: item.teamId, rank: item.rank, category_id: id }));
+    await guarded(async () => {
+      for (const item of plan.patches) await writer(item.teamId, { rank: item.rank, category_id: item.category_id });
+      try {
+        await metaDeleter('category', id);
+      } catch (error) {
+        // Deleting failed (for example only the creator or an admin may delete a tier): put the teams back.
+        for (const original of originals) {
+          try { await writer(original.teamId, { rank: original.rank, category_id: original.category_id }); } catch { /* best effort */ }
+        }
+        throw error;
+      }
+    }, `${name} tier removed; its teams moved to ${categoryName(plan.fallback)}.`);
+  }
+  async function removeTag(id: string) {
+    if (!metaDeleter) return;
+    const name = tagName(id) ?? 'Tag';
+    await guarded(async () => { await metaDeleter('tag', id); setActiveTags((current) => current.filter((item) => item !== id)); }, `${name} tag removed.`);
+  }
+  async function restore(index: number) {
+    if (!writer) return;
+    const current = new Map<string, FullRanking>(bundle.rankings.map((ranking) => [ranking.team_id, { rank: ranking.rank, category_id: ranking.category_id, note: ranking.note ?? '', selected: ranking.selected, tag_ids: ranking.tag_ids }]));
+    const order = [...bundle.teams].sort((a, b) => a.number - b.number).map((team) => team.id);
+    const plan = planRestore(current, revisions, index, order);
+    if (!plan.length) { setNotice({ text: 'The picklist already matches this version.', error: false }); return; }
+    await guarded(async () => { for (const item of plan) await writer(item.teamId, item.state); }, `Restored ${plan.length} team${plan.length === 1 ? '' : 's'} to the ${new Date(revisions[index].createdAt).toLocaleString()} version.`);
+  }
+  const toPatches = (plan: RankPatch[]) => plan.map((item) => ({ teamId: item.teamId, patch: { rank: item.rank, category_id: item.category_id } }));
+  const visible = (teamId: string) => !activeTags.length || (rankings.get(teamId)?.tag_ids ?? []).some((id) => activeTags.includes(id));
+  let overall = 0;
+
+  return (
+    <Screen theme={theme}>
+      <Text accessibilityRole="header" style={{ color: theme.text, fontSize: 26, fontWeight: '700' }}>Picklist</Text>
+      <Text style={{ color: theme.muted }}>{bundle.event.name} · shared by everyone allowed to view it</Text>
+      {!canEdit ? (
+        <Notice theme={theme}>{roleCanEdit ? 'Editing is not available in this build; showing the board read-only.' : `View only. Strategists, masters, global scouts and admins can edit the picklist (your role: ${app.viewer?.role ?? 'unknown'}).`}</Notice>
+      ) : <Notice theme={theme} tone="warning">Changes are shared immediately and need a connection. The server decides whether your account may edit.</Notice>}
+      {!app.online ? <Notice theme={theme}>Offline: you can read the cached board, but changes cannot be saved.</Notice> : null}
+      {notice ? <Notice theme={theme} tone={notice.error ? 'danger' : 'success'}>{notice.text}</Notice> : null}
+
+      {tags.length ? (
+        <View style={{ gap: 6 }}>
+          <Text style={{ color: theme.text, fontWeight: '600' }}>Filter by tag</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
+            {tags.map((tag) => <Choice key={tag.id} theme={theme} label={tag.name} selected={activeTags.includes(tag.id)} onPress={() => setActiveTags((current) => (current.includes(tag.id) ? current.filter((id) => id !== tag.id) : [...current, tag.id]))} />)}
+            {activeTags.length ? <Choice theme={theme} label="Clear" selected={false} onPress={() => setActiveTags([])} /> : null}
+          </ScrollView>
+        </View>
+      ) : null}
+
+      {tiers.map((tier) => {
+        const members = teamsInTier(bundle.teams, rankings, tier.id);
+        const shown = members.filter((team) => visible(team.id));
+        const header = (
+          <View key={`${tier.id}-head`} style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 8 }}>
+            <View style={{ width: 12, height: 28, borderRadius: 6, backgroundColor: tier.color }} />
+            <Text accessibilityRole="header" style={{ color: theme.text, fontSize: 19, fontWeight: '700' }}>{tier.name}</Text>
+            <Text style={{ color: theme.muted }}>{activeTags.length ? `${shown.length} of ${members.length}` : members.length} teams</Text>
+          </View>
+        );
+        return (
+          <View key={tier.id} style={{ gap: 8 }}>
+            {header}
+            {shown.length ? shown.map((team) => {
+              overall += 1;
+              const ranking = rankings.get(team.id);
+              const value = stats.get(team.id) ?? EMPTY_STATS;
+              const open = expanded === team.id;
+              const teamTags = tags.filter((tag) => ranking?.tag_ids.includes(tag.id));
+              const position = tierOrders[tier.id].findIndex((item) => item.teamId === team.id);
+              const saving = busy === team.id;
+              return (
+                <View key={team.id} style={{ backgroundColor: ranking?.selected ? theme.selection : theme.surface, borderRadius: 14, padding: 12, gap: 8, borderLeftWidth: 5, borderLeftColor: tier.color }}>
+                  <Pressable accessibilityRole="button" accessibilityLabel={`Team ${team.displayNumber} ${team.name}, position ${overall}${ranking?.selected ? ', selected' : ''}. ${open ? 'Collapse' : 'Expand'} controls`} accessibilityState={{ expanded: open }} onPress={() => setExpanded(open ? null : team.id)} style={{ minHeight: 48, justifyContent: 'center', gap: 4 }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                      <Text style={{ color: theme.muted, width: 28 }}>{overall}</Text>
+                      <Text style={{ color: theme.text, fontSize: 17, fontWeight: '700', flex: 1 }} numberOfLines={1}>{team.displayNumber} · {team.name}</Text>
+                      {ranking?.selected ? <Badge theme={theme} tone="success" text="Selected" /> : null}
+                    </View>
+                    <Text style={{ color: theme.muted, fontSize: 13 }}>
+                      {value.matches ? `Auto ${formatStat(value.autoAvgScored)} · Teleop ${formatStat(value.teleopAvgScored)} scored avg · ${value.brokenPercent.toFixed(0)}% broken` : 'No qualification/playoff scouting yet'}
+                    </Text>
+                    {teamTags.length ? <Text style={{ color: theme.tint, fontSize: 13 }}>{teamTags.map((tag) => tag.name).join(' · ')}</Text> : null}
+                    {!open && ranking?.note ? <Text style={{ color: theme.text, fontSize: 14 }} numberOfLines={2}>{ranking.note}</Text> : null}
+                  </Pressable>
+                  {open ? (
+                    <View style={{ gap: 10 }}>
+                      {canEdit ? (
+                        <>
+                          <TextInput
+                            accessibilityLabel={`Notes for team ${team.displayNumber}`}
+                            value={notes[team.id] ?? ranking?.note ?? ''}
+                            onChangeText={(text) => setNotes((current) => ({ ...current, [team.id]: text }))}
+                            onBlur={() => { const next = (notes[team.id] ?? ranking?.note ?? '').trim(); if (next !== (ranking?.note ?? '')) void write([{ teamId: team.id, patch: { note: next } }], `Note saved for ${team.displayNumber}.`); }}
+                            editable={!saving}
+                            multiline maxLength={2000} placeholder="Notes" placeholderTextColor={theme.muted}
+                            style={{ minHeight: 72, borderWidth: 1, borderColor: theme.line, borderRadius: 12, padding: 12, color: theme.text, backgroundColor: theme.bg, fontSize: 15, textAlignVertical: 'top' }}
+                          />
+                          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+                            <Choice theme={theme} label={ranking?.selected ? 'Selected ✓' : 'Mark selected'} selected={Boolean(ranking?.selected)} onPress={() => void write([{ teamId: team.id, patch: { selected: !ranking?.selected } }], ranking?.selected ? `${team.displayNumber} unselected.` : `${team.displayNumber} selected.`)} />
+                            <Choice theme={theme} label="Move up" selected={false} onPress={() => void write(toPatches(planMove(team.id, tierIds, tierOrders, tier.id, -1)), `${team.displayNumber} moved.`)} />
+                            <Choice theme={theme} label="Move down" selected={false} onPress={() => void write(toPatches(planMove(team.id, tierIds, tierOrders, tier.id, 1)), `${team.displayNumber} moved.`)} />
+                          </View>
+                          <Text style={{ color: theme.muted, fontSize: 13 }}>Tier</Text>
+                          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+                            {tiers.map((option) => <Choice key={option.id} theme={theme} label={option.name} selected={option.id === tier.id} onPress={() => option.id !== tier.id && void write(toPatches(planMoveToTier(team.id, tierOrders, option.id)), `${team.displayNumber} moved to ${option.name}.`)} />)}
+                          </View>
+                          {tags.length ? (
+                            <>
+                              <Text style={{ color: theme.muted, fontSize: 13 }}>Tags</Text>
+                              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+                                {tags.map((tag) => {
+                                  const on = ranking?.tag_ids.includes(tag.id) ?? false;
+                                  return <Choice key={tag.id} theme={theme} label={tag.name} selected={on} onPress={() => void write([{ teamId: team.id, patch: { tag_ids: on ? (ranking?.tag_ids ?? []).filter((id) => id !== tag.id) : [...(ranking?.tag_ids ?? []), tag.id] } }], `Tags saved for ${team.displayNumber}.`)} />;
+                                })}
+                              </View>
+                            </>
+                          ) : null}
+                          <Text style={{ color: theme.muted, fontSize: 12 }}>Position {position + 1} of {tierOrders[tier.id].length} in {tier.name}.{saving ? ' Saving…' : ''}</Text>
+                        </>
+                      ) : (
+                        <Text style={{ color: theme.text, fontSize: 15 }}>{ranking?.note || 'No notes.'}</Text>
+                      )}
+                      <Button theme={theme} secondary title="Open team profile" onPress={() => goTeam(router, team.id)} />
+                    </View>
+                  ) : null}
+                </View>
+              );
+            }) : <Text style={{ color: theme.muted }}>{activeTags.length ? 'No teams match these tags.' : 'No teams in this tier.'}</Text>}
+          </View>
+        );
+      })}
+
+      {canEdit ? (
+        <Section theme={theme} title="Manage tiers and tags">
+          {!canManage ? <Notice theme={theme}>Creating, ordering and deleting tiers and tags is not available in this build.</Notice> : (
+            <>
+              <View style={{ flexDirection: 'row', gap: 8 }}>
+                <Choice theme={theme} label="Tiers" selected={manage === 'category'} onPress={() => setManage(manage === 'category' ? null : 'category')} />
+                <Choice theme={theme} label="Tags" selected={manage === 'tag'} onPress={() => setManage(manage === 'tag' ? null : 'tag')} />
+              </View>
+              {manage ? (
+                <Card theme={theme}>
+                  {(manage === 'category' ? categories : tags).map((item, index, list) => (
+                    <View key={item.id} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 52 }}>
+                      <View style={{ width: 14, height: 14, borderRadius: 7, backgroundColor: item.color }} />
+                      <Text style={{ color: theme.text, flex: 1, fontSize: 16 }}>{item.name}</Text>
+                      {manage === 'category' ? <Choice theme={theme} label="↑" selected={false} onPress={() => index > 0 && void moveTier(item.id, -1)} /> : null}
+                      {manage === 'category' ? <Choice theme={theme} label="↓" selected={false} onPress={() => index < list.length - 1 && void moveTier(item.id, 1)} /> : null}
+                      <Choice theme={theme} label="Delete" selected={false} onPress={() => void (manage === 'category' ? removeTier(item.id) : removeTag(item.id))} />
+                    </View>
+                  ))}
+                  <Input theme={theme} label={manage === 'category' ? 'New tier name' : 'New tag name'} value={newName} onChangeText={setNewName} maxLength={48} />
+                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+                    {META_COLORS.map((color) => <Pressable key={color} accessibilityRole="button" accessibilityLabel={`Color ${color}`} accessibilityState={{ selected: newColor === color }} onPress={() => setNewColor(color)} style={{ width: 48, height: 48, borderRadius: 24, backgroundColor: color, borderWidth: newColor === color ? 4 : 0, borderColor: theme.text }} />)}
+                  </View>
+                  <Button theme={theme} title={manage === 'category' ? 'Add tier' : 'Add tag'} disabled={!newName.trim() || busy === 'meta' || !app.online} onPress={() => { void addMeta(manage); }} />
+                </Card>
+              ) : null}
+            </>
+          )}
+        </Section>
+      ) : null}
+
+      <Section theme={theme} title="History">
+        <Text style={{ color: theme.muted, fontSize: 14 }}>{(bundle.picklistHistory ?? []).length} recorded changes in {revisions.length} editing sessions.</Text>
+        {bundle.picklistHistory === undefined ? <Notice theme={theme}>History is not downloaded in this build.</Notice> : (
+          <>
+            <Button theme={theme} secondary title={historyOpen ? 'Hide full history' : 'View full history'} onPress={() => setHistoryOpen((value) => !value)} />
+            {historyOpen ? (
+              <>
+                {revisions.slice(0, historyLimit).map((revision, index) => {
+                  const teamsTouched = new Set(revision.changes.map((change) => change.team_id)).size;
+                  const open = openRevision === revision.id;
+                  const editor = (revision.actorUserId && bundle.profiles?.[revision.actorUserId]) || 'Unknown member';
+                  return (
+                    <Card key={revision.id} theme={theme}>
+                      <Text style={{ color: theme.text, fontWeight: '700' }}>{revision.changes.length} edit{revision.changes.length === 1 ? '' : 's'} · {teamsTouched} team{teamsTouched === 1 ? '' : 's'}</Text>
+                      <Text style={{ color: theme.muted, fontSize: 13 }}>{editor} · {new Date(revision.createdAt).toLocaleString()}</Text>
+                      <View style={{ flexDirection: 'row', gap: 8 }}>
+                        <Choice theme={theme} label={open ? 'Hide edits' : 'View edits'} selected={open} onPress={() => setOpenRevision(open ? null : revision.id)} />
+                        {canEdit ? <Choice theme={theme} label="Restore version" selected={false} onPress={() => void restore(index)} /> : null}
+                      </View>
+                      {open ? revision.changes.map((change) => (
+                        <Text key={change.id} style={{ color: theme.text, fontSize: 14 }}>{nameOf(change.team_id)} — {describeChange(change, categoryName, tagName)}</Text>
+                      )) : null}
+                    </Card>
+                  );
+                })}
+                {revisions.length > historyLimit ? <Button theme={theme} secondary title="Show older sessions" onPress={() => setHistoryLimit((value) => value + 15)} /> : null}
+              </>
+            ) : null}
+          </>
+        )}
+      </Section>
+    </Screen>
+  );
+}
+
+// ------------------------------------------------------------------ match strategy
+
+function MatchStrategyView({ analysis, theme }: { analysis: Analysis; theme: Palette }) {
+  const router = useRouter();
+  const app = useFeatureApp();
+  const saved = useMemo(() => {
+    const mine = (analysis.bundle.strategyDrawings ?? []).find((item) => item.user_id === app.viewer?.userId);
+    return parseStrokes(mine?.strokes);
+  }, [analysis.bundle.strategyDrawings, app.viewer?.userId]);
+  const [strokes, setStrokes] = useState<DrawStroke[]>(saved);
+  const [flipped, setFlipped] = useState(false);
+  const [savingDrawing, setSavingDrawing] = useState(false);
+  const [drawingNotice, setDrawingNotice] = useState<{ text: string; error: boolean } | null>(null);
+  const [dirtyDrawing, setDirtyDrawing] = useState(false);
+  const [pendingUpload, setPendingUpload] = useState(false);
+  const writeDrawing = app.saveStrategyDrawing;
+  async function saveDrawing() {
+    if (!writeDrawing) return;
+    setSavingDrawing(true);
+    setDrawingNotice(null);
+    try {
+      await writeDrawing(strokes);
+      setDirtyDrawing(false);
+      // The context resolves once the drawing is safe on this device; ask the queue whether the upload finished.
+      const waiting = analysis.bundle.scope && !app.viewer?.demo ? (await drawingQueue(analysis.bundle.scope).pending()).some((item) => item.event_id === analysis.bundle.event.id) : false;
+      setPendingUpload(waiting);
+      setDrawingNotice({ text: waiting ? 'Drawing saved on this device. It will upload when the connection allows.' : 'Drawing saved.', error: false });
+    } catch (error) {
+      setDrawingNotice({ text: error instanceof Error ? error.message : 'Could not save the drawing.', error: true });
+    } finally {
+      setSavingDrawing(false);
+    }
+  }
+  const stats = useStatsByTeam(analysis, 'auto');
+  const matches = useMemo(() => [...analysis.bundle.matches].sort(compareMatches), [analysis.bundle.matches]);
+  const [matchId, setMatchId] = useState<string | null>(null);
+  const [query, setQuery] = useState('');
+  const [manual, setManual] = useState<string[]>(['', '', '', '', '', '']);
+  const [overrides, setOverrides] = useState<string[] | null>(null);
+  const [error, setError] = useState('');
+  const [drawing, setDrawing] = useState(false);
+
+  const selected = matches.find((match) => match.id === matchId);
+  const label = (match: Match) => matchLabel(match);
+  const lineup = (match: Match) => `${match.red_teams.map((id) => analysis.teamsById.get(id)?.displayNumber ?? '—').join(' ')} vs ${match.blue_teams.map((id) => analysis.teamsById.get(id)?.displayNumber ?? '—').join(' ')}`;
+  const results = matches.filter((match) => `${label(match)} ${lineup(match)}`.toLowerCase().includes(query.trim().toLowerCase())).slice(0, 8);
+
+  const slotIds = (match: Match | undefined) => [0, 1, 2].map((i) => match?.red_teams[i] ?? '').concat([0, 1, 2].map((i) => match?.blue_teams[i] ?? ''));
+  const effective = overrides ?? slotIds(selected);
+
+  function chooseMatch(match: Match) {
+    setMatchId(match.id);
+    setOverrides(null);
+    setError('');
+    setManual(slotIds(match).map((id) => analysis.teamsById.get(id)?.displayNumber ?? ''));
+  }
+  function applyLineup() {
+    const byLabel = new Map<string, Team>();
+    for (const team of analysis.bundle.teams) { byLabel.set(String(team.number).toLowerCase(), team); byLabel.set(team.displayNumber.toLowerCase(), team); }
+    const picked: string[] = [];
+    for (const input of manual) {
+      const team = byLabel.get(input.trim().toLowerCase());
+      if (!team) { setError(`Team ${input.trim() || '—'} is not in this event.`); return; }
+      picked.push(team.id);
+    }
+    if (new Set(picked).size !== picked.length) { setError('Each robot in the lineup must be different.'); return; }
+    setError('');
+    setOverrides(picked);
+  }
+
+  const alliance = (name: 'Red' | 'Blue', ids: string[]) => {
+    const teams = ids.map((id) => analysis.teamsById.get(id)).filter((team): team is Team => Boolean(team));
+    const total = (pick: (value: ScoutStats) => number) => teams.reduce((sum, team) => sum + pick(stats.get(team.id) ?? EMPTY_STATS), 0);
+    return (
+      <Card theme={theme} style={{ borderLeftWidth: 5, borderLeftColor: name === 'Red' ? theme.red : theme.blue }}>
+        <Text accessibilityRole="header" style={{ color: theme.text, fontSize: 18, fontWeight: '700' }}>{name} alliance · {teams.length}/3 teams</Text>
+        {teams.map((team) => {
+          const value = stats.get(team.id) ?? EMPTY_STATS;
+          const basis = analysis.playedQualification.has(team.id) ? 'competitive' : 'practice';
+          return (
+            <Pressable key={team.id} accessibilityRole="button" accessibilityLabel={`Open team ${team.displayNumber}`} onPress={() => goTeam(router, team.id)} style={{ minHeight: 56, justifyContent: 'center' }}>
+              <Text style={{ color: theme.text, fontWeight: '700', fontSize: 16 }}>{team.displayNumber} · {team.name}</Text>
+              <Text style={{ color: theme.muted, fontSize: 13 }}>
+                {value.matches ? `Auto avg ${formatStat(value.autoAvgScored)} · peak ${formatStat(value.autoMaxScored)} | Teleop avg ${formatStat(value.teleopAvgScored)} · peak ${formatStat(value.teleopMaxScored)} (${basis}, ${value.matches} match${value.matches === 1 ? '' : 'es'})` : `No ${basis} scouting yet`}
+              </Text>
+            </Pressable>
+          );
+        })}
+        <Text style={{ color: theme.text, fontSize: 14, fontWeight: '600' }}>
+          Auto avg {formatStat(total((value) => value.autoAvgScored))} · peak {formatStat(total((value) => value.autoMaxScored))}
+        </Text>
+        <Text style={{ color: theme.text, fontSize: 14, fontWeight: '600' }}>
+          Teleop avg {formatStat(total((value) => value.teleopAvgScored))} · peak {formatStat(total((value) => value.teleopMaxScored))}
+        </Text>
+      </Card>
+    );
+  };
+
+  return (
+    <Screen theme={theme} scrollEnabled={!drawing}>
+      <Text accessibilityRole="header" style={{ color: theme.text, fontSize: 26, fontWeight: '700' }}>Match strategy</Text>
+      <SourceNotice theme={theme} analysis={analysis} />
+      <Input theme={theme} label="Choose match" value={query} onChangeText={setQuery} placeholder="Search matches or teams…" autoCorrect={false} />
+      {results.map((match) => <Row key={match.id} theme={theme} title={label(match)} subtitle={`${lineup(match)}${match.scheduled_at ? ` · ${new Date(match.scheduled_at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}` : ''}${match.status === 'played' ? ' · played' : ''}`} onPress={() => chooseMatch(match)} tail={match.id === matchId ? <Badge theme={theme} tone="tint" text="Selected" /> : undefined} />)}
+      {!matches.length ? <Notice theme={theme}>No matches are downloaded for this event.</Notice> : null}
+
+      {selected ? (
+        <>
+          <Section theme={theme} title="Manual event lineup">
+            <Text style={{ color: theme.muted, fontSize: 14 }}>Override the scheduled lineup with event team numbers (aliases like 254B work).</Text>
+            <View style={{ flexDirection: 'row', gap: 8 }}>
+              {[0, 1, 2].map((i) => <TextInput key={`r${i}`} accessibilityLabel={`Red alliance team ${i + 1}`} value={manual[i]} onChangeText={(text) => setManual((current) => current.map((item, index) => (index === i ? text.replace(/[^0-9a-z]/gi, '') : item)))} maxLength={8} placeholder={`R${i + 1}`} placeholderTextColor={theme.muted} autoCapitalize="characters" style={{ flex: 1, minHeight: 52, borderWidth: 2, borderColor: theme.red, borderRadius: 12, textAlign: 'center', color: theme.text, backgroundColor: theme.surface, fontSize: 17 }} />)}
+            </View>
+            <View style={{ flexDirection: 'row', gap: 8 }}>
+              {[3, 4, 5].map((i) => <TextInput key={`b${i}`} accessibilityLabel={`Blue alliance team ${i - 2}`} value={manual[i]} onChangeText={(text) => setManual((current) => current.map((item, index) => (index === i ? text.replace(/[^0-9a-z]/gi, '') : item)))} maxLength={8} placeholder={`B${i - 2}`} placeholderTextColor={theme.muted} autoCapitalize="characters" style={{ flex: 1, minHeight: 52, borderWidth: 2, borderColor: theme.blue, borderRadius: 12, textAlign: 'center', color: theme.text, backgroundColor: theme.surface, fontSize: 17 }} />)}
+            </View>
+            {error ? <Notice theme={theme} tone="danger">{error}</Notice> : null}
+            <View style={{ flexDirection: 'row', gap: 10 }}>
+              <Button theme={theme} title="Use lineup" onPress={applyLineup} style={{ flex: 1 }} />
+              {overrides ? <Button theme={theme} secondary title="Use scheduled" onPress={() => { setOverrides(null); setError(''); setManual(slotIds(selected).map((id) => analysis.teamsById.get(id)?.displayNumber ?? '')); }} style={{ flex: 1 }} /> : null}
+            </View>
+          </Section>
+          {alliance('Red', effective.slice(0, 3).filter(Boolean))}
+          {alliance('Blue', effective.slice(3).filter(Boolean))}
+          <Notice theme={theme}>Totals sum each team’s average and peak scored fuel (ferried excluded). A team uses competitive reports once it has played a qualification, otherwise practice reports; the two are never combined.</Notice>
+          <Section theme={theme} title="Strategy drawing">
+            <Text style={{ color: theme.muted, fontSize: 14 }}>Your personal sketch for this event. It is private to you and shared across matches.</Text>
+            <StrategyCanvas theme={theme} strokes={strokes} flipped={flipped} onChange={(next) => { setStrokes(next); setDirtyDrawing(true); setDrawingNotice(null); }} fieldArt={FIELD_ART} onDrawingChange={setDrawing} />
+            <View style={{ flexDirection: 'row', gap: 10 }}>
+              <Button theme={theme} secondary title={flipped ? 'Alliance view: flipped' : 'Flip alliance view'} onPress={() => setFlipped((value) => !value)} style={{ flex: 1 }} />
+              <Button theme={theme} title={savingDrawing ? 'Saving…' : dirtyDrawing ? 'Save drawing' : 'Saved'} disabled={!writeDrawing || savingDrawing || !dirtyDrawing} onPress={() => { void saveDrawing(); }} style={{ flex: 1 }} />
+            </View>
+            {!app.online ? <Notice theme={theme}>Offline: saving keeps the drawing on this device and uploads it when you reconnect.</Notice> : pendingUpload ? <Notice theme={theme} tone="warning">A saved drawing is still waiting to upload; it retries automatically.</Notice> : null}
+            {drawingNotice ? <Notice theme={theme} tone={drawingNotice.error ? 'danger' : 'success'}>{drawingNotice.text}</Notice> : null}
+          </Section>
+        </>
+      ) : null}
+    </Screen>
+  );
+}
+
+// ------------------------------------------------------------------ payload display
+
+const LABELS: Record<string, string> = {
+  ...Object.fromEntries(PRE_SCOUT_TEXT_FIELDS.map((field) => [field.id, field.label])),
+  ...Object.fromEntries(Object.values(PIT_TEXT_FIELDS).map((field) => [field.id, field.label])),
+  average_pieces: 'Average game pieces scored', driver_experience: 'Driver experience', operator_experience: 'Operator experience',
+  drivetrain_length: 'Drivetrain length (in)', drivetrain_width: 'Drivetrain width (in)', dimensions: 'Drivetrain dimensions',
+  robot_weight: 'Robot weight (lb)', hopper_capacity: 'Maximum hopper capacity (fuel)', traversal: 'Traversal',
+  auto_routines_notes: 'Auton notes',
+};
+const titleCase = (key: string) => key.replace(/_/g, ' ').replace(/\b\w/g, (letter) => letter.toUpperCase());
+
+function PayloadList({ theme, payload }: { theme: Palette; payload: Record<string, unknown> }) {
+  const drawing = typeof payload.auto_routines_drawing === 'string' ? payload.auto_routines_drawing : '';
+  const entries = Object.entries(payload).filter(([key, value]) => key !== 'auto_routines_drawing' && value !== null && value !== undefined && value !== '');
+  return (
+    <View style={{ gap: 8 }}>
+      {entries.map(([key, value]) => (
+        <View key={key} style={{ gap: 2 }}>
+          <Text style={{ color: theme.muted, fontSize: 13, fontWeight: '600' }}>{LABELS[key] ?? titleCase(key)}</Text>
+          <Text style={{ color: theme.text, fontSize: 15, lineHeight: 21 }}>{typeof value === 'object' ? JSON.stringify(value) : key === 'traversal' && typeof value === 'string' && /^(bump|trench)(,(bump|trench))?$/.test(value) ? value.split(',').map((item) => item[0].toUpperCase() + item.slice(1)).join(', ') : String(value)}</Text>
+        </View>
+      ))}
+      {drawing.includes('<svg') ? (
+        <View style={{ gap: 4 }}>
+          <Text style={{ color: theme.muted, fontSize: 13, fontWeight: '600' }}>Autonomous routes</Text>
+          <View style={{ aspectRatio: 1380 / 674, borderRadius: 12, overflow: 'hidden', backgroundColor: theme.panel }}><SvgXml xml={drawing} width="100%" height="100%" /></View>
+        </View>
+      ) : null}
+      {!entries.length && !drawing ? <Text style={{ color: theme.muted }}>No field values were saved.</Text> : null}
+    </View>
+  );
+}
+
+// ------------------------------------------------------------------ team profile
+
+const DRIVETRAINS = ['Swerve', 'Tank'];
+const SHOOTERS = ['Single Turret', 'Single Fixed Shooter', 'Double Wide Shooter', 'Dumper', 'No Shooter', 'Triple Wide Shooter', 'Dual Fixed Shooters', 'Double Turret'];
+
+export function TeamProfileScreen({ teamId }: { teamId: string }) {
+  const app = useFeatureApp();
+  const { theme } = app;
+  const router = useRouter();
+  const analysis = useAnalysis();
+  const [scope, setScope] = useState<'competitive' | 'practice' | 'all'>('competitive');
+  const [openMatch, setOpenMatch] = useState<string | null>(null);
+  const [photoIndex, setPhotoIndex] = useState(0);
+  const [robotNotice, setRobotNotice] = useState<{ text: string; error: boolean } | null>(null);
+  const [sourceBusy, setSourceBusy] = useState<string | null>(null);
+  const [sourceNotice, setSourceNotice] = useState<{ text: string; error: boolean } | null>(null);
+  if (!analysis) return <NoEvent theme={theme} />;
+  const team = analysis.teamsById.get(teamId);
+  if (!team) return <Screen theme={theme}><Notice theme={theme} tone="warning">That team is not part of the downloaded event.</Notice></Screen>;
+
+  const value = teamStats(analysis, teamId, 'competitive');
+  const mine = matchEntries(analysis).filter((entry) => entry.team_id === teamId);
+  const sources = analysis.bundle.reportSources.filter((source) => source.team_id === teamId);
+
+  // Timeline: scheduled matches the team plays, then manual reports with no scheduled slot.
+  type Slot = { key: string; label: string; type: string; alliance: 'red' | 'blue' | null; status: string; order: number; reports: NativeEntry[]; outcome?: 'win' | 'loss' | 'tie' | 'pending'; score?: string };
+  const slots: Slot[] = [];
+  const byKey = new Map<string, NativeEntry[]>();
+  mine.forEach((entry, index) => { const key = matchReportKey(entry, index); byKey.set(key, [...(byKey.get(key) ?? []), entry]); });
+  for (const match of analysis.bundle.matches.filter((item) => [...item.red_teams, ...item.blue_teams].includes(teamId))) {
+    const key = `scheduled:${match.id}`;
+    const result = matchOutcome(match as ScoredMatch, teamId);
+    slots.push({ key, label: matchLabel(match), type: match.match_type, alliance: match.red_teams.includes(teamId) ? 'red' : 'blue', status: match.status, order: 0, reports: byKey.get(key) ?? [], outcome: result.outcome, score: result.score });
+    byKey.delete(key);
+  }
+  slots.sort((a, b) => analysis.matchesById.size && compareMatches(
+    analysis.bundle.matches.find((match) => `scheduled:${match.id}` === a.key) ?? { match_number: 0, match_type: a.type },
+    analysis.bundle.matches.find((match) => `scheduled:${match.id}` === b.key) ?? { match_number: 0, match_type: b.type },
+  ));
+  for (const [key, reports] of byKey) {
+    const manual = asRecord(reports[0].payload.manual_match);
+    const stage = typeof manual.stage === 'string' ? manual.stage.trim().toLowerCase() : 'other';
+    slots.push({ key, label: manualMatchLabel(manual), type: stage === 'qualification' || stage === 'practice' ? stage : ['quarterfinal', 'semifinal', 'final', 'playoff'].includes(stage) ? 'playoff' : 'other', alliance: manual.alliance === 'blue' ? 'blue' : manual.alliance === 'red' ? 'red' : null, status: 'manual', order: 1, reports });
+  }
+  const visibleSlots = slots.filter((slot) => scope === 'all' || (scope === 'practice' ? slot.type === 'practice' : slot.type === 'qualification' || slot.type === 'playoff'));
+
+  const entriesFor = (kind: 'pit' | 'pre_scout') => [
+    ...app.bundle!.entries.filter((entry) => entry.entry_type === kind && entry.team_id === teamId),
+    ...app.records.filter((item) => item.entry.entry_type === kind && item.entry.team_id === teamId && item.entry.event_id === analysis.bundle.event.id && !app.bundle!.entries.some((entry) => entry.id === item.entry.id)).map((item) => item.entry),
+  ];
+  const pit = entriesFor('pit');
+  const pre = entriesFor('pre_scout');
+  const photos = [
+    ...app.photos.filter((photo) => photo.team_id === teamId).map((photo) => ({ id: photo.id, uri: photo.localUri, pending: photo.status !== 'synced' })),
+    ...analysis.bundle.photos.filter((photo) => photo.team_id === teamId && (photo.signedUrl || photo.localUri)).map((photo) => ({ id: photo.id, uri: (photo.signedUrl ?? photo.localUri)!, pending: false })),
+  ];
+  const scoredMatches = analysis.bundle.matches.filter((match) => [...match.red_teams, ...match.blue_teams].includes(teamId)) as ScoredMatch[];
+  const playedMatches = scoredMatches.filter((match) => match.status === 'played' && match.match_type !== 'practice');
+  const record = teamRecord(scoredMatches, teamId);
+  const fuel = officialFuelAverages(playedMatches, teamId);
+  const climb = officialClimb(playedMatches, teamId);
+  const tbaTeam = officialForTeam(analysis.bundle.official, team.number, team.displayNumber);
+  const robot = analysis.bundle.robotProfiles[teamId];
+  const robotRows = robot ? Object.entries(robot).filter(([, v]) => v !== null && v !== '' && typeof v !== 'object') : [];
+  const current = photos[Math.min(photoIndex, Math.max(0, photos.length - 1))];
+  const drivetrain = typeof robot?.drivetrain_type === 'string' ? robot.drivetrain_type : null;
+  const shooter = typeof robot?.shooter_type === 'string' ? robot.shooter_type : null;
+  // Any organization member may edit; the server route and database policy are the real gate.
+  const canEditRobot = typeof app.saveRobotProfile === 'function' && Boolean(app.viewer);
+  async function saveRobot(next: { drivetrain_type: string | null; shooter_type: string | null }) {
+    if (!app.saveRobotProfile) return;
+    setRobotNotice(null);
+    try {
+      await app.saveRobotProfile(teamId, next);
+      setRobotNotice({ text: 'Robot profile saved.', error: false });
+    } catch (error) {
+      setRobotNotice({ text: error instanceof Error ? error.message : 'Could not save the robot profile.', error: true });
+    }
+  }
+
+  const tiles: { label: string; value: string; detail: string }[] = [
+    { label: 'Scouted matches', value: String(value.matches), detail: value.entries ? `${value.entries} submitted report${value.entries === 1 ? '' : 's'}` : 'no match data yet' },
+    { label: 'Auto', value: `Avg ${formatStat(value.autoAvgScored)}`, detail: `Peak ${formatStat(value.autoMaxScored)} scored · avg ${formatStat(value.autoAvgFerried)} ferried` },
+    { label: 'Teleop', value: `Avg ${formatStat(value.teleopAvgScored)}`, detail: `Peak ${formatStat(value.teleopMaxScored)} scored · avg ${formatStat(value.teleopAvgFerried)} ferried` },
+    { label: 'Reliability', value: `${value.brokenPercent.toFixed(0)}% broken`, detail: `${formatStat(value.avgFouls)} fouls · defense ${formatStat(value.defense)}` },
+    { label: 'TBA rank', value: tbaTeam.rank ? `#${tbaTeam.rank}` : '—', detail: tbaTeam.record ? `${tbaTeam.record} record${tbaTeam.opr !== null ? ` · OPR ${formatStat(tbaTeam.opr)}` : ''}` : analysis.bundle.official?.apiError ? 'TBA unavailable' : 'not published' },
+    { label: 'Official record', value: `${record.wins}-${record.losses}-${record.ties}`, detail: 'W-L-T from final scores' },
+    ...(fuel ? [{ label: 'Official alliance fuel', value: `${formatStat(fuel.total)} avg`, detail: `Auto ${formatStat(fuel.auto)} · teleop ${formatStat(fuel.teleop)} · alliance totals over ${fuel.matches} match${fuel.matches === 1 ? '' : 'es'}` }] : []),
+    ...(climb.matches ? [{ label: 'Official climb', value: `Endgame ${climb.endgameClimb}`, detail: `${climb.endgameClimbRate.toFixed(0)}% endgame · auto ${climb.autoClimb} (${climb.autoClimbRate.toFixed(0)}%) · ${climb.matches} match${climb.matches === 1 ? '' : 'es'}` }] : []),
+  ];
+
+  return (
+    <Screen theme={theme}>
+      <Text accessibilityRole="header" style={{ color: theme.text, fontSize: 26, fontWeight: '700' }}>{team.displayNumber} · {team.name}</Text>
+      <Text style={{ color: theme.muted }}>{analysis.bundle.event.name}{team.displayNumber !== String(team.number) ? ` · team ${team.number}` : ''}</Text>
+
+      {current ? (
+        <View style={{ gap: 8 }}>
+          <Image source={{ uri: current.uri }} accessibilityLabel={`Team ${team.displayNumber} robot photo ${photoIndex + 1} of ${photos.length}`} resizeMode="cover" style={{ width: '100%', aspectRatio: 4 / 3, borderRadius: 16, backgroundColor: theme.panel }} />
+          {photos.length > 1 ? (
+            <View style={{ flexDirection: 'row', gap: 10 }}>
+              <Button theme={theme} secondary title="Previous" onPress={() => setPhotoIndex((photoIndex - 1 + photos.length) % photos.length)} style={{ flex: 1 }} />
+              <Button theme={theme} secondary title={`${photoIndex + 1} / ${photos.length}`} onPress={() => undefined} style={{ flex: 1 }} />
+              <Button theme={theme} secondary title="Next" onPress={() => setPhotoIndex((photoIndex + 1) % photos.length)} style={{ flex: 1 }} />
+            </View>
+          ) : null}
+          {current.pending ? <Badge theme={theme} tone="warning" text="Photo not uploaded yet" /> : null}
+        </View>
+      ) : <Notice theme={theme}>No pit photos yet. Photos submitted from pit scouting appear here.</Notice>}
+
+      <SourceNotice theme={theme} analysis={analysis} />
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
+        {tiles.map((tile) => (
+          <Card key={tile.label} theme={theme} style={{ flexGrow: 1, minWidth: '45%', padding: 12, gap: 4 }}>
+            <Text style={{ color: theme.muted, fontSize: 12, fontWeight: '600' }}>{tile.label}</Text>
+            <Text style={{ color: theme.text, fontSize: 19, fontWeight: '700' }}>{tile.value}</Text>
+            <Text style={{ color: theme.muted, fontSize: 12 }}>{tile.detail}</Text>
+          </Card>
+        ))}
+      </View>
+      <Text style={{ color: theme.muted, fontSize: 13 }}>TBA rank and OPR come from the feed downloaded with the event. Record, fuel and climb above are computed from official match scores and breakdowns.</Text>
+
+      <Section theme={theme} title="Robot profile">
+        {robotRows.length ? <Card theme={theme}>{robotRows.map(([key, v]) => <Text key={key} style={{ color: theme.text, fontSize: 15 }}>{titleCase(key.replace(/_type$/, ''))}: {String(v)}</Text>)}</Card> : <Text style={{ color: theme.muted }}>Drivetrain and shooter are not recorded.</Text>}
+        {canEditRobot ? (
+          <Card theme={theme}>
+            <Text style={{ color: theme.text, fontWeight: '600' }}>Drivetrain</Text>
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+              {['', ...DRIVETRAINS].map((option) => <Choice key={option || 'unknown'} theme={theme} label={option || 'Unknown'} selected={(drivetrain ?? '') === option} onPress={() => void saveRobot({ drivetrain_type: option || null, shooter_type: shooter })} />)}
+            </View>
+            <Text style={{ color: theme.text, fontWeight: '600' }}>Shooter</Text>
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+              {['', ...SHOOTERS].map((option) => <Choice key={option || 'unknown'} theme={theme} label={option || 'Unknown'} selected={(shooter ?? '') === option} onPress={() => void saveRobot({ drivetrain_type: drivetrain, shooter_type: option || null })} />)}
+            </View>
+            {robotNotice ? <Notice theme={theme} tone={robotNotice.error ? 'danger' : 'success'}>{robotNotice.text}</Notice> : null}
+          </Card>
+        ) : <Text style={{ color: theme.muted, fontSize: 13 }}>Sign in to edit the robot profile.</Text>}
+      </Section>
+
+      <Section theme={theme} title="Match timeline">
+        <Tabs theme={theme} value={scope} onChange={(id) => { setScope(id as typeof scope); setOpenMatch(null); }} items={[{ id: 'competitive', label: 'Qualifications + playoffs' }, { id: 'practice', label: 'Practice' }, { id: 'all', label: 'All' }]} />
+        <Text style={{ color: theme.muted }}>{visibleSlots.filter((slot) => slot.reports.length).length} / {visibleSlots.length} scouted</Text>
+        {sourceNotice ? <Notice theme={theme} tone={sourceNotice.error ? 'danger' : 'success'}>{sourceNotice.text}</Notice> : null}
+        {visibleSlots.length ? visibleSlots.map((slot) => {
+          const selectedId = sources.find((source) => source.match_key === slot.key)?.selected_entry_id;
+          const used = selectedMatchReportEntries(slot.reports, sources.map((source) => ({ ...source })));
+          const open = openMatch === slot.key;
+          const sums = used.reduce((total, report) => { const v = reportValues(report.payload); return { scored: total.scored + v.autoScored + v.teleopScored, ferried: total.ferried + v.autoFerried + v.teleopFerried }; }, { scored: 0, ferried: 0 });
+          const n = used.length || 1;
+          return (
+            <View key={slot.key} style={{ backgroundColor: theme.surface, borderRadius: 14, padding: 12, gap: 6, borderLeftWidth: 5, borderLeftColor: slot.alliance === 'blue' ? theme.blue : slot.alliance === 'red' ? theme.red : theme.line }}>
+              <Pressable accessibilityRole="button" accessibilityState={{ expanded: open }} accessibilityLabel={`${slot.label}, ${slot.reports.length ? `${slot.reports.length} reports` : 'missing'}`} onPress={() => slot.reports.length && setOpenMatch(open ? null : slot.key)} style={{ minHeight: 48, justifyContent: 'center', gap: 2 }}>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+                  <Text style={{ color: theme.text, fontWeight: '700', fontSize: 16, flex: 1 }}>{slot.label}</Text>
+                  <Badge theme={theme} tone={slot.reports.length ? 'success' : 'muted'} text={slot.reports.length ? `Scouted · ${slot.reports.length}` : 'Missing'} />
+                </View>
+                <Text style={{ color: theme.muted, fontSize: 13 }}>
+                  {slot.alliance ? `${slot.alliance === 'red' ? 'Red' : 'Blue'} alliance · ` : ''}{slot.outcome && slot.outcome !== 'pending' ? `${slot.outcome === 'win' ? 'Won' : slot.outcome === 'loss' ? 'Lost' : 'Tied'} ${slot.score}` : slot.status === 'played' ? 'played' : slot.status === 'manual' ? 'manual report' : slot.status}
+                  {slot.reports.length ? ` · Scored ${formatStat(sums.scored / n)} · Ferried ${formatStat(sums.ferried / n)}` : ''}
+                </Text>
+                {selectedId ? <Text style={{ color: theme.tint, fontSize: 12 }}>Admin selected one report for this match.</Text> : null}
+              </Pressable>
+              {app.viewer?.role === 'admin' && slot.reports.length > 1 ? (
+                <View style={{ gap: 6 }}>
+                  <Text style={{ color: theme.muted, fontSize: 12, fontWeight: '600' }}>Data source for this match</Text>
+                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+                    {[{ id: null as string | null, label: 'Combined' }, ...slot.reports.map((report) => ({ id: report.id as string | null, label: (analysis.bundle.profiles?.[report.scout_user_id] ?? 'Scout').split(' ')[0] }))].map((option) => (
+                      <Choice key={option.id ?? 'combined'} theme={theme} label={option.label} selected={(selectedId ?? null) === option.id}
+                        onPress={() => {
+                          if (sourceBusy || (selectedId ?? null) === option.id) return;
+                          setSourceBusy(slot.key); setSourceNotice(null);
+                          app.saveReportSource(teamId, slot.key, option.id)
+                            .then(() => setSourceNotice({ text: option.id ? 'Selected report saved.' : 'Using combined reports.', error: false }))
+                            .catch((error: unknown) => setSourceNotice({ text: error instanceof Error ? error.message : 'Could not save the selected report.', error: true }))
+                            .finally(() => setSourceBusy(null));
+                        }} />
+                    ))}
+                  </View>
+                  {sourceBusy === slot.key ? <Text style={{ color: theme.muted, fontSize: 12 }}>Saving…</Text> : null}
+                </View>
+              ) : null}
+              {open ? slot.reports.map((report, index) => {
+                const payload = report.payload;
+                const auto = asRecord(payload.auto);
+                const teleop = asRecord(payload.teleop);
+                const issues = breakageIssues(payload);
+                const defended = Array.isArray(payload.defended_teams) ? payload.defended_teams.map((id) => analysis.teamsById.get(String(id))?.displayNumber ?? '?').join(', ') : '';
+                return (
+                  <View key={report.id} style={{ gap: 4, paddingTop: 8, borderTopWidth: 1, borderColor: theme.line }}>
+                    <Text style={{ color: theme.text, fontWeight: '600' }}>Report {index + 1} of {slot.reports.length}{analysis.bundle.profiles?.[report.scout_user_id] ? ` · ${analysis.bundle.profiles[report.scout_user_id]}` : ''}{report.id === selectedId ? ' · selected' : ''}</Text>
+                    {payload.no_show === true ? <Badge theme={theme} tone="danger" text="No show" /> : null}
+                    <Text style={{ color: theme.text }}>Start: {readableSpot(payload.starting_spot)}</Text>
+                    <Text style={{ color: theme.text }}>Auto — scored {String(auto.shoot ?? payload.auto_fuel ?? 0)} · ferried {String(auto.ferry ?? 0)}</Text>
+                    <Text style={{ color: theme.text }}>Teleop — scored {String(teleop.shoot ?? payload.teleop_fuel ?? 0)} · ferried {String(teleop.ferry ?? 0)}</Text>
+                    <Text style={{ color: theme.text }}>Fouls {String(payload.fouls ?? 0)} · Defense {payload.defense === true ? `level ${String(payload.defense_level ?? '—')}/10${defended ? ` vs ${defended}` : ''}` : 'not played'}</Text>
+                    <Text style={{ color: issues.length ? theme.danger : theme.text }}>Broken: {issues.length ? issues.map((issue) => `${issue.issue}${issue.timestamp ? ` (${issue.timestamp})` : ''}`).join(' · ') : payload.robot_broke === true ? 'Yes' : 'No'}</Text>
+                    {typeof payload.comments === 'string' && payload.comments.trim() ? <Text style={{ color: theme.text }}>“{payload.comments.trim()}”</Text> : null}
+                    <Button theme={theme} secondary title="Open report" onPress={() => router.push(`/submission/${report.id}` as never)} />
+                  </View>
+                );
+              }) : null}
+            </View>
+          );
+        }) : <Text style={{ color: theme.muted }}>No matches have been published for this team in this view.</Text>}
+      </Section>
+
+      <Section theme={theme} title="Scouting research">
+        {[{ title: 'Pit scouting', list: pit }, { title: 'Pre-scouting', list: pre }].map((group) => (
+          <Card key={group.title} theme={theme}>
+            <Text style={{ color: theme.text, fontSize: 17, fontWeight: '700' }}>{group.title}</Text>
+            {group.list.length ? group.list.map((entry) => (
+              <View key={entry.id} style={{ gap: 8, paddingVertical: 6, borderTopWidth: 1, borderColor: theme.line }}>
+                <Text style={{ color: theme.muted, fontSize: 13 }}>{analysis.bundle.profiles?.[entry.scout_user_id] ? `${analysis.bundle.profiles[entry.scout_user_id]} · ` : ''}{entry.status === 'submitted' ? (entry.submitted_at ? new Date(entry.submitted_at).toLocaleString() : 'Submitted') : 'Draft'}</Text>
+                <PayloadList theme={theme} payload={entry.payload} />
+                <Button theme={theme} secondary title="Open report" onPress={() => router.push(`/submission/${entry.id}` as never)} />
+              </View>
+            )) : <Text style={{ color: theme.muted }}>Not scouted yet.</Text>}
+          </Card>
+        ))}
+      </Section>
+    </Screen>
+  );
+}
+
+// ------------------------------------------------------------------ entry point
+
+export function StrategyScreen({ mode }: { mode: 'summary' | 'compare' | 'picklist' | 'strategy' }) {
+  const { theme } = useFeatureApp();
+  const analysis = useAnalysis();
+  if (!analysis) return <NoEvent theme={theme} />;
+  if (mode === 'compare') return <CompareView analysis={analysis} theme={theme} />;
+  if (mode === 'picklist') return <PicklistView analysis={analysis} theme={theme} />;
+  if (mode === 'strategy') return <MatchStrategyView analysis={analysis} theme={theme} />;
+  return <SummaryView analysis={analysis} theme={theme} />;
+}
+
+export default StrategyScreen;

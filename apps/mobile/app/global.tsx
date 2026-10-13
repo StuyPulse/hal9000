@@ -1,0 +1,6 @@
+import React,{useState} from 'react';
+import {Linking,Alert} from 'react-native';
+import {useApp} from '../src/core/context';
+import {Screen} from '../src/components/Screen';
+import {Button,Input,Label} from '../src/components/ui';
+export default function Global(){const {bundle,viewer,theme,online,saveGlobalDocument}=useApp();const [url,setUrl]=useState(bundle?.globalDocument??''),[busy,setBusy]=useState(false);return <Screen><Label theme={theme}>One shared Google document for {bundle?.event.name??'the selected event'}.</Label><Label theme={theme} muted>Opening and editing the document needs internet. This app caches the link, not the Google document contents.</Label>{bundle?.globalDocument?<Button title="Open shared document" theme={theme} disabled={!online} onPress={()=>void Linking.openURL(bundle.globalDocument!)}/>:<Label theme={theme}>No document has been linked yet.</Label>}{['admin','strategist','developer'].includes(viewer?.role??'')&&<><Input label="Google Docs, Sheets or Slides link" theme={theme} value={url} onChangeText={setUrl} autoCapitalize="none" keyboardType="url"/><Button title={busy?'Saving…':'Save event document link'} theme={theme} disabled={busy||!online||!url} onPress={()=>{setBusy(true);void saveGlobalDocument(url).catch(e=>Alert.alert('Could not save',e.message)).finally(()=>setBusy(false))}}/></>}</Screen>}
