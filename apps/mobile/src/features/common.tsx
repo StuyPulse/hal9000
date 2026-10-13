@@ -22,21 +22,24 @@ export const useFeatureApp = (): FeatureApp => useApp();
 /** The screen's scroll view, so drawing canvases can block it while a finger is down on them. */
 export const ScrollRefContext = createContext<React.RefObject<unknown> | null>(null);
 
-export function Screen({ theme, children, scrollEnabled = true }: { theme: Palette; children: React.ReactNode; scrollEnabled?: boolean }) {
+export function Screen({ theme, children, scrollEnabled = true, footer }: { theme: Palette; children: React.ReactNode; scrollEnabled?: boolean; footer?: React.ReactNode }) {
   const insets = useSafeAreaInsets();
   const scrollRef = useRef<unknown>(null);
   return (
     <ScrollRefContext.Provider value={scrollRef}>
+    <View style={{ flex: 1, backgroundColor: theme.bg }}>
     <ScrollView
       ref={scrollRef as never}
       scrollEnabled={scrollEnabled}
-      style={{ backgroundColor: theme.bg }}
-      contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + 40, gap: 14 }}
+      style={{ flex: 1, backgroundColor: theme.bg }}
+      contentContainerStyle={{ padding: 16, paddingBottom: footer ? 16 : insets.bottom + 40, gap: 14 }}
       keyboardShouldPersistTaps="handled"
       keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
     >
       {children}
     </ScrollView>
+    {footer ? <View style={{ paddingHorizontal: 16, paddingTop: 12, paddingBottom: Math.max(12, insets.bottom), gap: 8, backgroundColor: theme.bg, borderTopWidth: 1, borderTopColor: theme.line }}>{footer}</View> : null}
+    </View>
     </ScrollRefContext.Provider>
   );
 }

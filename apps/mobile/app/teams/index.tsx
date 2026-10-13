@@ -16,7 +16,7 @@ export default function TeamDirectory(){
   for(const entry of eventEntries(bundle,records))if(entry.status==='submitted')counts.set(entry.team_id,(counts.get(entry.team_id)??0)+1);
   return counts;
  },[bundle,records]);
- if(!bundle)return <Screen><Label theme={theme}>Download an event first. Teams work offline once it is downloaded.</Label></Screen>;
+ if(!bundle)return <Screen><Label theme={theme}>Download an event first.</Label></Screen>;
  const teams=[...bundle.teams].filter(t=>!needle||`${t.displayNumber} ${t.number} ${t.name}`.toLowerCase().includes(needle)).sort((a,b)=>a.number-b.number||a.displayNumber.localeCompare(b.displayNumber));
  return <Screen>
   <Text accessibilityRole="header" style={{color:theme.text,fontSize:26,fontWeight:'800'}}>Teams</Text>

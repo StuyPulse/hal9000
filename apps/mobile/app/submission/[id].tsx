@@ -31,7 +31,7 @@ export default function Submission(){
   <Label theme={theme}>{entry.entry_type==='match'?(entry.payload.manual_match?manualMatchLabel(entry.payload.manual_match as Record<string,unknown>):bundle?.matches.find(m=>m.id===entry.match_id)?matchLabel(bundle.matches.find(m=>m.id===entry.match_id)!):'Match report'):entry.entry_type==='pit'?'Pit report':'Pre-scout report'}</Label>
   <Label theme={theme} muted>Author: {bundle?.profiles?.[entry.scout_user_id]??'Scout'} · {entry.submitted_at?new Date(entry.submitted_at).toLocaleString():'Saved draft'}</Label>
   {entry.updated_at&&<Label theme={theme} muted>Updated {new Date(entry.updated_at).toLocaleString()}{(entry as typeof entry&{last_edited_by?:string}).last_edited_by?' · Last edited by '+(bundle?.profiles?.[(entry as typeof entry&{last_edited_by:string}).last_edited_by]??'Scout'):''}</Label>}
-  {local?.reviewRequired&&<Label theme={theme}>Unpublished working edits. Open Edit report and tap Save changes to publish them. QR handoff is unavailable until then.</Label>}
+  {local?.reviewRequired&&<Label theme={theme}>Unpublished edits. Tap Edit report, then Save changes.</Label>}
   <Card theme={theme}>
    <Label theme={theme}>{entry.status==='draft'?(local?.status==='synced'?'Unsubmitted draft · backed up':'Unsubmitted draft · saved locally'):local?local.status:'Downloaded server record'}</Label>
    {local&&<Label theme={theme} muted>Local revision {local.revision} · cloud acknowledgment {local.acknowledgedRevision??'none'}</Label>}
@@ -47,7 +47,7 @@ export default function Submission(){
    {showRaw&&<Card theme={theme}><Text selectable style={{color:theme.muted,fontSize:12,fontFamily:Platform.select({ios:'Courier',default:'monospace'})}}>{JSON.stringify(entry.payload,null,2)}</Text></Card>}
   </Section>
   {local&&entry.status==='submitted'&&!local.reviewRequired&&<Section title="QR handoff" theme={theme}>
-   <Label theme={theme} muted>This transfers your exact local snapshot. Enable signed relay in Settings while online before competition. Unsigned QR copies are backups only; cloud relay requires a registered author signature.</Label>
+   
    {qrError&&<Label theme={theme}>{qrError}</Label>}
    {frames.length>0&&<>
     <View onLayout={e=>setQrWidth(e.nativeEvent.layout.width)} style={{alignItems:'center',padding:16,backgroundColor:'#fff',borderRadius:16}}><QRCode value={frames[frame]} size={qrSize(qrWidth)}/></View>

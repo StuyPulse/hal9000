@@ -43,12 +43,12 @@ export default function Settings(){
   </Section>
   <Section title="Signed offline relay" theme={theme}>
    <Label theme={theme}>{deviceLoaded?(registered?'Registration remembered on this device':'This device is not registered for signed relay'):'Checking secure device storage…'}</Label>
-   <Label theme={theme} muted>Register online before competition. The private key stays in secure device storage and is never displayed. Server delivery rechecks signatures and revocation status.</Label>
-   {viewer?.demo?<Label theme={theme}>Practice does not register or revoke real devices.</Label>:Platform.OS==='web'?<Label theme={theme}>Secure signing requires the native iOS or Android app. Web preview cannot register a relay device.</Label>:<>
+   
+   {viewer?.demo?<Label theme={theme}>Practice does not register or revoke real devices.</Label>:Platform.OS==='web'?null:<>
     {!registered&&<Input label="Device name" theme={theme} value={deviceName} onChangeText={setDeviceName} maxLength={100}/>}
     <Button title={registered?'Confirm device registration':'Register this device'} theme={theme} disabled={busy||!online||!nativeLive||!relayAvailable} onPress={()=>void register()}/>
     <Button title="Revoke this device" secondary theme={theme} disabled={busy||!online||!registered||!nativeLive||!relayAvailable} onPress={revoke}/>
-    {!relayAvailable&&<Label theme={theme} muted>Registration requires an online capability check, deployed server support and the device-registration migration. Local reports and QR receipts remain safe.</Label>}
+    {!relayAvailable&&null}
    </>}
   </Section>
   <Section title="Mobile server" theme={theme}>
@@ -58,14 +58,14 @@ export default function Settings(){
     {capabilities&&Object.entries(capabilities.operations).map(([key,enabled])=><Row key={key} theme={theme} title={labels[key]??key} subtitle={enabled?'Server reports available':'Not available on this server'}/>)}
     {capabilities&&Object.entries(capabilities.limitations).map(([key,limitation])=><Label key={key} theme={theme} muted>{limitation}</Label>)}
     <Button secondary title="Check server capabilities" theme={theme} disabled={busy||!online} onPress={()=>void action(checkServer)}/>
-    {(!capabilities||!capabilities.configured)&&<Label theme={theme} muted>Server-dependent tools may show a deployment or configuration error. Build success does not make those endpoints live. Direct scouting and local saving use separate paths.</Label>}
+    {(!capabilities||!capabilities.configured)&&null}
    </>}
   </Section>
   <Section title="Appearance" theme={theme}><View style={{flexDirection:'row',gap:8}}>{(['light','dark','system'] as const).map(mode=><Choice key={mode} label={mode} selected={appearance===mode} theme={theme} onPress={()=>setAppearance(mode)}/>)}</View></Section>
   <Section title="Delivery" theme={theme}>
    <Label theme={theme}>{online?'Network available':'Offline'} · {pendingReports} reports and {pendingPhotos} photos await delivery.</Label>
    <Button title={syncing?'Syncing…':'Retry sync now'} theme={theme} disabled={busy||!online||syncing||viewer?.demo} onPress={()=>void action(sync)}/>
-   <Label theme={theme} muted>Sync runs while the app is active, after reconnecting and when you retry. Neither operating system guarantees background delivery.</Label>
+   
   </Section>
   <Button title="Sign out · keep local work" theme={theme} secondary disabled={busy} onPress={()=>{const captured=scope;Alert.alert('Sign out?','Local reports remain protected under this account and reappear when you sign back in. Pending work is not deleted.',[{text:'Keep working',style:'cancel'},{text:'Sign out',onPress:()=>{if(!valid(captured))return;void action(async()=>{await signOut();if(mounted.current)router.replace('/login')})}}])}}/>
   <Button title="Privacy policy" theme={theme} secondary onPress={()=>void Linking.openURL('https://hal9000.stuypulse.com/privacy').catch(e=>{if(mounted.current)setMessage(e.message)})}/>
