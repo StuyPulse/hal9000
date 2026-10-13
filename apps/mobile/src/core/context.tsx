@@ -95,22 +95,23 @@ export function AppProvider({children}:{children:React.ReactNode}){
  useEffect(()=>{void reloadLocal()},[reloadLocal]);
  const sync=useCallback(async()=>{
   if(!scope||!viewer||!online||viewer.demo||syncLock.current)return;
-  syncLock.current=true;setSyncing(true);
+  syncLock.current=true;setSyncing(true);let failures=0;
   try{
    const queued=(await listRecords(scope)).filter(shouldUpload);
    for(const snapshot of queued){
     if(scopeRef.current!==scope)break;
     try{const serverTime=await uploadSnapshot(snapshot,viewer.userId);await serializeLocalWrite(()=>acknowledgeStored(scope,snapshot.entry.id,snapshot.revision,serverTime))}
-    catch(e){const message=snapshot.origin==='relay'?'Received copy is safe locally. The server may not authorize this account to upload another scout’s report. '+(e as Error).message:(e as Error).message;await serializeLocalWrite(()=>failStored(scope,snapshot.entry.id,snapshot.revision,message))}
+    catch(e){failures++;const message=snapshot.origin==='relay'?'Received copy is safe locally. The server may not authorize this account to upload another scout’s report. '+(e as Error).message:(e as Error).message;await serializeLocalWrite(()=>failStored(scope,snapshot.entry.id,snapshot.revision,message))}
    }
    for(const photo of (await listPhotos(scope)).filter(p=>p.status!=='synced')){
     if(scopeRef.current!==scope)break;
     try{await uploadPhoto(photo,viewer.userId);await putValue(scope,'photo',photo.id,{...photo,status:'synced',error:null})}
-    catch(e){await putValue(scope,'photo',photo.id,{...photo,status:'failed',error:(e as Error).message})}
+    catch(e){failures++;await putValue(scope,'photo',photo.id,{...photo,status:'failed',error:(e as Error).message})}
    }
    const drawings=await drawingQueue(scope).flush(()=>scopeRef.current===scope);
    if(drawings.error&&scopeRef.current===scope)setError('Strategy drawing: '+drawings.error);
    await reloadLocal();
+   if(!failures&&!drawings.error)await putValue(scope,'meta','last-sync',{at:Date.now()});
   }catch(e){if(scopeRef.current===scope)setError((e as Error).message)}
   finally{syncLock.current=false;if(scopeRef.current===scope)setSyncing(false)}
  },[scope,viewer,online,reloadLocal]);
