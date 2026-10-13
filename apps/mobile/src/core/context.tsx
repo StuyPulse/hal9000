@@ -173,7 +173,7 @@ export function AppProvider({children}:{children:React.ReactNode}){
    const local=await getValue<LocalSubmission>(scope,'entry',id),before=local?.entry??bundle.entries.find(e=>e.id===id);
    if(!before||before.entry_type!=='match'||!before.payload.manual_match||before.status!=='submitted'||local?.origin==='relay'||(!['admin','developer'].includes(viewer.role)&&before.scout_user_id!==viewer.userId))throw Error('Only the original scout or an administrator can correct this manual report.');
    if(!bundle.teams.some(t=>t.id===teamId))throw Error('Choose a team in this event.');
-   if(metadata.stage!=='Other / exception'&&!/^[1-9]\d{0,5}$/.test(metadata.label??''))throw Error('Enter a positive match number (up to six digits).');
+   if(metadata.stage!=='Other / exception'&&!(metadata.label??'').trim())throw Error('Enter the match number or label, for example 3 or 2–1.');if((metadata.label??'').length>30)throw Error('Use 30 characters or fewer for the match label.');
    const payload={...before.payload,manual_match:metadata,report_source:'manual'};
    const pending=local??seedServerEdit(viewer,before),revision=pending.revision+1;
    let saved:NativeEntry={...before,team_id:teamId,match_id:null,payload};
