@@ -503,3 +503,18 @@ Previously unanswered implementation choices are now resolved in source: own sub
 | Hosted Supabase state / migration history | **not inspected**: no CLI, token or connector in this environment | blocked |
 | `https://hal9000.stuypulse.com/api/mobile/capabilities` | **not deployed, not verified** | blocked |
 | Android runtime, camera/photo, dark mode, large text, real-account roles, two-device QR | **not run** | pending |
+
+## 12. Release and device evidence (2026-10-13, later checkpoint)
+
+| Evidence | Result | Kind |
+|---|---|---|
+| Hosted migration `20261013143440_mobile_device_keys_and_event_activation` applied to project `wutzpdkmlafwqqgxmqlh` | applied; function EXECUTE grants verified (RPCs service-role only, `mobile_activate_event` authenticated); RLS/table grants on `mobile_device_keys` not read back | production |
+| Backend routes under `/api/mobile/*` | on branch `codex/mobile-backend` with a successful Vercel preview build; **not merged, not live** | build only |
+| Local iPhone Release build (iOS 27.0.1), nonprofit team `5ZT9Z3LA8Q`, `org.stuypulse.hal9000.scout` | installed and launched; first build crashed at launch with `NoSceneLifecycleAdoption` | device |
+| iOS 27 UIScene fix | applied to the generated project and as `apps/mobile/plugins/withIos27SceneDelegate.js` (3 unit tests; clean `expo prebuild` verified in a scratch copy) | code + build |
+| EAS cloud build (production profile) | FINISHED, build number 2; submitted to App Store Connect, processing/TestFlight availability **not yet confirmed** | build |
+| Google sign-in on device | returned to the website: `hal9000://auth/callback` and `hal9000://auth/recovery` are not on the Supabase Redirect URLs allow-list | device finding, config pending |
+| Schedule "Scout this match" greyed out | by design until a robot chip is chosen and that team is in the match | device finding |
+| Not run | Android runtime, camera/photo, two-device QR, real role workflows, dark mode, large text | pending |
+
+Known local-build note: the project path contains a space; three generated build scripts (expo-constants app config, Hermes bundle phase) are not space-safe. Cloud builds are unaffected.
