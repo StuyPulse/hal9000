@@ -10,7 +10,11 @@
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "org.stuypulse.hal9000.scout",
-      "appleTeamId": "5ZT9Z3LA8Q"
+      "appleTeamId": "5ZT9Z3LA8Q",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      },
+      "buildNumber": "2"
     },
     "android": {
       "adaptiveIcon": {
@@ -56,6 +60,13 @@
         "projectId": "457274cf-7bbf-4cb9-a251-47394933cfac"
       }
     },
-    "owner": "stuypulseit"
+    "owner": "stuypulseit",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/457274cf-7bbf-4cb9-a251-47394933cfac",
+      "fallbackToCacheTimeout": 0
+    }
   }
 }
