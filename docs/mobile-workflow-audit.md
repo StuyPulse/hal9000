@@ -144,3 +144,18 @@ Evidence key: **src** = read in source; **test** = covered by a unit test; no ro
 | A8 delete current unused event | resolved | src: `deleteNativeEvent` protects only events with data |
 | A9 lineup/team entry | resolved | src: `manualLineupNumbers` resolves/creates numbers; optional alias |
 | Terms link (website `/terms`) | resolved | src: Settings and sign-in link to `/terms` and `/privacy` |
+
+## Offline follow-up — October 14, 2026
+
+Claude's committed parity/UI work was reviewed before this local correction pass. Additional source fixes:
+
+- Password/Google sign-in activates downloaded data, then starts the initial online workspace download. Refresh also works for an authenticated workspace with no event.
+- Event selection opens a previously downloaded package without networking. An uncached offline event gives an explicit download-first message. Background failures retain displayed data; stale responses cannot switch the selected event. Selecting the active event restores active-following; historical selections remain deliberate review.
+- Picklist edits persist a scoped, revisioned bulk intent before any request. Reconnect uploads them; touched-field conflicts and failures remain queued. Acknowledgments cannot retire newer revisions or resurrect deleted rankings after a subsequent complete snapshot. Positive rank allocation matches the database constraint.
+- Cloud photos download into account/event-scoped persistent document files. Galleries prefer local files over expiring URLs. Downloads run separately from workspace activation and retry on later refresh. Native file/download behavior still needs device verification.
+- Confirmed report uploads are cached before outbox acknowledgment. Client query-start/ack timestamps distinguish a stale in-flight read from a newer authoritative correction/deletion.
+- Delivery settings include pending picklist boards and their retained upload errors.
+
+Verification: 129 mobile unit tests pass, mobile TypeScript passes, diff whitespace checks pass, and final iOS/Android exports both pass. Native smoke-test attempt reached the simulator's existing debug app, but it reported "No script URL provided" before loading application JavaScript; this is not a successful runtime test of these changes. The test simulator was shut down afterward. No production writes, deployment, OTA, new phone installation, or commit was performed.
+
+Remaining gates: authenticated airplane-mode cold launch/reconnect on an installed updated build; persistent downloaded photo reopen; Android runtime. Picklist transport uses preflight touched-field checks followed by one atomic bulk upsert, **not atomic server compare-and-swap**. Eliminating the narrow concurrent-write race needs a transactional server operation and separate deployment verification. Remote invitations/import/deletion and embedded third-party Google documents still need connectivity; they do not block locally downloaded scouting data.

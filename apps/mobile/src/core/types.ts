@@ -9,7 +9,7 @@ export type Event = { id: string; organization_id: string; name: string; event_k
 export type Match = { id: string; event_id: string; match_number: number; match_type: string; status: string; red_teams: string[]; blue_teams: string[]; scheduled_at: string | null; tba_match_key?: string | null; red_score?:number|null; blue_score?:number|null; tba_score_breakdown?:Record<string,unknown>|null; actual_at?:string|null };
 export type Assignment = { id: string; match_id: string; team_id: string; scout_user_id: string; assignment_type: string; status: string };
 export type NativeEntry = { id: string; organization_id: string; event_id: string; team_id: string; match_id: string | null; assignment_id: string | null; scout_user_id: string; entry_type: EntryKind; form_version: number; payload: Payload; status: 'draft' | 'submitted'; submitted_at: string | null; updated_at?: string; created_at?:string; last_edited_by?:string|null };
-export type LocalSubmission = { entry: NativeEntry; revision: number; acknowledgedRevision: number | null; status: 'draft' | 'pending' | 'synced' | 'failed' | 'received'; error: string | null; origin: 'own' | 'relay'; baseUpdatedAt: string | null; changedAt: string; proof?:SignedRelayProof; reviewRequired?:boolean };
+export type LocalSubmission = { entry: NativeEntry; revision: number; acknowledgedRevision: number | null; status: 'draft' | 'pending' | 'synced' | 'failed' | 'received'; error: string | null; origin: 'own' | 'relay'; baseUpdatedAt: string | null; changedAt: string; proof?:SignedRelayProof; reviewRequired?:boolean; acknowledgedAt?:number };
 export type PhotoRecord = { id: string; organization_id: string; event_id: string; team_id: string; storage_path: string; uploaded_by: string; localUri?: string; signedUrl?: string; status?: 'pending' | 'synced' | 'failed'; error?: string | null };
 export type PicklistRanking = { id?: string; team_id: string; rank: number | null; category_id: string | null; note: string | null; selected: boolean; tag_ids: string[]; updated_at?: string };
 export type Category = { id: string; name: string; color: string; sort_order: number };
@@ -19,6 +19,7 @@ export type EventBundle = {
   entries: NativeEntry[]; photos: PhotoRecord[]; rankings: PicklistRanking[]; categories: Category[]; tags: Category[];
   globalDocument: string | null; robotProfiles: Record<string, Payload>; reportSources: { team_id: string; match_key: string; selected_entry_id: string|null }[];
   canViewPicklist: boolean; downloadedAt: string; scope: string;
+  rankingSnapshotStartedAt?:number;
   prescoutAssignments?: { event_id: string; team_id: string; scout_user_id: string }[];
   strategyDrawings?: { id: string; user_id: string; strokes: unknown }[];
   picklistHistory?: {id:string;team_id:string;actor_user_id:string|null;action:'baseline'|'created'|'updated'|'deleted';before_state:Record<string,unknown>|null;after_state:Record<string,unknown>|null;created_at:string}[];

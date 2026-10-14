@@ -1,20 +1,31 @@
 import React from 'react';
+import { Pressable, View } from 'react-native';
+import { Text } from '../../src/components/AppText';
 import {useRouter} from 'expo-router';
 import {useApp} from '../../src/core/context';
 import {Screen} from '../../src/components/Screen';
-import {Row,Label,Section} from '../../src/components/ui';
-const groups:{title:string;routes:[string,string,string?][]}[]=[
- {title:'Find & review',routes:[['Search downloaded event','/search','Teams, matches and report text · works offline'],['Scouting leaderboard','/leaderboard','Match, pit and prescout contributions']]},
+
+type Route=[label:string,path:string];
+const groups:{title:string;routes:Route[];roles?:string[]}[]=[
+ {title:'Review',routes:[['Submissions','/submissions'],['Outbox & sync','/outbox'],['Search','/search'],['Leaderboard','/leaderboard']]},
  {title:'Scouting',routes:[['Pit scouting','/pit'],['Pre scouting','/pre-scout'],['Photos & coverage','/photos'],['Global scouting document','/global']]},
- {title:'Strategy',routes:[['Team directory','/teams','All event teams, sorted by number'],['Teams & summary','/strategy/summary'],['Team comparison','/strategy/compare'],['Shared picklist','/strategy/picklist'],['Match strategy','/strategy/strategy']]},
- {title:'Device & access',routes:[['Settings & event download','/settings','Offline readiness, delivery and signed relay'],['Email access manager','/admin/email-access','Designated managers only · independent of admin role']]},
+ {title:'Strategy',routes:[['Compare teams','/strategy/compare'],['Shared picklist','/strategy/picklist'],['Match strategy','/strategy/strategy'],['Team directory','/teams']]},
+ {title:'Master',routes:[['Scan scout QR','/scanner']],roles:['master','admin','developer']},
+ {title:'Admin',routes:[['Event setup & members','/admin'],['Email access','/admin/email-access']],roles:['admin','developer']},
+ {title:'Device',routes:[['Settings & event download','/settings']]},
 ];
 export default function More(){
  const {theme,viewer}=useApp();const router=useRouter();
  return <Screen>
-  <Label theme={theme} muted>{viewer?.displayName} · {viewer?.role}</Label>
-  {groups.map(group=><Section key={group.title} title={group.title} theme={theme}>{group.routes.map(([label,route,subtitle])=><Row key={route} title={label} subtitle={subtitle} theme={theme} onPress={()=>router.push(route as never)}/>)}</Section>)}
-  {['master','admin','developer'].includes(viewer?.role??'')&&<Section title="Master relay" theme={theme}><Row title="Scan scout QR" subtitle="Receipts save locally before cloud delivery" theme={theme} onPress={()=>router.push('/scanner')}/></Section>}
-  {['admin','developer'].includes(viewer?.role??'')&&<Section title="Organization setup" theme={theme}><Row title="Native setup tools" subtitle="Events, members, assignments and versioned forms" theme={theme} onPress={()=>router.push('/admin')}/></Section>}
+  <Text style={{color:theme.muted,fontSize:14}}>{viewer?.displayName} · {viewer?.role}</Text>
+  {groups.filter(g=>!g.roles||g.roles.includes(viewer?.role??'')).map(group=><View key={group.title} style={{gap:6}}>
+   <Text accessibilityRole="header" style={{color:theme.muted,fontSize:13,fontWeight:'700',letterSpacing:.6,textTransform:'uppercase'}}>{group.title}</Text>
+   <View style={{backgroundColor:theme.surface,borderRadius:14,overflow:'hidden'}}>
+    {group.routes.map(([label,path],index)=><Pressable key={path} accessibilityRole="button" accessibilityLabel={label} onPress={()=>router.push(path as never)} style={{minHeight:52,paddingHorizontal:16,flexDirection:'row',alignItems:'center',justifyContent:'space-between',borderTopWidth:index?1:0,borderTopColor:theme.line}}>
+     <Text style={{color:theme.text,fontSize:17}}>{label}</Text>
+     <Text style={{color:theme.muted,fontSize:22}}>›</Text>
+    </Pressable>)}
+   </View>
+  </View>)}
  </Screen>;
 }

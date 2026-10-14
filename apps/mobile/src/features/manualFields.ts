@@ -29,10 +29,10 @@ export const PIT_TEXT_FIELDS: Record<'contact_info' | 'teleop_active_hub' | 'tel
 };
 
 export const EXPERIENCE_OPTIONS = [
-  { value: '0', label: '0 years' }, { value: '1', label: '1 year' }, { value: '2', label: '2 years' },
-  { value: '3', label: '3 years' }, { value: '4+', label: '4+ years' },
+  { value: '0', label: '0' }, { value: '1', label: '1' }, { value: '2', label: '2' },
+  { value: '3', label: '3' }, { value: '4+', label: '4+' },
 ];
-export const OPERATOR_EXPERIENCE_OPTIONS = [{ value: 'none', label: 'No operator' }, ...EXPERIENCE_OPTIONS];
+export const OPERATOR_EXPERIENCE_OPTIONS = [{ value: 'none', label: 'None' }, ...EXPERIENCE_OPTIONS];
 export const TRAVERSAL_OPTIONS = [
   { value: 'bump', label: 'Bump', hint: 'Can cross the bump' },
   { value: 'trench', label: 'Trench', hint: 'Can use the trench' },

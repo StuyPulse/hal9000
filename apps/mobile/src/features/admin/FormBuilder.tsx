@@ -1,3 +1,4 @@
+import {friendlyError} from '../../core/friendly-error';
 import React,{useState} from 'react';
 import {Switch,View} from 'react-native';
 import {DEFAULT_2026_FORM,type FormDefinition} from '@wildcard/shared';
@@ -12,7 +13,7 @@ export function FormBuilder({theme,forms,busy,onPublish}:{theme:Palette;forms:Ev
  const field=form.fields[selected];
  const patch=(v:Partial<Field>)=>setForm(f=>({...f,fields:f.fields.map((field,i)=>i===selected?{...field,...v}:field)}));
  const move=(delta:number)=>{const to=selected+delta;if(to<0||to>=form.fields.length)return;setForm(f=>{const fields=[...f.fields];[fields[selected],fields[to]]=[fields[to],fields[selected]];return {...f,fields}});setSelected(to)};
- const publish=async()=>{try{const checked=editableFormSchema.parse(form);setError('');await onPublish(checked)}catch(e){setError((e as Error).message)}};
+ const publish=async()=>{try{const checked=editableFormSchema.parse(form);setError('');await onPublish(checked)}catch(e){setError(friendlyError(e))}};
  return <Section title="Versioned form builder" theme={theme}>
   <Label theme={theme} muted>Publishing creates a new immutable version. These generic definitions do not replace the website’s specialized REBUILT v4 match or v2 pit/pre-scout forms.</Label>
   {forms.map(f=><Row key={f.id} theme={theme} title={`Use ${f.name} v${f.version} as a starting point`} onPress={()=>{setForm(cloneForm(f.definition));setSelected(0)}}/>)}

@@ -1,12 +1,13 @@
 import React, { useMemo, useState } from 'react';
-import { Text, View } from 'react-native';
+import { View } from 'react-native';
+import { Text } from '../components/AppText';
 import { Choice, Card } from '../components/ui';
 import { Notice, Screen, useFeatureApp } from './common';
 import { eventEntries, pendingSubmittedCount } from '../core/report-overlay';
 import { ALL_ROUNDS, leaderboardRows, record as asRecord, scoutDisplayName, type LeaderboardEntry, type LeaderboardSection, type MatchRound } from './stats';
 
 const SECTIONS: { id: LeaderboardSection; label: string }[] = [
-  { id: 'all', label: 'All' }, { id: 'match', label: 'Match scouting' }, { id: 'pit', label: 'Pit scouting' }, { id: 'pre_scout', label: 'Pre scouting' },
+  { id: 'all', label: 'All' }, { id: 'match', label: 'Match' }, { id: 'pit', label: 'Pit' }, { id: 'pre_scout', label: 'Pre-scout' },
 ];
 const ROUNDS: { id: MatchRound; label: string }[] = [{ id: 'practice', label: 'Practice' }, { id: 'qualification', label: 'Qualification' }, { id: 'playoff', label: 'Playoffs' }];
 
@@ -39,9 +40,7 @@ export function LeaderboardScreen() {
 
   return (
     <Screen theme={theme}>
-      <Text accessibilityRole="header" style={{ color: theme.text, fontSize: 26, fontWeight: '700' }}>Leaderboard</Text>
-      <Text style={{ color: theme.muted }}>{bundle.event.name} · submitted scouting reports</Text>
-      {bundle.event.status !== 'active' ? <Notice theme={theme}>Reviewing this downloaded event, not the organization’s active-event leaderboard.</Notice> : null}
+      {bundle.event.status !== 'active' ? null : null}
       {pendingSubmittedCount(bundle, records) && !viewer?.demo ? <><Notice theme={theme} tone="warning">{pendingSubmittedCount(bundle, records)} report(s) are pending on this device. {includePending ? 'Preview counts include them and are not the confirmed website leaderboard.' : 'Confirmed counts below exclude them until cloud delivery.'}</Notice><Choice theme={theme} label="Preview pending local reports" selected={includePending} onPress={() => setIncludePending(value => !value)} /></> : null}
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
         {SECTIONS.map((item) => <Choice key={item.id} theme={theme} label={item.label} selected={section === item.id} onPress={() => setSection(item.id)} />)}
@@ -65,7 +64,7 @@ export function LeaderboardScreen() {
             </Text>
           </View>
         </Card>
-      )) : <Notice theme={theme}>No reports yet. Submitted scouting reports for this selection will appear here.</Notice>}
+      )) : <Notice theme={theme}>No reports yet.</Notice>}
     </Screen>
   );
 }

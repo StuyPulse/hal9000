@@ -29,7 +29,7 @@ export function planInsert(teamId: string, others: { teamId: string; rank: numbe
   const beforeRank = at > 0 ? others[at - 1].rank ?? at * RANK_STEP : undefined;
   const afterRank = at < others.length ? others[at].rank ?? (at + 1) * RANK_STEP : undefined;
   const rank = beforeRank === undefined ? (afterRank ?? 2 * RANK_STEP) - RANK_STEP : afterRank === undefined ? beforeRank + RANK_STEP : Math.floor((beforeRank + afterRank) / 2);
-  if (afterRank !== undefined && beforeRank !== undefined && (rank === beforeRank || rank === afterRank)) {
+  if (rank < 1 || afterRank !== undefined && beforeRank !== undefined && (rank === beforeRank || rank === afterRank)) {
     const order = [...others.map((item) => item.teamId)];
     order.splice(at, 0, teamId);
     return order.map((id, index) => ({ teamId: id, rank: (index + 1) * RANK_STEP, category_id: category }));

@@ -1,5 +1,7 @@
+import {friendlyError} from '../core/friendly-error';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Image, Text, View, type ImageSourcePropType } from 'react-native';
+import { Image, View, type ImageSourcePropType } from 'react-native';
+import { Text } from '../components/AppText';
 import { useRouter } from 'expo-router';
 import {PhotoSubmissionQueue} from '../components/PhotoSubmissionQueue';
 import { SvgXml } from 'react-native-svg';
@@ -96,7 +98,7 @@ export function ManualScoutingScreen({ kind, entryId, fieldArt }: { kind: Manual
       return id;
     } catch (error) {
       creating.current = recordIdRef.current ? creating.current : null;
-      setSaveError(error instanceof Error ? error.message : 'Could not save on this device.');
+      setSaveError(friendlyError(error, 'Could not save on this device.'));
       return null;
     }
   }, [app, kind]);
@@ -198,7 +200,10 @@ export function ManualScoutingScreen({ kind, entryId, fieldArt }: { kind: Manual
   // ---- review ----
   if (step === 'review') {
     return (
-      <Screen theme={theme}>
+      <Screen theme={theme} footer={<>
+        <Button theme={theme} title={submitting ? 'Saving…' : editing ? 'Save changes' : `Submit ${title.toLowerCase()}`} disabled={submitting || blocked} onPress={() => { void submit(); }} />
+        <Button theme={theme} secondary title="Back to edit" onPress={() => setStep('form')} />
+      </>}>
         <Section theme={theme} title={`Review ${title.toLowerCase()}`}>
           <Card theme={theme}>
             <Text style={{ color: theme.text, fontSize: 18, fontWeight: '700' }}>{teamId ? teamName(teamId) : 'No team'}</Text>
@@ -220,8 +225,6 @@ export function ManualScoutingScreen({ kind, entryId, fieldArt }: { kind: Manual
         {validation.errors.map((message) => <Notice key={message} theme={theme} tone="danger">{message}</Notice>)}
         {validation.warnings.map((message) => <Notice key={message} theme={theme} tone="warning">{message}</Notice>)}
         {saveError ? <Notice theme={theme} tone="danger">{saveError} Your edits are still on screen; try again.</Notice> : null}
-        <Button theme={theme} title={submitting ? 'Saving…' : editing ? 'Save changes' : `Submit ${title.toLowerCase()}`} disabled={submitting || blocked} onPress={() => { void submit(); }} />
-        <Button theme={theme} secondary title="Back to edit" onPress={() => setStep('form')} />
       </Screen>
     );
   }
@@ -243,12 +246,10 @@ export function ManualScoutingScreen({ kind, entryId, fieldArt }: { kind: Manual
   const missing = bundle.teams.filter((team) => !photoCoverage.has(team.id)).sort((a, b) => a.number - b.number);
 
   return (
-    <Screen theme={theme} scrollEnabled={!drawing}>
-      <Text accessibilityRole="header" style={{ color: theme.text, fontSize: 26, fontWeight: '700' }}>{title}</Text>
-      <Text style={{ color: theme.muted, fontSize: 15 }}>{bundle.event.name}</Text>
+    <Screen theme={theme} scrollEnabled={!drawing} footer={teamId ? <Button theme={theme} title="Review report" icon="check" disabled={blocked} onPress={() => { if (timer.current) clearTimeout(timer.current); void persist(false); setStep('review'); }} /> : undefined}>
       {editing ? <Notice theme={theme}>The report stays attached to its original team and event.</Notice> : null}
       {preScoutNote ? <Notice theme={theme} tone="warning">{preScoutNote}</Notice> : null}
-      {!app.online ? <Notice theme={theme}>Offline. Everything you enter is saved on this device and uploads when you reconnect.</Notice> : null}
+      {!app.online ? <Notice theme={theme}>Offline · saved on this device</Notice> : null}
 
       {!editing && !recordId && drafts.length ? (
         <Section theme={theme} title="Resume a draft">
@@ -261,7 +262,7 @@ export function ManualScoutingScreen({ kind, entryId, fieldArt }: { kind: Manual
       {kind === 'pre_scout' && !editing && !recordId && coordination.mine.size ? (
         <View style={{ gap: 8 }}>
           <Text style={{ color: theme.text, fontSize: 14, fontWeight: '600' }}>Assigned to you</Text>
-          <Text style={{ color: theme.muted, fontSize: 13 }}>Assignments help coordinate coverage. You can still report any event team.</Text>
+          
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
             {bundle.teams.filter((team) => coordination.mine.has(team.id)).sort((a, b) => a.number - b.number).map((team) => (
               <Choice key={team.id} theme={theme} label={`${team.displayNumber}${markedTeamIds.includes(team.id) ? ' ✓' : ''}`} selected={teamId === team.id} onPress={() => chooseTeam(team.id)} />
@@ -287,11 +288,11 @@ export function ManualScoutingScreen({ kind, entryId, fieldArt }: { kind: Manual
           ) : (
             <>
               <Section theme={theme} title="Drive team">
-                <Text style={{ color: theme.text, fontWeight: '600' }}>Driver experience</Text>
+                <Text style={{ color: theme.text, fontWeight: '600' }}>Driver experience (years)</Text>
                 <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
                   {EXPERIENCE_OPTIONS.map((option) => <Choice key={option.value} theme={theme} label={option.label} selected={fields.driver_experience === option.value} onPress={() => setField('driver_experience', option.value)} />)}
                 </View>
-                <Text style={{ color: theme.text, fontWeight: '600' }}>Operator experience</Text>
+                <Text style={{ color: theme.text, fontWeight: '600' }}>Operator experience (years)</Text>
                 <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
                   {OPERATOR_EXPERIENCE_OPTIONS.map((option) => <Choice key={option.value} theme={theme} label={option.label} selected={fields.operator_experience === option.value} onPress={() => setField('operator_experience', option.value)} />)}
                 </View>
@@ -328,16 +329,13 @@ export function ManualScoutingScreen({ kind, entryId, fieldArt }: { kind: Manual
           )}
 
           {validation.errors.map((message) => <Notice key={message} theme={theme} tone="danger">{message}</Notice>)}
-          <Text style={{ color: saveError ? theme.danger : theme.muted, fontSize: 13 }}>
-            {saveError ?? (savedAt ? `${editing?'Working changes':'Draft'} saved on this device at ${savedAt}${editing?' · Save changes to publish':''}` : 'Nothing saved yet. Edits save automatically on this device.')}
-          </Text>
-          <Button theme={theme} title="Review report" icon="check" disabled={blocked} onPress={() => { if (timer.current) clearTimeout(timer.current); void persist(false); setStep('review'); }} />
+          {saveError ? <Text style={{ color: theme.danger, fontSize: 13 }}>{saveError}</Text> : null}
         </>
       ) : null}
 
       {kind === 'pit' ? (
         <Section theme={theme} title="Photos & coverage">
-          <Text style={{ color: theme.muted, fontSize: 14, lineHeight: 20 }}>Photos are compressed on this device, kept locally, and uploaded to the private pit-photo store when online.</Text>
+          
           <PhotoSubmissionQueue initialTeamId={photoTarget}/>
           {photoMessage ? <Notice theme={theme} tone={photoMessage.error ? 'danger' : 'success'}>{photoMessage.text}</Notice> : null}
           {teamPhotos.length || syncedPhotos.length ? (

@@ -1,5 +1,6 @@
 import React,{useDeferredValue,useMemo,useState} from 'react';
-import {Text,View} from 'react-native';
+import { View } from 'react-native';
+import { Text, TextInput } from '../src/components/AppText';
 import {useRouter} from 'expo-router';
 import {useApp} from '../src/core/context';
 import {Screen} from '../src/components/Screen';
@@ -24,11 +25,9 @@ export default function Search(){
  if(!bundle)return <Screen><Label theme={theme}>Download an event in Settings before searching offline.</Label><Row title="Open Settings" theme={theme} onPress={()=>router.push('/settings')}/></Screen>;
  const visible=filter==='All'?['Teams','Matches','Reports']:[filter],count=filter==='Teams'?results.teams.length:filter==='Matches'?results.matches.length:filter==='Reports'?results.reports.length:results.teams.length+results.matches.length+results.reports.length;
  return <Screen>
-  <Text accessibilityRole="header" style={{color:theme.text,fontSize:24,fontWeight:'700'}}>Search</Text>
-  <Label theme={theme} muted>{bundle.event.name} · downloaded event only · works offline</Label>
-  <Input label="Search teams, matches and reports" theme={theme} autoFocus autoCorrect={false} placeholder="Team number, scout, match or report notes" value={query} onChangeText={text=>{setQuery(text);setLimit(30)}}/>
+  <TextInput accessibilityLabel="Search" autoFocus autoCorrect={false} autoCapitalize="none" placeholder="Search teams, matches, reports" placeholderTextColor={theme.muted} value={query} onChangeText={text=>{setQuery(text);setLimit(30)}} returnKeyType="search" style={{minHeight:52,borderWidth:1,borderRadius:12,paddingHorizontal:14,fontSize:17,color:theme.text,backgroundColor:theme.surface,borderColor:theme.line}}/>
   <View style={{flexDirection:'row',flexWrap:'wrap',gap:8}}>{(['All','Teams','Matches','Reports'] as const).map(item=><Choice key={item} label={item} theme={theme} selected={filter===item} onPress={()=>{setFilter(item);setLimit(30)}}/>)}</View>
-  {!value?<Label theme={theme}>Enter a team number, match label, scout name or report text.</Label>:!count?<Label theme={theme}>No downloaded results. Try a team number or a shorter search.</Label>:<>
+  {!value?null:!count?<Label theme={theme}>No results.</Label>:<>
    {visible.includes('Teams')&&<Section title={`Teams · ${results.teams.length}`} theme={theme}>{results.teams.slice(0,limit).map(team=><Row key={team.id} theme={theme} title={`${team.displayNumber} · ${team.name}`} subtitle={`Permanent team ${team.number}`} onPress={()=>router.push(`/teams/${team.id}` as never)}/>)}</Section>}
    {visible.includes('Matches')&&<Section title={`Matches · ${results.matches.length}`} theme={theme}>{results.matches.slice(0,limit).map(match=><Row key={match.id} theme={theme} title={matchLabel(match)} subtitle={`${match.status} · ${[...match.red_teams,...match.blue_teams].map(id=>bundle.teams.find(t=>t.id===id)?.displayNumber??'?').join(' / ')}`} onPress={()=>router.push({pathname:'/(tabs)/schedule',params:{match:match.id}} as never)}/>)}</Section>}
    {visible.includes('Reports')&&<Section title={`Reports · ${results.reports.length}`} theme={theme}>{results.reports.slice(0,limit).map(({entry,localStatus})=><Row key={entry.id} theme={theme} title={`${bundle.teams.find(t=>t.id===entry.team_id)?.displayNumber??'Team'} · ${entry.entry_type.replace('_',' ')}`} subtitle={`${bundle.profiles?.[entry.scout_user_id]??(entry.scout_user_id===viewer.userId?viewer.displayName:'Scout')} · ${localStatus??entry.status}`} onPress={()=>router.push(`/submission/${entry.id}` as never)}/>)}</Section>}

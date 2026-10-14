@@ -1,5 +1,7 @@
+import {friendlyError} from '../../src/core/friendly-error';
 import React,{useEffect,useState} from 'react';
-import {Text,View,Alert,Share,Platform} from 'react-native';
+import { View, Alert, Share, Platform } from 'react-native';
+import { Text } from '../../src/components/AppText';
 import {useLocalSearchParams,useRouter} from 'expo-router';
 import QRCode from 'react-native-qrcode-svg';
 import * as Crypto from 'expo-crypto';
@@ -21,17 +23,17 @@ export default function Submission(){
  useEffect(()=>{
   let active=true;setFrames([]);setFrame(0);setQrError('');
   if(!local||local.entry.status!=='submitted'||local.reviewRequired)return;
-  void (async()=>{const proof=local.origin==='relay'?local.proof:viewer?await proofForReport(viewer,local.entry):null;const snapshot=JSON.stringify({entry:local.entry,revision:local.revision,proof:proof??undefined});const hash=await Crypto.digestStringAsync(Crypto.CryptoDigestAlgorithm.SHA256,snapshot);if(active)setFrames(makePackets(snapshot,hash,Crypto.randomUUID()))})().catch(e=>{if(active)setQrError(e.message)});
+  void (async()=>{const proof=local.origin==='relay'?local.proof:viewer?await proofForReport(viewer,local.entry):null;const snapshot=JSON.stringify({entry:local.entry,revision:local.revision,proof:proof??undefined});const hash=await Crypto.digestStringAsync(Crypto.CryptoDigestAlgorithm.SHA256,snapshot);if(active)setFrames(makePackets(snapshot,hash,Crypto.randomUUID()))})().catch(e=>{if(active)setQrError(friendlyError(e))});
   return()=>{active=false};
  },[id,local?.revision,local?.proof?.signature,local?.reviewRequired,viewer?.userId]);
  if(!entry)return <Screen><Label theme={theme}>This report is not in the downloaded event or local outbox.</Label></Screen>;
- const edit=async()=>{setOpening(true);try{await claimReport(id);if(entry.entry_type==='match')router.push({pathname:'/match/[id]',params:{id}});else router.push({pathname:entry.entry_type==='pit'?'/pit':'/pre-scout',params:{entryId:id}})}catch(e){Alert.alert('Could not open for editing',(e as Error).message)}finally{setOpening(false)}};
+ const edit=async()=>{setOpening(true);try{await claimReport(id);if(entry.entry_type==='match')router.push({pathname:'/match/[id]',params:{id}});else router.push({pathname:entry.entry_type==='pit'?'/pit':'/pre-scout',params:{entryId:id}})}catch(e){Alert.alert('Could not open for editing',friendlyError(e))}finally{setOpening(false)}};
  return <Screen>
   <Text style={{color:theme.text,fontSize:26,fontWeight:'800'}}>{bundle?.teams.find(t=>t.id===entry.team_id)?.displayNumber} · {entry.entry_type}</Text>
   <Label theme={theme}>{entry.entry_type==='match'?(entry.payload.manual_match?manualMatchLabel(entry.payload.manual_match as Record<string,unknown>):bundle?.matches.find(m=>m.id===entry.match_id)?matchLabel(bundle.matches.find(m=>m.id===entry.match_id)!):'Match report'):entry.entry_type==='pit'?'Pit report':'Pre-scout report'}</Label>
   <Label theme={theme} muted>Author: {bundle?.profiles?.[entry.scout_user_id]??'Scout'} · {entry.submitted_at?new Date(entry.submitted_at).toLocaleString():'Saved draft'}</Label>
   {entry.updated_at&&<Label theme={theme} muted>Updated {new Date(entry.updated_at).toLocaleString()}{(entry as typeof entry&{last_edited_by?:string}).last_edited_by?' · Last edited by '+(bundle?.profiles?.[(entry as typeof entry&{last_edited_by:string}).last_edited_by]??'Scout'):''}</Label>}
-  {local?.reviewRequired&&<Label theme={theme}>Unpublished working edits. Open Edit report and tap Save changes to publish them. QR handoff is unavailable until then.</Label>}
+  {local?.reviewRequired&&<Label theme={theme}>Unpublished edits. Tap Edit report, then Save changes.</Label>}
   <Card theme={theme}>
    <Label theme={theme}>{entry.status==='draft'?(local?.status==='synced'?'Unsubmitted draft · backed up':'Unsubmitted draft · saved locally'):local?local.status:'Downloaded server record'}</Label>
    {local&&<Label theme={theme} muted>Local revision {local.revision} · cloud acknowledgment {local.acknowledgedRevision??'none'}</Label>}
@@ -47,7 +49,7 @@ export default function Submission(){
    {showRaw&&<Card theme={theme}><Text selectable style={{color:theme.muted,fontSize:12,fontFamily:Platform.select({ios:'Courier',default:'monospace'})}}>{JSON.stringify(entry.payload,null,2)}</Text></Card>}
   </Section>
   {local&&entry.status==='submitted'&&!local.reviewRequired&&<Section title="QR handoff" theme={theme}>
-   <Label theme={theme} muted>This transfers your exact local snapshot. Enable signed relay in Settings while online before competition. Unsigned QR copies are backups only; cloud relay requires a registered author signature.</Label>
+   
    {qrError&&<Label theme={theme}>{qrError}</Label>}
    {frames.length>0&&<>
     <View onLayout={e=>setQrWidth(e.nativeEvent.layout.width)} style={{alignItems:'center',padding:16,backgroundColor:'#fff',borderRadius:16}}><QRCode value={frames[frame]} size={qrSize(qrWidth)}/></View>
@@ -56,8 +58,8 @@ export default function Submission(){
    </>}
    <Button title="Retry direct sync" theme={theme} onPress={()=>void sync()}/>
   </Section>}
-  <Button title="Export report backup" secondary theme={theme} onPress={()=>void Share.share({message:JSON.stringify({entry,revision:local?.revision},null,2)}).catch(e=>Alert.alert('Could not export',e.message))}/>
-  {local?.entry.status==='draft'&&<Button title={local.baseUpdatedAt?'Delete backed-up draft':'Remove local draft'} secondary theme={theme} onPress={()=>Alert.alert('Remove this unsubmitted draft?',local.baseUpdatedAt?'This also permanently deletes its cloud draft. Connect before deleting.':'This removes the draft from this phone.',[{text:'Keep',style:'cancel'},{text:'Remove',style:'destructive',onPress:()=>void deleteLocalDraft(id).then(()=>router.back()).catch(e=>Alert.alert('Could not remove',e.message))}])}/>}
-  {entry.status==='submitted'&&local?.origin!=='relay'&&viewer&&(['admin','developer'].includes(viewer.role)||entry.scout_user_id===viewer.userId)&&<Button title={viewer.demo?'Delete practice report':'Delete server report'} secondary theme={theme} onPress={()=>Alert.alert('Delete this report?',viewer.demo?'Removes this isolated practice report.':'This permanently deletes the server report and reopens its assignment when appropriate. Unsynced edits are not uploaded.',[{text:'Keep',style:'cancel'},{text:'Delete',style:'destructive',onPress:()=>void deleteReport(id).then(()=>router.back()).catch(e=>Alert.alert('Could not delete',e.message))}])}/>}
+  <Button title="Export report backup" secondary theme={theme} onPress={()=>void Share.share({message:JSON.stringify({entry,revision:local?.revision},null,2)}).catch(e=>Alert.alert('Could not export',friendlyError(e)))}/>
+  {local?.entry.status==='draft'&&<Button title={local.baseUpdatedAt?'Delete backed-up draft':'Remove local draft'} secondary theme={theme} onPress={()=>Alert.alert('Remove this unsubmitted draft?',local.baseUpdatedAt?'This also permanently deletes its cloud draft. Connect before deleting.':'This removes the draft from this phone.',[{text:'Keep',style:'cancel'},{text:'Remove',style:'destructive',onPress:()=>void deleteLocalDraft(id).then(()=>router.back()).catch(e=>Alert.alert('Could not remove',friendlyError(e)))}])}/>}
+  {entry.status==='submitted'&&local?.origin!=='relay'&&viewer&&(['admin','developer'].includes(viewer.role)||entry.scout_user_id===viewer.userId)&&<Button title={viewer.demo?'Delete practice report':'Delete server report'} secondary theme={theme} onPress={()=>Alert.alert('Delete this report?',viewer.demo?'Removes this isolated practice report.':'This permanently deletes the server report and reopens its assignment when appropriate. Unsynced edits are not uploaded.',[{text:'Keep',style:'cancel'},{text:'Delete',style:'destructive',onPress:()=>void deleteReport(id).then(()=>router.back()).catch(e=>Alert.alert('Could not delete',friendlyError(e)))}])}/>}
  </Screen>;
 }

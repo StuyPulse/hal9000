@@ -38,4 +38,14 @@ new = ("RN_XCODE_SCRIPT=\\\"$(\\\"$NODE_BINARY\\\" --print \\\"require('path').d
        "+ '/scripts/react-native-xcode.sh'\\\")\\\"\\n/bin/bash \\\"$RN_XCODE_SCRIPT\\\"")
 patch(root / 'ios/HAL9000.xcodeproj/project.pbxproj', old, new, 'app bundle phase')
 
+# 4) expo-updates: same `bash -l -c "<path>"` quoting bug in the podspec and the generated Pods project
+patch(repo / 'node_modules/expo-updates/ios/EXUpdates.podspec',
+      "'bash -l -c \"$PODS_TARGET_SRCROOT/../scripts/create-updates-resources-ios.sh\"'",
+      "'bash -l -c \"\\\"$PODS_TARGET_SRCROOT/../scripts/create-updates-resources-ios.sh\\\"\"'",
+      'EXUpdates podspec')
+patch(root / 'ios/Pods/Pods.xcodeproj/project.pbxproj',
+      'shellScript = "bash -l -c \\"$PODS_TARGET_SRCROOT/../scripts/create-updates-resources-ios.sh\\"";',
+      'shellScript = "bash -l -c \\"\\\\\\"$PODS_TARGET_SRCROOT/../scripts/create-updates-resources-ios.sh\\\\\\"\\"";',
+      'Pods updates-resources phase')
+
 print('patched: ' + (', '.join(changed) if changed else 'nothing (already safe or not present)'))

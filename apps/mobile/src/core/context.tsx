@@ -16,8 +16,12 @@ import {serializeWrite,excludeSync} from './write-coordination';
 import {canonicalJson,validateSignedProof,type SignedRelayProof} from '@wildcard/shared/src/relay-contract';
 import {normalizeNativePayload,validateNativeEntry} from '@wildcard/shared/src/native-contracts';
 import {workspaceCache} from './workspace-cache';
+import {cacheEventPhotos} from './photo-cache';
+import {overlayPendingPicklist,flushPendingPicklist} from './picklist-sync';
+import {rememberConfirmedReport} from './report-overlay';
 import {normalizeGoogleDocumentUrl,GOOGLE_DOCUMENT_ERROR} from './document-link';
-import {chooseWorkspaceEvent,type WorkspaceMode} from './workspace-cache-model';
+import {friendlyError} from './friendly-error';
+import {chooseWorkspaceEvent,openDownloadedEvent,type WorkspaceMode} from './workspace-cache-model';
 import type {FeatureContext,Viewer,EventBundle,Event,LocalSubmission,LocalPhoto,Payload,EntryKind,Palette,PicklistRanking,NativeEntry} from './types';
 
 export type AppContextValue=FeatureContext&{ready:boolean;membershipPending:boolean;events:Event[];appearance:'light'|'dark'|'system';setAppearance:(v:'light'|'dark'|'system')=>void;signIn:(email:string,password:string)=>Promise<void>;signUp:(email:string,password:string,profile?:{firstName:string;lastName:string})=>Promise<void>;completeExternalSignIn:()=>Promise<void>;startDemo:()=>Promise<void>;signOut:()=>Promise<void>;selectEvent:(id:string)=>Promise<void>;dismissError:()=>void;receiveEntry:(entry:NativeEntry,revision:number,proof?:SignedRelayProof)=>Promise<void>;deleteLocalDraft:(id:string)=>Promise<void>;saveGlobalDocument:(url:string)=>Promise<void>;claimReport:(id:string)=>Promise<LocalSubmission>;updatePractice:(next:EventBundle)=>Promise<void>;deleteReport:(id:string)=>Promise<void>;saveManualIdentity:(id:string,teamId:string,metadata:{stage:string;label:string|null;alliance:'red'|'blue'})=>Promise<void>};
@@ -26,7 +30,8 @@ export const useApp=()=>{const c=useContext(Context);if(!c)throw Error('AppProvi
 const dark:Palette={bg:'#10151d',surface:'#1b222d',panel:'#202b3a',text:'#f2f5fa',muted:'#a2adbd',line:'#303947',tint:'#b9cbff',onTint:'#15284d',selection:'#253653',success:'#84d8a8',warning:'#f0c377',danger:'#ff9caa',red:'#ff9daa',blue:'#9fbfff',dark:true};
 const light:Palette={bg:'#f8f9fb',surface:'#fff',panel:'#eef2f7',text:'#171d28',muted:'#626e7e',line:'#dce2e9',tint:'#244bc1',onTint:'#fff',selection:'#e6edff',success:'#237443',warning:'#895214',danger:'#ac2038',red:'#a92438',blue:'#24589f',dark:false};
 export function AppProvider({children}:{children:React.ReactNode}){
- const [ready,setReady]=useState(false),[viewer,setViewer]=useState<Viewer|null>(null),[bundle,setBundle]=useState<EventBundle|null>(null),[events,setEvents]=useState<Event[]>([]),[records,setRecords]=useState<LocalSubmission[]>([]),[photos,setPhotos]=useState<LocalPhoto[]>([]),[online,setOnline]=useState(true),[syncing,setSyncing]=useState(false),[error,setError]=useState<string|null>(null),[appearance,setAppearanceState]=useState<'light'|'dark'|'system'>('system'),[systemDark,setSystemDark]=useState(Appearance.getColorScheme()==='dark');
+ const [ready,setReady]=useState(false),[viewer,setViewer]=useState<Viewer|null>(null),[bundle,setBundle]=useState<EventBundle|null>(null),[events,setEvents]=useState<Event[]>([]),[records,setRecords]=useState<LocalSubmission[]>([]),[photos,setPhotos]=useState<LocalPhoto[]>([]),[online,setOnline]=useState(true),[syncing,setSyncing]=useState(false),[error,setErrorRaw]=useState<string|null>(null),[appearance,setAppearanceState]=useState<'light'|'dark'|'system'>('system'),[systemDark,setSystemDark]=useState(Appearance.getColorScheme()==='dark');
+ const setError=useCallback((message:string|null)=>setErrorRaw(message===null?null:friendlyError(message)),[]);
  const writeChain=useRef(Promise.resolve()),syncLock=useRef(false),scopeRef=useRef<string|null>(null);
  const autosaveTimer=useRef<ReturnType<typeof setTimeout>|null>(null);
  const [workspaceMode,setWorkspaceMode]=useState<WorkspaceMode>('active'),[membershipPending,setMembershipPending]=useState(false);
@@ -38,7 +43,7 @@ export function AppProvider({children}:{children:React.ReactNode}){
  const exclusiveReportMutation=<T,>(operation:()=>Promise<T>)=>excludeSync(syncLock,operation);
  const serializeLocalWrite=<T,>(operation:()=>Promise<T>)=>serializeWrite(writeChain,operation);
  const reloadLocal=useCallback(async()=>{if(!scope){setRecords([]);setPhotos([]);return}const [r,p]=await Promise.all([listRecords(scope),listPhotos(scope)]);if(scopeRef.current===scope){setRecords(r.sort((a,b)=>b.changedAt.localeCompare(a.changedAt)));setPhotos(p)}},[scope]);
- const saveBundle=useCallback(async(incoming:EventBundle)=>{const next=await overlayPendingDrawings(incoming);await workspaceCache.saveBundle(next);if(scopeRef.current===next.scope){eventRef.current=next.event.id;setBundle(next)}},[]);
+ const saveBundle=useCallback(async(incoming:EventBundle)=>{const next=await overlayPendingPicklist(await overlayPendingDrawings(incoming));await workspaceCache.saveBundle(next);if(scopeRef.current===next.scope){eventRef.current=next.event.id;setBundle(next)}},[]);
  const activate=useCallback(async(v:Viewer)=>{
   const s=scopedIdentity(v.userId,v.organizationId,v.demo);scopeRef.current=s;
   setViewer(v);setMembershipPending(false);setBundle(null);setRecords([]);setPhotos([]);setEvents([]);setSyncing(false);eventEpoch.current++;
@@ -47,7 +52,7 @@ export function AppProvider({children}:{children:React.ReactNode}){
   modeRef.current=mode??'active';setWorkspaceMode(modeRef.current);
   setRecords(localRecords.sort((a,b)=>b.changedAt.localeCompare(a.changedAt)));setPhotos(localPhotos);
   setEvents(eventRows??(cached?[cached.event]:[]));
-  if(cached){eventRef.current=cached.event.id;setBundle(cached)}else eventRef.current=undefined;
+  if(cached){eventRef.current=cached.event.id;await saveBundle(cached)}else eventRef.current=undefined;
   if(v.demo){const b={...(cached??demoBundle()),profiles:{...cached?.profiles,[v.userId]:v.displayName}};await saveBundle(b);if(scopeRef.current===s)setEvents([b.event]);}
  },[saveBundle]);
  const refreshOnline=useCallback(async(v:Viewer)=>{
@@ -66,6 +71,12 @@ export function AppProvider({children}:{children:React.ReactNode}){
    const next=await loadBundle(fresh,chosen,cached);
    if(scopeRef.current!==s)return;
    if(epoch===eventEpoch.current){await saveBundle(next);setError(null);}else await workspaceCache.saveBundle(next,false);
+   void cacheEventPhotos(next,()=>scopeRef.current===s&&connectionRef.current).then(async cachedPhotos=>{
+    const latest=await workspaceCache.bundle(s,next.event.id);
+    if(!latest||latest.downloadedAt!==next.downloadedAt)return;
+    const withPhotos={...latest,photos:cachedPhotos.photos};
+    if(scopeRef.current===s&&eventRef.current===next.event.id)await saveBundle(withPhotos);else await workspaceCache.saveBundle(withPhotos,false);
+   }).catch(()=>{});
   }catch(e){if(e instanceof MembershipPendingError){setMembershipPending(true);setViewer(null);setBundle(null);scopeRef.current=null;}throw e;}
   finally{refreshLock.current=false;}
  },[saveBundle]);
@@ -93,33 +104,41 @@ export function AppProvider({children}:{children:React.ReactNode}){
  useEffect(()=>{void reloadLocal()},[reloadLocal]);
  const sync=useCallback(async()=>{
   if(!scope||!viewer||!online||viewer.demo||syncLock.current)return;
-  syncLock.current=true;setSyncing(true);
+  syncLock.current=true;setSyncing(true);let failures=0;
   try{
    const queued=(await listRecords(scope)).filter(shouldUpload);
    for(const snapshot of queued){
-    if(scopeRef.current!==scope)break;
-    try{const serverTime=await uploadSnapshot(snapshot,viewer.userId);await serializeLocalWrite(()=>acknowledgeStored(scope,snapshot.entry.id,snapshot.revision,serverTime))}
-    catch(e){const message=snapshot.origin==='relay'?'Received copy is safe locally. The server may not authorize this account to upload another scout’s report. '+(e as Error).message:(e as Error).message;await serializeLocalWrite(()=>failStored(scope,snapshot.entry.id,snapshot.revision,message))}
+    if(scopeRef.current!==scope||!connectionRef.current)break;
+    try{const serverTime=await uploadSnapshot(snapshot,viewer.userId);await serializeLocalWrite(async()=>{
+     const cached=await workspaceCache.bundle(scope,snapshot.entry.event_id);
+     if(cached){const next=rememberConfirmedReport(cached,snapshot.entry,serverTime);if(scopeRef.current===scope&&eventRef.current===next.event.id)await saveBundle(next);else await workspaceCache.saveBundle(next,false);}
+     await acknowledgeStored(scope,snapshot.entry.id,snapshot.revision,serverTime);
+    })}
+    catch(e){failures++;const message=snapshot.origin==='relay'?'Received copy is safe locally. The server may not authorize this account to upload another scout’s report. '+(e as Error).message:(e as Error).message;await serializeLocalWrite(()=>failStored(scope,snapshot.entry.id,snapshot.revision,message))}
    }
    for(const photo of (await listPhotos(scope)).filter(p=>p.status!=='synced')){
-    if(scopeRef.current!==scope)break;
+    if(scopeRef.current!==scope||!connectionRef.current)break;
     try{await uploadPhoto(photo,viewer.userId);await putValue(scope,'photo',photo.id,{...photo,status:'synced',error:null})}
-    catch(e){await putValue(scope,'photo',photo.id,{...photo,status:'failed',error:(e as Error).message})}
+    catch(e){failures++;await putValue(scope,'photo',photo.id,{...photo,status:'failed',error:(e as Error).message})}
    }
-   const drawings=await drawingQueue(scope).flush(()=>scopeRef.current===scope);
+   const drawings=await drawingQueue(scope).flush(()=>scopeRef.current===scope&&connectionRef.current);
    if(drawings.error&&scopeRef.current===scope)setError('Strategy drawing: '+drawings.error);
+   const rankings=await flushPendingPicklist(scope,()=>scopeRef.current===scope&&connectionRef.current);
+   if(rankings.error&&scopeRef.current===scope)setError(rankings.error);
    await reloadLocal();
+   if(!failures&&!drawings.error&&!rankings.error&&connectionRef.current){await putValue(scope,'meta','last-sync',{at:Date.now()});void backgroundRefresh.current(viewer).catch(e=>setError(e.message));}
   }catch(e){if(scopeRef.current===scope)setError((e as Error).message)}
   finally{syncLock.current=false;if(scopeRef.current===scope)setSyncing(false)}
- },[scope,viewer,online,reloadLocal]);
+ },[scope,viewer?.userId,viewer?.role,viewer?.demo,online,reloadLocal,saveBundle]);
  const syncRef=useRef(sync);syncRef.current=sync;
  useEffect(()=>()=>{if(autosaveTimer.current)clearTimeout(autosaveTimer.current);autosaveTimer.current=null},[scope]);
  const scheduleDraftSync=()=>{if(autosaveTimer.current)clearTimeout(autosaveTimer.current);const capturedScope=scope;autosaveTimer.current=setTimeout(()=>{autosaveTimer.current=null;if(scopeRef.current===capturedScope)void syncRef.current()},1500)};
  useEffect(()=>{if(ready&&online)void sync();const timer=setInterval(()=>void sync(),30000);const subscription=AppState.addEventListener('change',state=>{if(state==='active')void sync()});return()=>{clearInterval(timer);subscription.remove()}},[ready,online,sync]);
- const signIn=async(email:string,password:string)=>{const {error:signError}=await requireClient().auth.signInWithPassword({email:email.trim(),password});if(signError)throw signError;try{await activate(await loadViewer())}catch(e){if(e instanceof MembershipPendingError){setMembershipPending(true);return}throw e}};
+ const enterWorkspace=async()=>{try{const v=await loadViewer();await activate(v);void backgroundRefresh.current(v).catch(e=>setError(e.message));}catch(e){if(e instanceof MembershipPendingError){setMembershipPending(true);return}throw e}};
+ const signIn=async(email:string,password:string)=>{const {error:signError}=await requireClient().auth.signInWithPassword({email:email.trim(),password});if(signError)throw signError;await enterWorkspace()};
  const signUp=async(email:string,password:string,profile?:{firstName:string;lastName:string})=>{const first=profile?.firstName.trim()??'',last=profile?.lastName.trim()??'';const {error:signError}=await requireClient().auth.signUp({email:email.trim(),password,options:{emailRedirectTo:authRedirect('signin'),data:{first_name:first,last_name:last,display_name:[first,last].filter(Boolean).join(' ')}}});if(signError)throw signError;};
- const completeExternalSignIn=async()=>{try{await activate(await loadViewer())}catch(e){if(e instanceof MembershipPendingError){setMembershipPending(true);return}throw e}};
- const refresh=async()=>{if(!viewer||!bundle)return;if(viewer.demo){await reloadLocal();return}const [next,eventRows]=await Promise.all([loadBundle(viewer,bundle.event),loadEvents(viewer)]);if(scopeRef.current!==scope)return;setEvents(eventRows);await saveBundle(next);await reloadLocal()};
+ const completeExternalSignIn=enterWorkspace;
+ const refresh=async()=>{await reloadLocal();if(viewer&&!viewer.demo&&connectionRef.current)await refreshOnline(viewer)};
  const refreshRef=useRef(refresh);refreshRef.current=refresh;
  useEffect(()=>{
   if(!client||!ready||!online||!viewer||viewer.demo||!bundle)return;
@@ -133,7 +152,13 @@ export function AppProvider({children}:{children:React.ReactNode}){
   const poll=setInterval(schedule,60000),foreground=AppState.addEventListener('change',state=>{if(state==='active')schedule()});
   return()=>{active=false;if(timer)clearTimeout(timer);clearInterval(poll);foreground.remove();void client?.removeChannel(channel)};
  },[ready,online,viewer?.userId,viewer?.demo,bundle?.event.id,scope]);
- const selectEvent=async(id:string)=>{if(!viewer)return;const event=events.find(e=>e.id===id);if(!event)throw Error('Event not available');if(viewer.demo){const cached=await getValue<EventBundle>(scope!,'meta','bundle');if(cached?.event.id!==id)throw Error('This practice event is not downloaded.');await saveBundle(cached);}else await saveBundle(await loadBundle(viewer,event));};
+ const selectEvent=async(id:string)=>{
+  if(!viewer||!scope)return;const event=events.find(e=>e.id===id);if(!event)throw Error('Event not available');
+  const cached=await workspaceCache.bundle(scope,id);if(scopeRef.current!==scope)return;
+  if(!cached&&!connectionRef.current)throw Error('This event has not been downloaded yet. Connect once to download it.');
+  const epoch=++eventEpoch.current;eventRef.current=id;const mode:WorkspaceMode=event.status==='active'?'active':'review';modeRef.current=mode;setWorkspaceMode(mode);await putValue(scope,'meta','workspace-mode',mode);
+  await openDownloadedEvent({cached:cached?{...cached,event}:null,online:!viewer.demo&&connectionRef.current,display:saveBundle,fetch:()=>loadBundle(viewer,event,cached),current:()=>scopeRef.current===scope&&epoch===eventEpoch.current,retain:next=>workspaceCache.saveBundle(next,false),failed:e=>{if(scopeRef.current===scope)setError('Using downloaded event data. '+(e as Error).message)}});
+ };
  const createDraft=async(kind:EntryKind,teamId:string,matchId:string|null=null,assignmentId:string|null=null,payload?:Payload)=>{
   if(!scope||!viewer||!bundle)throw Error('Select a downloaded event first.');
   if(!bundle.teams.some(t=>t.id===teamId))throw Error('Choose a team in this event.');
@@ -214,8 +239,19 @@ export function AppProvider({children}:{children:React.ReactNode}){
   else await saveBundle({...bundle,reportSources:[...bundle.reportSources.filter(r=>r.team_id!==teamId||r.match_key!==matchKey),{team_id:teamId,match_key:matchKey,selected_entry_id:entryId}]});
   await removeValue(scope,'shared-intent',`source:${teamId}:${matchKey}`);
  };
- const savePicklistRankings=async(patches:{teamId:string;patch:Partial<PicklistRanking>}[])=>{if(!viewer||!bundle)throw Error('Select an event');if(!patches.length)return;if(!['admin','developer','global_scout','strategist','master'].includes(viewer.role))throw Error('Role cannot edit rankings');const merged=new Map<string,PicklistRow>();patches.forEach(({teamId,patch})=>{const prev=merged.get(teamId)??bundle.rankings.find(r=>r.team_id===teamId);const position=bundle.teams.findIndex(t=>t.id===teamId);merged.set(teamId,{team_id:teamId,rank:prev?.rank??(position+1)*1024,category_id:prev?.category_id??null,note:prev?.note??'',selected:prev?.selected??false,tag_ids:prev?.tag_ids??[],...patch} as PicklistRow)});const rows=[...merged.values()];if(viewer.demo){await saveBundle({...bundle,rankings:[...bundle.rankings.filter(r=>!merged.has(r.team_id)),...rows]});return}if(!online)throw Error('Shared picklist edits require a connection to avoid overwriting a teammate.');await writePicklistBulk(viewer,bundle.event.id,rows,Object.fromEntries(bundle.rankings.map(r=>[r.team_id,(r as {created_by?:string}).created_by])));await refresh()};
- const savePicklistRanking=async(teamId:string,patch:Partial<PicklistRanking>)=>{if(!viewer||!bundle)throw Error('Select an event');if(viewer.demo){if(!['admin','developer','global_scout','strategist','master'].includes(viewer.role))throw Error('Role cannot edit rankings');const prev=bundle.rankings.find(r=>r.team_id===teamId);const next={team_id:teamId,rank:null,category_id:null,note:'',selected:false,tag_ids:[],...prev,...patch};await saveBundle({...bundle,rankings:[...bundle.rankings.filter(r=>r.team_id!==teamId),next]});return}if(!online)throw Error('Shared picklist edits require a connection to avoid overwriting a teammate.');await writePicklist(viewer,bundle.event.id,teamId,patch);await refresh()};
+ const savePicklistRankings=async(patches:{teamId:string;patch:Partial<PicklistRanking>}[])=>{
+  if(!viewer||!bundle||!scope)throw Error('Select an event');if(!patches.length)return;
+  const {picklistQueue}=await import('./picklist-sync');const queue=picklistQueue(scope);
+  await queue.save(viewer,bundle,patches); // SQLite before any request; captures the owner, event and changed-field baselines.
+  if(scopeRef.current!==scope)return;
+  await saveBundle(await queue.overlay(bundle));
+  if(viewer.demo||!online)return;
+  const result=await queue.flush(()=>scopeRef.current===scope&&connectionRef.current);
+  if(scopeRef.current!==scope)return;
+  if(result.error){setError(result.error);return;} // Durable local success, with a visible retained-upload error.
+  await refresh();
+ };
+ const savePicklistRanking=(teamId:string,patch:Partial<PicklistRanking>)=>savePicklistRankings([{teamId,patch}]);
  const saveGlobalDocument=async(url:string)=>{if(!viewer||!bundle)throw Error('Select an event');if(!['admin','strategist','developer'].includes(viewer.role))throw Error('Your role cannot change the global document');const normalized=normalizeGoogleDocumentUrl(url);if(!normalized)throw Error(GOOGLE_DOCUMENT_ERROR);url=normalized;if(!viewer.demo){const {error:writeError}=await requireClient().from('event_global_documents').upsert({event_id:bundle.event.id,organization_id:viewer.organizationId,document_url:url,updated_by:viewer.userId},{onConflict:'event_id'});if(writeError)throw writeError;}await saveBundle({...bundle,globalDocument:url})};
 
  const saveStrategyDrawing=async(strokes:unknown)=>{
