@@ -8,13 +8,16 @@ import {Screen} from '../src/components/Screen';
 import {Button,Input,Label,Row,Section,Choice} from '../src/components/ui';
 import {getMobileCapabilities,type MobileCapabilities} from '../src/core/mobile-api';
 import {registerRelayDevice,relayDeviceStatus,revokeRelayDevice} from '../src/core/relay-device';
+import {picklistQueue} from '../src/core/picklist-sync';
 
 export default function Settings(){
  const {viewer,bundle,events,records,photos,theme,online,appearance,setAppearance,selectEvent,refresh,sync,syncing,signOut}=useApp();
  const [busy,setBusy]=useState(false),[message,setMessage]=useState(''),[registered,setRegistered]=useState(false),[deviceLoaded,setDeviceLoaded]=useState(false),[deviceName,setDeviceName]=useState('Scouting phone');
  const [capabilities,setCapabilities]=useState<MobileCapabilities|null>(null),[capabilityError,setCapabilityError]=useState(''),[checkedAt,setCheckedAt]=useState<string|null>(null);
+ const [pendingBoards,setPendingBoards]=useState(0),[boardError,setBoardError]=useState<string|null>(null);
  const router=useRouter(),scope=viewer?`${viewer.demo?'practice':'live'}:${viewer.userId}:${viewer.organizationId}`:'signed-out';
  const current=useRef(scope),mounted=useRef(true),actionLock=useRef<string|null>(null);current.current=scope;
+ useEffect(()=>{let active=true;if(!viewer){setPendingBoards(0);setBoardError(null);return;}void picklistQueue(scope).pending().then(rows=>{if(active){const pending=rows.filter(row=>!row.acknowledged);setPendingBoards(pending.length);setBoardError(pending.find(row=>row.error)?.error??null)}}).catch(()=>{});return()=>{active=false}},[scope,bundle,syncing]);
  useEffect(()=>{mounted.current=true;return()=>{mounted.current=false}},[]);
  const valid=(captured:string)=>mounted.current&&current.current===captured;
  const checkServer=async()=>{const captured=scope;if(!viewer||viewer.demo||!online)return;try{const data=await getMobileCapabilities();if(valid(captured)){setCapabilities(data);setCapabilityError('');setCheckedAt(new Date().toISOString())}}catch(e){if(valid(captured)){setCapabilities(null);setCapabilityError(friendlyError(e));setCheckedAt(new Date().toISOString())}}};
@@ -34,11 +37,12 @@ export default function Settings(){
   <Text style={{color:theme.muted,fontSize:14}}>{viewer?.displayName} · {viewer?.role}</Text>
   {!!message&&<Text accessibilityRole="alert" selectable style={{color:theme.text,lineHeight:22}}>{message}</Text>}
   <Section title="Event" theme={theme}>
-   {events.map(event=><Row key={event.id} title={event.name} subtitle={bundle?.event.id===event.id?`Downloaded ${new Date(bundle.downloadedAt).toLocaleString()}`:event.status} theme={theme} onPress={()=>{if(!busy&&(online||viewer?.demo))void download(event.id)}}/>)}
+   {events.map(event=><Row key={event.id} title={event.name} subtitle={bundle?.event.id===event.id?`Downloaded ${new Date(bundle.downloadedAt).toLocaleString()}`:event.status} theme={theme} onPress={()=>{if(!busy)void download(event.id)}}/>)}
    <Button title={busy?'Working…':'Refresh event'} theme={theme} disabled={busy||(!online&&!viewer?.demo)} onPress={()=>void download()}/>
   </Section>
   <Section title="Delivery" theme={theme}>
-   <Label theme={theme}>{pendingReports||pendingPhotos?`${pendingReports} report${pendingReports===1?'':'s'} · ${pendingPhotos} photo${pendingPhotos===1?'':'s'} to send`:'Everything is sent'}{online?'':' · offline'}</Label>
+   <Label theme={theme}>{pendingReports||pendingPhotos||pendingBoards?`${pendingReports} report${pendingReports===1?'':'s'} · ${pendingPhotos} photo${pendingPhotos===1?'':'s'} · ${pendingBoards} picklist${pendingBoards===1?'':'s'} to send`:'Everything is sent'}{online?'':' · offline'}</Label>
+   {boardError?<Label theme={theme}>{friendlyError(boardError)}</Label>:null}
    <Button title={syncing?'Syncing…':'Sync now'} theme={theme} secondary={!(pendingReports||pendingPhotos)} disabled={busy||!online||syncing||viewer?.demo} onPress={()=>void action(sync)}/>
   </Section>
   {!viewer?.demo&&Platform.OS!=='web'?<Section title="QR relay signing" theme={theme}>

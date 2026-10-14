@@ -1,7 +1,7 @@
 import type { LocalSubmission, NativeEntry, Payload } from './types';
 
 export function acknowledge(latest:LocalSubmission,uploadedRevision:number,updatedAt:string|null):LocalSubmission {
- return {...latest,acknowledgedRevision:uploadedRevision,baseUpdatedAt:updatedAt,error:null,status:latest.revision===uploadedRevision?'synced':latest.entry.status==='submitted'?'pending':'draft'};
+ return {...latest,acknowledgedRevision:uploadedRevision,acknowledgedAt:Date.now(),baseUpdatedAt:updatedAt,error:null,status:latest.revision===uploadedRevision?'synced':latest.entry.status==='submitted'?'pending':'draft'};
 }
 export function updateLocal(current:LocalSubmission,payload:Record<string,unknown>,finalize=false):LocalSubmission {
  const now=new Date().toISOString();

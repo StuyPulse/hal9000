@@ -17,7 +17,7 @@ export default function Photos(){
  const teams=[...bundle.teams].sort((a,b)=>a.number-b.number);
  const number=(id:string)=>bundle.teams.find(t=>t.id===id)?.displayNumber??'';
  const cell={width:large?'15%':wide?'23%':'31.5%'} as const;
- const gallery=[...local.map(p=>({id:p.id,team:p.team_id,uri:p.localUri,status:p.status==='synced'?'':p.status==='failed'?'Failed':'Uploading'})),...bundle.photos.map(p=>({id:p.id,team:p.team_id,uri:p.signedUrl,status:''}))];
+ const gallery=[...local.map(p=>({id:p.id,team:p.team_id,uri:p.localUri,status:p.status==='synced'?'':p.status==='failed'?'Failed':'Uploading'})),...bundle.photos.map(p=>({id:p.id,team:p.team_id,uri:p.localUri??p.signedUrl,status:''}))];
  return <Screen>
   <View style={{gap:8}}>
    <View style={{flexDirection:'row',justifyContent:'space-between',alignItems:'baseline'}}><Text style={{color:theme.text,fontSize:22,fontWeight:'800'}}>{done} of {total} teams</Text><Text style={{color:theme.muted,fontSize:14}}>have a photo</Text></View>

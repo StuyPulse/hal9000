@@ -319,7 +319,8 @@ function CompareView({ analysis, theme }: { analysis: Analysis; theme: Palette }
   const photoFor = (teamId: string) => {
     const local = app.photos.find((photo) => photo.team_id === teamId && photo.localUri);
     if (local) return local.localUri;
-    return analysis.bundle.photos.find((photo) => photo.team_id === teamId && (photo.signedUrl || photo.localUri))?.signedUrl ?? analysis.bundle.photos.find((photo) => photo.team_id === teamId)?.localUri;
+    const downloaded=analysis.bundle.photos.find((photo) => photo.team_id === teamId && (photo.localUri || photo.signedUrl));
+    return downloaded?.localUri ?? downloaded?.signedUrl;
   };
 
   return (
@@ -993,7 +994,7 @@ export function TeamProfileScreen({ teamId }: { teamId: string }) {
   const pre = entriesFor('pre_scout');
   const photos = [
     ...app.photos.filter((photo) => photo.team_id === teamId).map((photo) => ({ id: photo.id, uri: photo.localUri, pending: photo.status !== 'synced' })),
-    ...analysis.bundle.photos.filter((photo) => photo.team_id === teamId && (photo.signedUrl || photo.localUri)).map((photo) => ({ id: photo.id, uri: (photo.signedUrl ?? photo.localUri)!, pending: false })),
+    ...analysis.bundle.photos.filter((photo) => photo.team_id === teamId && (photo.signedUrl || photo.localUri)).map((photo) => ({ id: photo.id, uri: (photo.localUri ?? photo.signedUrl)!, pending: false })),
   ];
   const scoredMatches = analysis.bundle.matches.filter((match) => [...match.red_teams, ...match.blue_teams].includes(teamId)) as ScoredMatch[];
   const playedMatches = scoredMatches.filter((match) => match.status === 'played' && match.match_type !== 'practice');

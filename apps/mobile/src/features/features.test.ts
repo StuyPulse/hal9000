@@ -159,7 +159,7 @@ test('manual validation and payload preservation', () => {
 test('picklist planning inserts at midpoints and renumbers on collision', () => {
   const tier = [{ teamId: 'a', rank: 1024 }, { teamId: 'b', rank: 2048 }];
   assert.deepEqual(planInsert('x', tier, 1, 'tier'), [{ teamId: 'x', rank: 1536, category_id: 'tier' }]);
-  assert.deepEqual(planInsert('x', tier, 0, 'tier'), [{ teamId: 'x', rank: 0, category_id: 'tier' }]);
+  assert.deepEqual(planInsert('x', tier, 0, 'tier').map(patch => [patch.teamId, patch.rank]), [['x', 1024], ['a', 2048], ['b', 3072]]);
   assert.deepEqual(planInsert('x', tier, 2, 'tier'), [{ teamId: 'x', rank: 3072, category_id: 'tier' }]);
   const tight = [{ teamId: 'a', rank: 5 }, { teamId: 'b', rank: 6 }];
   assert.deepEqual(planInsert('x', tight, 1, UNSORTED).map((patch) => patch.teamId), ['a', 'x', 'b']);
@@ -174,7 +174,7 @@ test('picklist moves swap, cross tiers and sort', () => {
   ]);
   const crossing = planMove('b', ['hi', 'lo'], orders, 'hi', 1);
   assert.equal(crossing[0].category_id, 'lo');
-  assert.equal(crossing[0].rank, 10 - 1024);
+  assert.deepEqual(crossing.map(patch => [patch.teamId, patch.rank]), [['b', 1024], ['c', 2048]]);
   assert.deepEqual(planMove('a', ['hi', 'lo'], orders, 'hi', -1), []);
   assert.equal(planMoveToTier('a', orders, 'lo')[0].rank, 10 + 1024);
   const rankings = new Map([['a', { team_id: 'a', rank: 2, category_id: 'hi', note: null, selected: false, tag_ids: [] }], ['b', { team_id: 'b', rank: 1, category_id: 'hi', note: null, selected: false, tag_ids: [] }]]);

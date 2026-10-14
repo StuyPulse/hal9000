@@ -13,6 +13,7 @@ async function paged(table:string,filter:(q:any)=>any){const rows:any[]=[];for(l
 // data: reject the refresh so the previous complete local package remains usable.
 async function optional(table:string,filter:(q:any)=>any){return paged(table,filter)}
 export async function loadBundle(viewer:Viewer,event:Event,previous?:EventBundle|null):Promise<EventBundle>{
+ const rankingSnapshotStartedAt=Date.now();
  const c=requireClient();const [eventTeamRows,matches,assignments,forms,entries,photos,rankings,categories,tags,documents,reportSources,prescoutAssignments,strategyDrawings]=await Promise.all([
  paged('event_teams',q=>q.eq('event_id',event.id)),paged('matches',q=>q.eq('event_id',event.id)),paged('scouting_assignments',q=>['admin','developer'].includes(viewer.role)?q:q.eq('scout_user_id',viewer.userId)),paged('form_definitions',q=>q.eq('organization_id',viewer.organizationId).eq('is_active',true)),paged('scouting_entries',q=>q.eq('event_id',event.id).order('created_at',{ascending:false}).order('id')),optional('pit_photos',q=>q.eq('event_id',event.id)),optional('shared_picklist_rankings',q=>q.eq('event_id',event.id)),optional('picklist_categories',q=>q.eq('organization_id',viewer.organizationId)),optional('picklist_tags',q=>q.eq('organization_id',viewer.organizationId)),optional('event_global_documents',q=>q.eq('event_id',event.id)),optional('match_report_sources',q=>q.eq('event_id',event.id)),optional('prescout_assignments',q=>q.eq('event_id',event.id)),optional('strategy_drawings',q=>q.eq('event_id',event.id).eq('user_id',viewer.userId))]);
  const ids=eventTeamRows.map(r=>r.team_id);const teamRows=ids.length?await paged('teams',q=>q.eq('organization_id',viewer.organizationId).in('id',ids)):[];
@@ -25,6 +26,7 @@ export async function loadBundle(viewer:Viewer,event:Event,previous?:EventBundle
  const result:EventBundle={event,teams:teamRows.map(t=>({id:t.id,number:t.team_number,displayNumber:String(aliases[`frc${t.team_number}`]??aliases[String(t.team_number)]??t.team_number),name:t.name})),matches,assignments:assignments.filter(a=>eventIds.has(a.match_id)),forms:forms.flatMap(f=>{const parsed=formDefinitionSchema.safeParse(f.schema_json);return parsed.success?[{id:f.id,version:f.version,name:f.name,definition:parsed.data}]:[]}),entries,photos,rankings,categories,tags,globalDocument:documents[0]?.document_url??null,robotProfiles:Object.fromEntries(eventTeamRows.map(p=>[p.team_id,{drivetrain_type:p.drivetrain_type,shooter_type:p.shooter_type}])),reportSources,prescoutAssignments,strategyDrawings,canViewPicklist:allowed===true,downloadedAt:new Date().toISOString(),scope:scopedIdentity(viewer.userId,viewer.organizationId)};
  result.teams=result.teams.map(t=>({...t,displayNumber:t.displayNumber.replace(/^frc/i,'')}));
  result.profiles=Object.fromEntries(profileRows.map(p=>[p.id,p.display_name||'Scout']));
+ result.rankingSnapshotStartedAt=rankingSnapshotStartedAt;
  result.picklistHistory=picklistHistory;
  if(!event.is_manual){try{const official=await apiRequest<EventBundle['official']>(`/api/mobile/tba?eventId=${encodeURIComponent(event.id)}`,'GET',undefined,{expectedUserId:viewer.userId,expectedOrganizationId:viewer.organizationId});result.official=official?.apiError&&previous?.official?{...previous.official,apiError:official.apiError+' · showing the last downloaded official data'}:official;}catch(e){result.official=previous?.official?{...previous.official,apiError:(e as Error).message+' · showing the last downloaded official data'}:{rankings:[],sortInfo:[],oprs:{},apiError:(e as Error).message}}}
  return result;
@@ -67,3 +69,24 @@ export async function writePicklistBulk(viewer:Viewer,eventId:string,rows:Pickli
  if((data?.length??0)!==rows.length)throw Error('The server did not authorize every picklist change. Refresh and try again.');
 }
 export function emptyRebuilt():Payload{return {no_show:false,starting_spot:null,starting_spot_confirmed:false,auto:{shoot:0,ferry:0},teleop:{shoot:0,ferry:0},auto_fuel:0,teleop_fuel:0,fouls:0,defense:false,defense_level:null,defended_teams:[],robot_broke:false,breakage_issues:[],comments:'',report_source:'scheduled',manual_match:null};}
+
+/** Offline ranking transport. Preflight detects touched-field changes; the bulk upsert itself
+ * is one atomic statement. Without a new server RPC, this is not an atomic compare-and-swap:
+ * a teammate can still edit between this read and write. Never advertise that stronger guarantee. */
+export async function uploadPicklistBatch(batch: import('./picklist-queue').PicklistBatch): Promise<PicklistRanking[]> {
+ const c=requireClient();
+ const assertOwner=async()=>{const {data,error}=await c.auth.getUser();if(error||data.user?.id!==batch.userId)throw Error('Sign in as the owner of these offline picklist changes before uploading.');};
+ await assertOwner();
+ const ids=batch.intents.map(intent=>intent.teamId);
+ if(!ids.length)return [];
+ const {data:remote,error:readError}=await c.from('shared_picklist_rankings').select('*').eq('organization_id',batch.organizationId).eq('event_id',batch.eventId).in('team_id',ids);
+ if(readError)throw readError;
+ const {planPicklistUpload}=await import('./picklist-queue');
+ const rows=planPicklistUpload(batch,remote??[]);
+ const payload=rows.map(row=>({organization_id:batch.organizationId,event_id:batch.eventId,team_id:row.team_id,created_by:(row as PicklistRanking&{created_by?:string}).created_by??batch.userId,updated_by:batch.userId,rank:row.rank,category_id:row.category_id,note:row.note??'',selected:row.selected,tag_ids:row.tag_ids}));
+ await assertOwner();
+ const {data,error}=await c.from('shared_picklist_rankings').upsert(payload,{onConflict:'event_id,team_id'}).select('*');
+ if(error)throw error;
+ if((data?.length??0)!==payload.length)throw Error('The server did not confirm every ranking. Your offline changes remain queued.');
+ return data as PicklistRanking[];
+}
