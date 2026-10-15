@@ -1,5 +1,14 @@
 # HAL9000 Scout — beta release
 
+## October 14 release record
+
+- Version 1.0.0, iOS build 4; native source includes main e05fac5.
+- Expo build: https://expo.dev/accounts/stuypulseit/projects/hal9000/builds/595b985b-d43c-4162-b5e7-00650dfad7b4
+- Scheduled submission: https://expo.dev/accounts/stuypulseit/projects/hal9000/submissions/e1b844dc-b1e2-4e21-be30-d60a21ef6f89
+- Public metadata was uploaded and read back successfully. Title, subtitle, description, keywords, promotional text, marketing/support/privacy URLs, and categories persisted.
+- Expo's optional automatic TestFlight changelog rejected the current plan (Enterprise-only). The same build was submitted without that option; no upgrade or duplicate build was started. Tester notes remain below.
+- Build/submission completion and Apple processing must be checked separately; scheduling is not availability.
+
 App Store Connect app: 6822367941. Expo project: @stuypulseit/hal9000.
 Release uses production EAS Build followed by EAS Submit; no public App Store review/release is requested.
 
