@@ -7,7 +7,8 @@
 - Scheduled submission: https://expo.dev/accounts/stuypulseit/projects/hal9000/submissions/e1b844dc-b1e2-4e21-be30-d60a21ef6f89
 - Public metadata was uploaded and read back successfully. Title, subtitle, description, keywords, promotional text, marketing/support/privacy URLs, and categories persisted.
 - Expo's optional automatic TestFlight changelog rejected the current plan (Enterprise-only). The same build was submitted without that option; no upgrade or duplicate build was started. Tester notes remain below.
-- Build/submission completion and Apple processing must be checked separately; scheduling is not availability.
+- Build and EAS submission both finished successfully. The downloaded IPA confirms version 1.0.0/build 4, bundle org.stuypulse.hal9000.scout, AppIcon, the scene manifest, and both landscape directions for iPhone/iPad. Apple TestFlight lookup immediately afterward still showed build 3 as the latest visible build: build 4's Apple processing/listing is not yet confirmed.
+- Release checks: 132 mobile tests, TypeScript, and diff checks pass; privacy/support and terms URLs return HTTP 200. No public App Store release/review was initiated.
 
 App Store Connect app: 6822367941. Expo project: @stuypulseit/hal9000.
 Release uses production EAS Build followed by EAS Submit; no public App Store review/release is requested.
