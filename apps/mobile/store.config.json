@@ -1,0 +1,19 @@
+{
+  "configVersion": 0,
+  "apple": {
+    "version": "1.0",
+    "categories": ["PRODUCTIVITY", "EDUCATION"],
+    "info": {
+      "en-US": {
+        "title": "HAL9000 Scout",
+        "subtitle": "Robotics scouting, connected",
+        "description": "HAL9000 Scout brings StuyPulse's competition scouting workspace to your phone and tablet. Capture robot observations, review team performance, and prepare match strategy from one place.\n\nSCOUT AT THE FIELD\nRecord match, pit, and pre-scout observations. Review assignments and schedules, document robot capabilities, attach pit photos, and draw autonomous paths.\n\nKEEP WORKING OFFLINE\nDownload your event while connected, then use its saved teams, schedule, forms, and reports without internet. Reports save on your device first and queue for delivery when connectivity returns. QR report transfer and backup export provide additional handoff options. Photos and shared edits need a connection to reach your team's server.\n\nTURN OBSERVATIONS INTO STRATEGY\nExplore event summaries, compare teams, review performance timelines, organize shared picklists with tiers and tags, and sketch match plans. Official event information is supplied through The Blue Alliance when available.\n\nBUILT FOR YOUR TEAM\nUse your authorized HAL9000 account to access your organization's workspace and role-based tools. No account yet? Try local practice without uploading competition data.\n\nHAL9000 is developed by StuyPulse, FRC Team 694. It is not an official FIRST or The Blue Alliance application. Internet access is required for initial sign-in, event downloads, server administration, and third-party documents.",
+        "keywords": ["robotics", "scouting", "FRC", "competition", "team", "match", "pit", "picklist", "offline", "StuyPulse"],
+        "promoText": "Capture observations, compare robots, and plan your next match. Download your event before competition and keep scouting when the venue connection drops.",
+        "marketingUrl": "https://hal9000.stuypulse.com",
+        "supportUrl": "https://hal9000.stuypulse.com/privacy",
+        "privacyPolicyUrl": "https://hal9000.stuypulse.com/privacy"
+      }
+    }
+  }
+}
