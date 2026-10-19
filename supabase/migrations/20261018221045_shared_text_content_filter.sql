@@ -1,4 +1,4 @@
--- Local release candidate only. No retroactive rewrites or deletions.
+-- No retroactive rewrites or deletions. team_notes and picklist_rankings were removed by earlier migrations, so only live tables are covered.
 -- This baseline protects shared text; photos and drawings need separate moderation.
 begin;
 create or replace function private.content_text_blocked(value text)
@@ -46,11 +46,7 @@ grant execute on function private.content_text_blocked(text), private.content_js
 
 create trigger filter_scouting_text before insert or update of payload, status on public.scouting_entries
 for each row execute function private.filter_shared_text('payload');
-create trigger filter_team_notes before insert or update of note on public.team_notes
-for each row execute function private.filter_shared_text('note');
 create trigger filter_shared_picklist_notes before insert or update of note on public.shared_picklist_rankings
-for each row execute function private.filter_shared_text('note');
-create trigger filter_personal_picklist_notes before insert or update of note on public.picklist_rankings
 for each row execute function private.filter_shared_text('note');
 create trigger filter_picklist_category_names before insert or update of name on public.picklist_categories
 for each row execute function private.filter_shared_text('name');
