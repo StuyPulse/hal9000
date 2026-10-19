@@ -40,17 +40,7 @@ npm run typecheck
 
 New migration files were generated with Supabase CLI, then tested only against disposable local fixtures. Hosted advisors cannot certify these unapplied migrations; run security/performance advisors after an approved preview deployment and resolve any findings before production.
 
-## Baseline text filtering (local, October 18)
+## Text filtering
 
-- Shared English profanity/slur rules run before native report sharing, submitted-report correction and signed relay. Signed relay still acknowledges an already-existing identical receipt; it never rewrites the signed payload. A rejected report remains on the original device for the author to correct/re-export.
-- The matching SQL migration checks nested JSON string values in scouting reports plus team notes, shared/personal picklist notes and tier/tag names. It runs for direct authenticated writes and service-role mutations, so the website and direct Data API are not bypass paths once the migration is deployed. A legacy draft cannot evade the check with a status-only transition to submitted.
-- Local saving/finalizing is independent of filtering. No text is silently redacted, deleted, sent to an outside classifier, or logged by the filter. Safety-report explanations are deliberately not filtered: members must be able to report/quote abuse.
-- Unicode compatibility normalization, zero-width removal, basic leetspeak and separated letters are covered. Word boundaries avoid false positives in ordinary scouting terms. This is a limited deterministic English rule set, not semantic harassment/threat detection, complete multilingual filtering, OCR or an image classifier. New evasion patterns and false positives require review.
-- Existing server rows and downloaded caches are not retroactively rewritten. SQL permits unchanged legacy notes during rank-only edits; new/revised shared text must pass. A production rollout needs a separately approved legacy-content review and cross-device verification.
-- Photo auto-upload behavior is unchanged. The owner clarified that photos are automatically added; no manual approval queue or external moderation service has been enabled. Image moderation remains a release gate.
+The profanity/shared-text filter was removed on October 19 (database triggers dropped by `20261019000000_remove_shared_text_content_filter`; app and API checks deleted). Reporting and review remain.
 
-Verification: 165 mobile tests, 53 backend tests, both TypeScript checks, a disposable PGlite fixture exercising both database roles, iOS/Android/web exports and the website production Webpack build passed. Targeted backend ESLint had zero errors and six pre-existing warnings on unchanged declarations. Final native/live delivery tests remain separate. Final platform export directory: `/private/tmp/hal9000-text-filter-final-oct18` (iOS `entry-49a2f34914ea7378615e8ec5b62acfb8.hbc`, Android `entry-3457b6209a688320fe2f4e8f1a579790.hbc`). These are local exports, not shipped binaries.
-
-```sh
-node --import tsx apps/web/src/lib/mobile/verify-content-filter.mjs /absolute/path/to/pglite/dist/index.js
-```

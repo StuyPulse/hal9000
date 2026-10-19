@@ -1,7 +1,6 @@
 // Turns raw library/server errors into short sentences a scout can act on.
 // Anything already written for people passes through untouched.
 const RULES: [RegExp, string][] = [
-  [/content safety: revise inappropriate language/i, 'Content safety: revise inappropriate language before sharing. Your saved local work is retained.'],
   [/mobile server|not available on this deployment|endpoint is not available/i, 'We cannot reach the server right now. Your work is safe on this phone.'],
   [/network request failed|failed to fetch|fetch failed|networkerror|internet connection appears|econnrefused|enotfound|network is unreachable|could not connect|load failed/i, 'No connection. Your work is saved on this phone and will send when you are back online.'],
   [/timed? ?out|timeout|aborterror|aborted/i, 'That took too long. Check your connection and try again.'],

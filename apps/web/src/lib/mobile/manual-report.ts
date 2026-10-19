@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { validateNativeEntry, manualMatchMetadataSchema } from "@wildcard/shared/src/native-contracts";
-import { canDelete, MobileError, scopedEvent, strictPayload, requireShareableContent, type Actor, type MobileDatabase } from "./operations";
+import { canDelete, MobileError, scopedEvent, strictPayload, type Actor, type MobileDatabase } from "./operations";
 
 const metadataSchema = manualMatchMetadataSchema;
 const inputSchema = z.object({ entryId: z.string().uuid(), eventId: z.string().uuid(), teamId: z.string().uuid(), payload: z.record(z.string(), z.unknown()), expectedUpdatedAt: z.string().datetime({ offset: true }) }).strict();
@@ -28,7 +28,6 @@ export async function correctManualReport(database: MobileDatabase, actor: Actor
   const payload = { ...input.payload, manual_match: metadata, report_source: "manual" };
   const entry = validateNativeEntry({ ...before, team_id: input.teamId, payload });
   strictPayload(entry);
-  requireShareableContent(payload);
   const team = await database.from("event_teams").select("team_id").eq("event_id", input.eventId).eq("team_id", input.teamId).maybeSingle();
   if (team.error || !team.data) throw new MobileError(422, "invalid_team", "Choose a team in this event.");
   const matches: ManualCandidate[] = [];

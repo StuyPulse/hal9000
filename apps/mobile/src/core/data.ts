@@ -2,7 +2,6 @@ import {formDefinitionSchema} from '@wildcard/shared';
 import {requireClient} from './client';
 import {scopedIdentity,sameReport,sameManualIdentity} from './sync-model';
 import {validateNativeEntry} from '@wildcard/shared/src/native-contracts';
-import {assertShareableContent} from '@wildcard/shared/src/content-filter';
 import {apiRequest,MobileApiError} from './mobile-api';
 import type {Event,EventBundle,Viewer,NativeEntry,LocalSubmission,Payload,PicklistRanking} from './types';
 
@@ -46,7 +45,6 @@ export async function uploadSnapshot(record:LocalSubmission,expectedUserId?:stri
  if(record.origin==='relay')throw Error('Unsigned receipt is retained as a backup. The original scout must enable signed relay and re-export before cloud delivery.');
  const {data:remote,error:readError}=await c.from('scouting_entries').select('*').eq('id',entry.id).maybeSingle();if(readError)throw readError;
  if(remote&&sameReport(entry,remote as NativeEntry))return remote.updated_at??null;
- assertShareableContent(entry.payload);
  // The server may link a manual report to an official match after insertion.
  // Preserve that link on later score-only edits; never infer a new identity here.
  if(remote&&entry.match_id===null&&remote.match_id&&entry.payload.report_source==='manual'&&sameManualIdentity(entry.payload,remote.payload))entry.match_id=remote.match_id;
@@ -61,7 +59,6 @@ export async function writePicklist(viewer:Viewer,eventId:string,teamId:string,p
  const {data:existing,error:readError}=await c.from('shared_picklist_rankings').select('id').eq('event_id',eventId).eq('team_id',teamId).maybeSingle();
  if(readError)throw readError;
  const fields={rank:patch.rank,category_id:patch.category_id,note:patch.note,selected:patch.selected,tag_ids:patch.tag_ids,updated_by:viewer.userId};
- assertShareableContent(fields.note);
  const query=existing?c.from('shared_picklist_rankings').update(fields).eq('id',existing.id):c.from('shared_picklist_rankings').insert({...fields,organization_id:viewer.organizationId,event_id:eventId,team_id:teamId,created_by:viewer.userId});
  const {data,error}=await query.select('id');
  if(error)throw error;
@@ -92,7 +89,6 @@ export async function uploadPicklistBatch(batch: import('./picklist-queue').Pick
  if(readError)throw readError;
  const {planPicklistUpload}=await import('./picklist-queue');
  const rows=planPicklistUpload(batch,remote??[]);
- assertShareableContent(rows.filter(row=>row.note!==(remote??[]).find(existing=>existing.team_id===row.team_id)?.note).map(row=>row.note));
  const payload=rows.map(row=>({organization_id:batch.organizationId,event_id:batch.eventId,team_id:row.team_id,created_by:(row as PicklistRanking&{created_by?:string}).created_by??batch.userId,updated_by:batch.userId,rank:row.rank,category_id:row.category_id,note:row.note??'',selected:row.selected,tag_ids:row.tag_ids}));
  await assertOwner();
  const {data,error}=await c.from('shared_picklist_rankings').upsert(payload,{onConflict:'event_id,team_id'}).select('*');
