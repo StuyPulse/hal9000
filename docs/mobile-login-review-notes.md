@@ -25,3 +25,19 @@ Explicitly approved personal email addresses also exist. They must be disclosed;
 This text is prepared locally for review, not submitted or accepted. Before submission, verify the access model against the final binary and current server configuration, provide current reviewer instructions and credentials through Apple's secure form, and retain the personal-email disclosure. Do not mark the login issue resolved until Apple accepts the actual model or an equivalent qualifying login is implemented.
 
 No provider configuration, entitlements, login methods, membership rules, public listing or live review notes were changed. The account-deletion hold is separate from the login-service decision and still blocks public submission.
+
+## Guideline 1.2 (user-generated content) — prepared App Review explanation
+
+October 19, 2026. The profanity/shared-text filter was removed at the owner's request (database triggers dropped, app and API checks deleted). Do not claim the app filters or blocks objectionable text. Describe the controls that exist, and be ready to add a flag-only filter if Apple asks for an automated measure.
+
+> HAL9000 Scout is a closed, invitation-only tool for the members of one robotics team (StuyPulse, FRC Team 694), not a public social or content-sharing service. Nothing is visible to the public or to other organizations. Team members enter scouting observations, comments, robot photos and picklist notes that are shared only with the other approved members of the same team workspace, and access to a workspace requires organization membership granted and revocable by team administrators.
+>
+> The app provides the following safeguards for that content:
+> - **Reporting:** any member can report a scouting report, a robot photo or the workspace from within the app (Settings → Content safety and reports). Reports are saved on the device first, so they are not lost offline, and are delivered to team administrators when a connection is available.
+> - **Review and removal:** administrators review reports privately, record a resolution, and can remove or correct the content.
+> - **Blocking abusive users:** administrators can suspend a member's access to the team workspace, and can reverse the suspension. A suspended member can no longer view or add shared content.
+> - **Contact:** concerns can also be sent to se@stuypulse.com, which is published in the privacy policy and app listing materials.
+>
+> We do not use an automated word filter, because the content is short factual robot-scouting notes from vetted team members, but we are glad to add one if App Review requires it.
+
+Before submission: confirm the admin review, resolution and suspension flows work with real accounts on the final binary, confirm the in-app path text above matches the shipped navigation, and confirm the contact address is monitored. Do not state a response-time commitment the team has not agreed to. Paste this into the App Review notes field in App Store Connect; it has not been submitted.
