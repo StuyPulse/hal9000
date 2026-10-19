@@ -1,11 +1,13 @@
 import React from 'react';
-import { Text as RNText, TextInput as RNTextInput, type TextInputProps, type TextProps } from 'react-native';
+import { Text as RNText, TextInput as RNTextInput, useWindowDimensions, type TextInputProps, type TextProps } from 'react-native';
 
-/** System text size is honoured up to this multiple so layouts stay usable at the largest settings. */
-export const MAX_FONT_SCALE = 1.35;
+/** Preserve Dynamic Type, including accessibility sizes; individual display art may opt out. */
+export const MAX_FONT_SCALE = 0;
 
 export const Text = React.forwardRef<RNText, TextProps>(function Text(props, ref) {
-  return <RNText ref={ref} maxFontSizeMultiplier={MAX_FONT_SCALE} {...props} />;
+  const {fontScale}=useWindowDimensions();
+  // Re-measure native text when the system size changes while this screen is open.
+  return <RNText key={fontScale} ref={ref} maxFontSizeMultiplier={MAX_FONT_SCALE} {...props} />;
 });
 
 export const TextInput = React.forwardRef<RNTextInput, TextInputProps>(function TextInput(props, ref) {

@@ -10,6 +10,8 @@ import {BREAKAGE_TAGS,initialBreakageIssues,normalizeMatchTimestamp,normalizeReb
 import {canEditReport} from '../../src/core/report-editing';
 import {matchLabel,manualMatchLabel} from '../../src/features/stats';
 import type {Palette,Payload} from '../../src/core/types';
+import {useLayout} from '../../src/components/layout';
+import {fieldSize} from '../../src/core/layout-model';
 
 const spots=[
  {id:'depot',label:'Depot',x:14.6,y:8.5,mx:85.3,my:8.5},
@@ -21,21 +23,24 @@ const spots=[
  {id:'outpost-trench',label:'Outpost Trench',x:28,y:92.7,mx:72.6,my:92.6},
 ];
 function Counter({label,value,steps,onChange,theme,hideLabel=false}:{label:string;value:number;steps:number[];onChange:(v:number)=>void;theme:Palette;hideLabel?:boolean}){
+ const {largeText,fontScale}=useLayout();
  const clamp=(n:number)=>Math.max(0,Math.min(100000,n));
  const step=(delta:number)=><Pressable key={delta} accessibilityRole="button" accessibilityLabel={(delta>0?'Add ':'Subtract ')+Math.abs(delta)+' '+label} disabled={delta<0&&value===0} onPress={()=>onChange(clamp(value+delta))} style={{flex:1,minHeight:56,borderRadius:12,alignItems:'center',justifyContent:'center',backgroundColor:delta>0?theme.selection:theme.surface,borderWidth:1,borderColor:delta>0?theme.tint:theme.line,opacity:delta<0&&value===0?.4:1}}><Text style={{color:delta>0?theme.tint:theme.text,fontSize:17,fontWeight:'800'}}>{delta>0?'+':'−'}{Math.abs(delta)}</Text></Pressable>;
  const down=[...steps].sort((x,y)=>y-x).map(n=>-n),up=[...steps].sort((x,y)=>x-y);
  return <View style={{gap:6}}>
   {hideLabel?null:<Text style={{color:theme.muted,fontSize:14,fontWeight:'600'}}>{label}</Text>}
-  <View style={{flexDirection:'row',alignItems:'center',gap:6}}>
-   {down.map(step)}
-   <TextInput accessibilityLabel={label+' count'} keyboardType="number-pad" value={String(value)} onChangeText={v=>{if(/^\d*$/.test(v))onChange(clamp(Number(v)))}} selectTextOnFocus style={{flex:1.3,minHeight:56,borderRadius:12,borderWidth:1,borderColor:theme.line,backgroundColor:theme.surface,color:theme.text,fontSize:22,fontWeight:'800',textAlign:'center'}}/>
-   {up.map(step)}
+  <View style={{flexDirection:largeText?'column':'row',alignItems:'stretch',gap:6}}>
+   {largeText?<View style={{flexDirection:'row',gap:6}}>{down.map(step)}</View>:down.map(step)}
+   <TextInput accessibilityLabel={label+' count'} keyboardType="number-pad" value={String(value)} onChangeText={v=>{if(/^\d*$/.test(v))onChange(clamp(Number(v)))}} selectTextOnFocus style={{flex:largeText?undefined:1.3,minHeight:Math.max(56,34*fontScale),borderRadius:12,borderWidth:1,borderColor:theme.line,backgroundColor:theme.surface,color:theme.text,fontSize:22,fontWeight:'800',textAlign:'center'}}/>
+   {largeText?<View style={{flexDirection:'row',gap:6}}>{up.map(step)}</View>:up.map(step)}
   </View>
  </View>;
 }
 export default function MatchCapture(){
  const {id}=useLocalSearchParams<{id:string}>();
  const {records,bundle,viewer,theme,saveDraft}=useApp();const router=useRouter();
+ const {wide,contentWidth,height}=useLayout();
+ const field=fieldSize(contentWidth,height);
  const record=records.find(r=>r.entry.id===id);
  const [payload,setPayload]=useState<Payload|null>(null),[mirror,setMirror]=useState(false),[saving,setSaving]=useState(false),[error,setError]=useState('');
  const latest=useRef<Payload|null>(null),loaded=useRef<string|null>(null),saveVersion=useRef(0);
@@ -60,13 +65,13 @@ export default function MatchCapture(){
   </>}</Section>}
   <Section title="Auton starting position" theme={theme}>
    <View style={{flexDirection:'row',gap:8}}><View style={{flex:1}}><Choice label={noShow?'No show':'Mark no show'} selected={noShow} theme={theme} onPress={()=>set('no_show',!noShow)}/></View>{!noShow&&<View style={{flex:1}}><Choice label={mirror?'Mirrored':'Mirror field'} selected={mirror} theme={theme} onPress={()=>setMirror(!mirror)}/></View>}</View>
-   {!noShow&&<View style={{height:300,width:'100%',backgroundColor:'#fff',borderRadius:12,overflow:'hidden'}}>
+   {!noShow&&<><View style={{...field,maxWidth:'100%',alignSelf:'center',backgroundColor:'#fff',borderRadius:12,overflow:'hidden'}}>
     <Image source={require('../../assets/2026-field-map.png')} accessibilityLabel={alliance+' alliance field'} style={{position:'absolute',width:'100%',height:'100%',resizeMode:'stretch',transform:[{rotate:alliance==='blue'?'180deg':'0deg'},{scaleX:mirror?-1:1}]}}/>
-    {spots.map(spot=><Pressable key={spot.id} accessibilityRole="button" accessibilityLabel={'Start at '+spot.label} accessibilityState={{selected:payload.starting_spot===spot.id}} onPress={()=>set('starting_spot',payload.starting_spot===spot.id?null:spot.id)} style={{position:'absolute',left:((mirror?spot.mx:spot.x)+'%') as `${number}%`,top:((mirror?spot.my:spot.y)+'%') as `${number}%`,width:70,minHeight:48,transform:[{translateX:-35},{translateY:-24}],borderRadius:8,backgroundColor:payload.starting_spot===spot.id?theme.tint:theme.surface,borderWidth:1,borderColor:theme.tint,justifyContent:'center',padding:2}}><Text style={{color:payload.starting_spot===spot.id?theme.onTint:theme.text,fontSize:11,textAlign:'center',fontWeight:'600'}}>{spot.label}</Text></Pressable>)}
-   </View>}
+    {spots.map((spot,index)=><View key={spot.id} pointerEvents="none" style={{position:'absolute',left:((mirror?spot.mx:spot.x)+'%') as `${number}%`,top:((mirror?spot.my:spot.y)+'%') as `${number}%`,width:22,height:22,transform:[{translateX:-11},{translateY:-11}],borderRadius:11,backgroundColor:payload.starting_spot===spot.id?theme.tint:theme.surface,borderWidth:1,borderColor:theme.tint,justifyContent:'center'}}><Text style={{color:payload.starting_spot===spot.id?theme.onTint:theme.text,fontSize:11,textAlign:'center',fontWeight:'700'}}>{index+1}</Text></View>)}
+   </View><View style={{flexDirection:'row',flexWrap:'wrap',gap:8}}>{spots.map((spot,index)=><Choice key={spot.id} label={`${index+1} · ${spot.label}`} selected={payload.starting_spot===spot.id} theme={theme} onPress={()=>set('starting_spot',payload.starting_spot===spot.id?null:spot.id)}/>)}</View></>}
   </Section>
   {!noShow&&<>
-   {(['auto','teleop'] as const).map(period=>{const sc=payload[period] as {shoot:number;ferry:number};return <Section key={period} title={period==='auto'?'Autonomous':'Teleop'} theme={theme}>{(['shoot','ferry'] as const).map(key=><Counter key={key} label={key==='shoot'?'Scored':'Ferried'} value={sc[key]??0} steps={[10,1]} theme={theme} onChange={n=>score(period,key,n)}/>)}</Section>})}
+   <View style={{flexDirection:wide?'row':'column',gap:20,alignItems:'stretch'}}>{(['auto','teleop'] as const).map(period=>{const sc=payload[period] as {shoot:number;ferry:number};return <View key={period} style={{flex:wide?1:undefined,minWidth:0}}><Section title={period==='auto'?'Autonomous':'Teleop'} theme={theme}>{(['shoot','ferry'] as const).map(key=><Counter key={key} label={key==='shoot'?'Scored':'Ferried'} value={sc[key]??0} steps={[10,1]} theme={theme} onChange={n=>score(period,key,n)}/>)}</Section></View>})}</View>
    <Section title="Fouls" theme={theme}><Counter hideLabel label="Fouls" value={Number(payload.fouls??0)} steps={[1]} onChange={n=>set('fouls',n)} theme={theme}/></Section>
    <Section title="Defense" theme={theme}><Choice label="Played defense" theme={theme} selected={payload.defense===true} onPress={()=>set('defense',payload.defense!==true)}/>{payload.defense===true&&<>
     <Label theme={theme}>Defense level: {String(payload.defense_level)} / 10</Label><View style={{flexDirection:'row',flexWrap:'wrap',gap:8}}>{Array.from({length:10},(_,i)=><Choice key={i} label={String(i+1)} selected={payload.defense_level===i+1} onPress={()=>set('defense_level',i+1)} theme={theme}/>)}</View>

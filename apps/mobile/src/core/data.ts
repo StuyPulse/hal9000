@@ -2,11 +2,18 @@ import {formDefinitionSchema} from '@wildcard/shared';
 import {requireClient} from './client';
 import {scopedIdentity,sameReport,sameManualIdentity} from './sync-model';
 import {validateNativeEntry} from '@wildcard/shared/src/native-contracts';
+import {assertShareableContent} from '@wildcard/shared/src/content-filter';
 import {apiRequest,MobileApiError} from './mobile-api';
 import type {Event,EventBundle,Viewer,NativeEntry,LocalSubmission,Payload,PicklistRanking} from './types';
 
 export class MembershipPendingError extends Error{constructor(){super('Your account is signed in. An administrator needs to add you to the organization.');}}
-export async function loadViewer():Promise<Viewer>{const c=requireClient();const {data:{user},error}=await c.auth.getUser();if(error)throw error;if(!user)throw Error('Sign in to load your organization.');const [{data:member,error:memberError},{data:profile},{data:emailAccess}]=await Promise.all([c.from('organization_members').select('organization_id,role').eq('user_id',user.id).limit(1).maybeSingle(),c.from('profiles').select('display_name').eq('id',user.id).maybeSingle(),c.rpc('can_manage_email_access')]);if(memberError)throw memberError;if(!member)throw new MembershipPendingError();return {userId:user.id,organizationId:member.organization_id,role:member.role,displayName:profile?.display_name||user.email||'Scout',demo:false,canManageEmailAccess:emailAccess===true};}
+export async function loadViewer(organizationId?:string):Promise<Viewer>{
+ const c=requireClient();const {data:{user},error}=await c.auth.getUser();if(error)throw error;if(!user)throw Error('Sign in to load your organization.');
+ let membership=c.from('organization_members').select('organization_id,role').eq('user_id',user.id);
+ if(organizationId)membership=membership.eq('organization_id',organizationId);
+ const [{data:member,error:memberError},{data:profile},{data:emailAccess}]=await Promise.all([membership.limit(1).maybeSingle(),c.from('profiles').select('display_name').eq('id',user.id).maybeSingle(),c.rpc('can_manage_email_access')]);
+ if(memberError)throw memberError;if(!member)throw new MembershipPendingError();return {userId:user.id,organizationId:member.organization_id,role:member.role,displayName:profile?.display_name||user.email||'Scout',demo:false,canManageEmailAccess:emailAccess===true};
+}
 export async function loadEvents(viewer:Viewer):Promise<Event[]>{const {data,error}=await requireClient().from('events').select('*').eq('organization_id',viewer.organizationId).order('starts_at',{ascending:false});if(error)throw error;return data??[];}
 async function paged(table:string,filter:(q:any)=>any){const rows:any[]=[];for(let start=0;;start+=1000){const {data,error}=await filter(requireClient().from(table).select('*')).range(start,start+999);if(error)throw error;rows.push(...data??[]);if((data??[]).length<1000)return rows;}}
 // An empty successful RLS result is authoritative. A failed query is NOT empty
@@ -39,6 +46,7 @@ export async function uploadSnapshot(record:LocalSubmission,expectedUserId?:stri
  if(record.origin==='relay')throw Error('Unsigned receipt is retained as a backup. The original scout must enable signed relay and re-export before cloud delivery.');
  const {data:remote,error:readError}=await c.from('scouting_entries').select('*').eq('id',entry.id).maybeSingle();if(readError)throw readError;
  if(remote&&sameReport(entry,remote as NativeEntry))return remote.updated_at??null;
+ assertShareableContent(entry.payload);
  // The server may link a manual report to an official match after insertion.
  // Preserve that link on later score-only edits; never infer a new identity here.
  if(remote&&entry.match_id===null&&remote.match_id&&entry.payload.report_source==='manual'&&sameManualIdentity(entry.payload,remote.payload))entry.match_id=remote.match_id;
@@ -53,6 +61,7 @@ export async function writePicklist(viewer:Viewer,eventId:string,teamId:string,p
  const {data:existing,error:readError}=await c.from('shared_picklist_rankings').select('id').eq('event_id',eventId).eq('team_id',teamId).maybeSingle();
  if(readError)throw readError;
  const fields={rank:patch.rank,category_id:patch.category_id,note:patch.note,selected:patch.selected,tag_ids:patch.tag_ids,updated_by:viewer.userId};
+ assertShareableContent(fields.note);
  const query=existing?c.from('shared_picklist_rankings').update(fields).eq('id',existing.id):c.from('shared_picklist_rankings').insert({...fields,organization_id:viewer.organizationId,event_id:eventId,team_id:teamId,created_by:viewer.userId});
  const {data,error}=await query.select('id');
  if(error)throw error;
@@ -83,6 +92,7 @@ export async function uploadPicklistBatch(batch: import('./picklist-queue').Pick
  if(readError)throw readError;
  const {planPicklistUpload}=await import('./picklist-queue');
  const rows=planPicklistUpload(batch,remote??[]);
+ assertShareableContent(rows.filter(row=>row.note!==(remote??[]).find(existing=>existing.team_id===row.team_id)?.note).map(row=>row.note));
  const payload=rows.map(row=>({organization_id:batch.organizationId,event_id:batch.eventId,team_id:row.team_id,created_by:(row as PicklistRanking&{created_by?:string}).created_by??batch.userId,updated_by:batch.userId,rank:row.rank,category_id:row.category_id,note:row.note??'',selected:row.selected,tag_ids:row.tag_ids}));
  await assertOwner();
  const {data,error}=await c.from('shared_picklist_rankings').upsert(payload,{onConflict:'event_id,team_id'}).select('*');

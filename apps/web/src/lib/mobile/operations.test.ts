@@ -46,6 +46,13 @@ test("pit corrections permit members, deletion still owner or admin", () => {
   assert.equal(canCorrect(actor, foreign), true); assert.equal(canDelete(actor, foreign), false);
   assert.equal(canCorrect({ ...actor, role: "global_scout" }, { ...foreign, entry_type: "match" }), false);
 });
+test("report corrections reject filtered text without writing or changing the source", async () => {
+  const unsafe = {...entry, payload:{average_pieces:'12',notes:'shit'}};
+  const db = fake({events:[eventResult], scouting_entries:[{data:entry}],event_teams:[{data:{team_id:entry.team_id}}]});
+  await assert.rejects(correctReport(db,actor,{entry:unsafe,expectedUpdatedAt:time}), error=>error instanceof MobileError && error.status===422 && error.code==='content_filtered');
+  assert.equal(db.writes.length,0);
+  assert.equal(unsafe.payload.notes,'shit');
+});
 test("cross-org correction rejected before any DB operation", async () => {
   const db = fake({});
   await assert.rejects(correctReport(db, actor, { entry: { ...entry, organization_id: id(9) }, expectedUpdatedAt: time }), expectStatus(404));

@@ -60,7 +60,7 @@ export default function Global() {
   ) : null;
 
   return (
-    <Screen scroll={false}>
+    <Screen scroll={editing || !document}>
       {document ? (
         <View style={{ flexDirection: 'row', gap: 10 }}>
           {canEdit ? <View style={{ flex: 1 }}><Button title={editing ? 'Hide editor' : 'Change link'} secondary theme={theme} onPress={() => setEditing((value) => !value)} style={{ minHeight: 46, paddingVertical: 8 }} /></View> : null}
@@ -70,7 +70,7 @@ export default function Global() {
       {editor}
       {document ? (
         online && WebView ? (
-          <View style={{ flex: 1, borderRadius: 14, overflow: 'hidden', borderWidth: 1, borderColor: theme.line, backgroundColor: theme.surface }}>
+          <View style={{ flex: 1, minHeight: editing ? 240 : undefined, borderRadius: 14, overflow: 'hidden', borderWidth: 1, borderColor: theme.line, backgroundColor: theme.surface }}>
             <WebView
               source={{ uri: previewUrl(document) }}
               originWhitelist={['https://*']}

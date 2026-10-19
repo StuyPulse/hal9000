@@ -13,6 +13,12 @@ Status vocabulary for the "Native" column is feasibility, not progress:
 
 Implementation progress is tracked separately in the table at the end of this document.
 
+Landscape corrections and their separate geometry, bundle and device-verification status are recorded in [mobile-landscape-audit.md](mobile-landscape-audit.md).
+
+Public-distribution blockers and completed local hardening are recorded in [mobile-app-store-audit.md](mobile-app-store-audit.md); retention-policy review precedes account-deletion implementation.
+
+October 18 follow-up: [content safety](mobile-content-safety.md) adds offline-first safety reporting, a private reporter/admin review inbox, reversible team-access suspension and baseline pre-sharing text rules with database enforcement. Source and disposable database tests are local; hosted migrations, live-account testing, image moderation and operational response remain release gates. Account erasure is not implemented.
+
 ---
 
 ## 1. Top blockers and decisions

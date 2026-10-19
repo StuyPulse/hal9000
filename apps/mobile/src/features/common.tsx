@@ -1,12 +1,10 @@
 import React, { createContext, useEffect, useMemo, useRef, useState } from 'react';
-import { Platform, Pressable, RefreshControl, StyleSheet, View } from 'react-native';
+import { Platform, Pressable, StyleSheet, View } from 'react-native';
 import { Text, TextInput } from '../components/AppText';
-import { ScrollView } from 'react-native-gesture-handler';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { EventBundle, FeatureContext, Match, Palette, PicklistRanking, Team } from '../core/types';
 import { useApp } from '../core/context';
 import { Card } from '../components/ui';
-import { useLayout } from '../components/layout';
+import { Screen as AppScreen } from '../components/Screen';
 
 export type PicklistHistoryRow = {
   id: string; team_id: string; actor_user_id: string | null; action: 'baseline' | 'created' | 'updated' | 'deleted';
@@ -25,29 +23,10 @@ export const useFeatureApp = (): FeatureApp => useApp();
 export const ScrollRefContext = createContext<React.RefObject<unknown> | null>(null);
 
 export function Screen({ theme, children, scrollEnabled = true, footer, fill = false }: { theme: Palette; children: React.ReactNode; scrollEnabled?: boolean; footer?: React.ReactNode; fill?: boolean }) {
-  const insets = useSafeAreaInsets();
-  const { large, wide } = useLayout();
-  const { refresh, online, viewer } = useApp();
-  const [pulling, setPulling] = useState(false);
-  const gutter = wide ? 24 : 16;
-  const column = { width: '100%' as const, maxWidth: fill ? undefined : large ? 1180 : 920, alignSelf: 'center' as const };
   const scrollRef = useRef<unknown>(null);
   return (
     <ScrollRefContext.Provider value={scrollRef}>
-    <View style={{ flex: 1, backgroundColor: theme.bg }}>
-    {fill ? <View style={{ flex: 1, padding: gutter, gap: 12, ...column }}>{children}</View> : <ScrollView
-      ref={scrollRef as never}
-      scrollEnabled={scrollEnabled}
-      refreshControl={online && !viewer?.demo ? <RefreshControl refreshing={pulling} tintColor={theme.tint} onRefresh={() => { setPulling(true); void refresh().catch(() => undefined).finally(() => setPulling(false)); }} /> : undefined}
-      style={{ flex: 1, backgroundColor: theme.bg }}
-      contentContainerStyle={{ padding: gutter, paddingBottom: footer ? 16 : insets.bottom + 40, gap: 14, ...column }}
-      keyboardShouldPersistTaps="handled"
-      keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
-    >
-      {children}
-    </ScrollView>}
-    {footer ? <View style={{ paddingHorizontal: gutter, paddingTop: 12, paddingBottom: Math.max(12, insets.bottom), gap: 8, backgroundColor: theme.bg, borderTopWidth: 1, borderTopColor: theme.line }}><View style={{ ...column, gap: 8 }}>{footer}</View></View> : null}
-    </View>
+    <AppScreen scroll={!fill} scrollEnabled={scrollEnabled} scrollRef={scrollRef} footer={footer}>{children}</AppScreen>
     </ScrollRefContext.Provider>
   );
 }

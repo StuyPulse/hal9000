@@ -1,5 +1,5 @@
-import React, { useRef, useState } from 'react';
-import { Animated, Pressable, ScrollView, View } from 'react-native';
+import React, { useEffect, useRef, useState } from 'react';
+import { Animated, Pressable, ScrollView, View, useWindowDimensions } from 'react-native';
 import { Text } from './AppText';
 import type { Palette } from '../core/types';
 
@@ -18,12 +18,24 @@ export function DataTable<Row>({ theme, columns, rows, rowKey, firstTitle = 'Tea
 }) {
   const offset = useRef(new Animated.Value(0)).current;
   const translate = Animated.multiply(offset, -1);
-  const onBodyScroll = Animated.event([{ nativeEvent: { contentOffset: { x: offset } } }], { useNativeDriver: true });
+  const scroller = useRef<ScrollView>(null);
+  const lastOffset = useRef(0);
+  const onBodyScroll = Animated.event([{ nativeEvent: { contentOffset: { x: offset } } }], { useNativeDriver: true, listener: (event: {nativeEvent: {contentOffset: {x: number}}}) => { lastOffset.current = event.nativeEvent.contentOffset.x; } });
   const total = columns.reduce((sum, column) => sum + column.width, 0);
-  const headerHeight = 46;
+  const {fontScale} = useWindowDimensions();
+  const headerHeight = Math.max(48, 46 * fontScale);
+  rowHeight = Math.max(rowHeight, rowHeight * fontScale);
   const [width, setWidth] = useState(0);
+  useEffect(() => {
+    const maxOffset = Math.max(0, total - Math.max(0, width - firstWidth));
+    if (lastOffset.current > maxOffset) {
+      lastOffset.current = maxOffset;
+      scroller.current?.scrollTo({x: maxOffset, animated: false});
+      offset.setValue(maxOffset);
+    }
+  }, [width, total, firstWidth, offset]);
   return (
-    <View style={{ flex: 1 }} onLayout={(event) => setWidth(event.nativeEvent.layout.width)}>
+    <View style={{ flex: 1, minHeight: 0 }} onLayout={(event) => setWidth(event.nativeEvent.layout.width)}>
       <View style={{ flexDirection: 'row', width: width || undefined, height: headerHeight, backgroundColor: theme.panel, borderBottomWidth: 1, borderColor: theme.line }}>
         <Pressable disabled={!onSort} accessibilityRole="button" accessibilityLabel={`Sort by ${firstTitle}`} onPress={() => onSort?.('team')} style={{ width: firstWidth, height: headerHeight, justifyContent: 'center', paddingHorizontal: 12, backgroundColor: theme.panel, borderRightWidth: 1, borderColor: theme.line, zIndex: 2 }}>
           <Text style={{ color: sortKey === 'team' ? theme.tint : theme.text, fontWeight: '800', fontSize: 13 }}>{firstTitle}{sortKey === 'team' ? (sortDirection === 'asc' ? ' ↑' : ' ↓') : ''}</Text>
@@ -48,7 +60,7 @@ export function DataTable<Row>({ theme, columns, rows, rowKey, firstTitle = 'Tea
             </Pressable>
           ))}
         </View>
-        <Animated.ScrollView horizontal onScroll={onBodyScroll} scrollEventThrottle={16} showsHorizontalScrollIndicator style={{ flex: 1 }}>
+        <Animated.ScrollView ref={scroller} horizontal onScroll={onBodyScroll} scrollEventThrottle={16} showsHorizontalScrollIndicator style={{ flex: 1 }}>
           <View style={{ width: total }}>
             {rows.map((row) => (
               <View key={rowKey(row)} style={{ flexDirection: 'row', height: rowHeight, borderBottomWidth: 1, borderColor: theme.line }}>

@@ -49,7 +49,7 @@ export default function Home(){
  return <Screen topInset>
   <View style={{flexDirection:'row',alignItems:'center',justifyContent:'space-between',gap:10}}>
    <Text style={{color:theme.text,fontSize:22,fontWeight:'800',letterSpacing:-.4,flexShrink:1}} maxFontSizeMultiplier={1.3} numberOfLines={2}>{bundle.event.name}</Text>
-   <Pressable accessibilityRole="button" accessibilityLabel="Open outbox" onPress={()=>router.push('/outbox')} style={{flexDirection:'row',alignItems:'center',gap:6,backgroundColor:theme.surface,borderWidth:1,borderColor:theme.line,borderRadius:20,paddingHorizontal:12,minHeight:36}}>
+   <Pressable accessibilityRole="button" accessibilityLabel="Open outbox" onPress={()=>router.push('/outbox')} style={{flexDirection:'row',alignItems:'center',gap:6,backgroundColor:theme.surface,borderWidth:1,borderColor:theme.line,borderRadius:20,paddingHorizontal:12,minHeight:48}}>
     <View style={{width:8,height:8,borderRadius:4,backgroundColor:online?theme.success:theme.warning}}/>
     <Text style={{color:theme.text,fontSize:13,fontWeight:'700'}}>{data.toSend?`${data.toSend} to send`:online?'Online':'Offline'}</Text>
    </Pressable>

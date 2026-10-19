@@ -45,6 +45,13 @@ test("same report acknowledges; divergent content never overwrites", async () =>
   assert.equal(same.alreadyReceived, true);
   await assert.rejects(relayReport(fake({ ...ready(), scouting_entries: [{ data: { ...entry, payload: { comments: "different" } } }] }), actor, { envelope, signature }), status(409));
 });
+test("signed abusive text is retained for correction, not inserted; existing identical receipt still acknowledges", async () => {
+  const unsafe={...entry,payload:{comments:'shit'}};
+  const env={...envelope,entry:unsafe};
+  const proof={envelope:env,signature:sign(null,Buffer.from(canonicalJson(env)),privateKey).toString('base64')};
+  await assert.rejects(relayReport(fake({...ready(),scouting_entries:[{data:null}]}),actor,proof), error=>error instanceof MobileError && error.status===422 && error.code==='content_filtered');
+  assert.equal((await relayReport(fake({...ready(),scouting_entries:[{data:unsafe}]}),actor,proof)).alreadyReceived,true);
+});
 test("concurrent direct insert is acknowledged only when signed data agrees", async () => {
   const result = await relayReport(fake({ ...ready(), scouting_entries: [{ data: null }, { data: null, error: { code: "23505" } }, { data: entry }] }), actor, { envelope, signature });
   assert.equal(result.alreadyReceived, true);

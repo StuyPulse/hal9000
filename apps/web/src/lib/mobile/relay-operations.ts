@@ -2,7 +2,7 @@ import { createPublicKey, verify } from "node:crypto";
 import { z } from "zod";
 import { validateNativeEntry } from "@wildcard/shared/src/native-contracts";
 import { canonicalJson } from "@wildcard/shared/src/relay-contract";
-import { MobileError, scopedEvent, strictPayload, type Actor, type MobileDatabase } from "./operations";
+import { MobileError, scopedEvent, strictPayload, requireShareableContent, type Actor, type MobileDatabase } from "./operations";
 
 const proofSchema = z.object({ envelope: z.object({ version: z.literal(1), deviceId: z.string().uuid(), entry: z.unknown(), createdAt: z.string().datetime({ offset: true }) }).strict(), signature: z.string().regex(/^[A-Za-z0-9+/]{86}==$/) }).strict();
 export function validSignature(publicKey: string, envelope: unknown, signature: string) {
@@ -60,6 +60,7 @@ export async function relayReport(database: MobileDatabase, actor: Actor, input:
     return { entry: existing.data, alreadyReceived: true };
   }
   const { updated_at: _serverTimestamp, ...insert } = entry;
+  requireShareableContent(entry.payload);
   const result = await database.from("scouting_entries").insert(insert).select("*").maybeSingle();
   if (result.error) {
     // Concurrent direct upload and relay may race. Read back, acknowledge only

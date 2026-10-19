@@ -6,6 +6,8 @@ import Svg, { Path } from 'react-native-svg';
 import type { Palette } from '../core/types';
 import { ScrollRefContext } from './common';
 import { Button, Choice } from '../components/ui';
+import { useLayout } from '../components/layout';
+import { fieldSize } from '../core/layout-model';
 import { DRAWING_COLORS, toDisplay, toStored, type DrawStroke } from './strategyDrawing';
 
 const ASPECT = 674 / 1380;
@@ -16,6 +18,8 @@ export function StrategyCanvas({ theme, strokes, onChange, onDrawingChange, flip
   const scrollRef = useContext(ScrollRefContext);
   const [color, setColor] = useState<string>(DRAWING_COLORS[0]);
   const [width, setWidth] = useState(0);
+  const layout = useLayout();
+  const size = fieldSize(width || layout.contentWidth, layout.height);
   const strokesRef = useRef(strokes);
   strokesRef.current = strokes;
   const colorRef = useRef(color);
@@ -23,9 +27,11 @@ export function StrategyCanvas({ theme, strokes, onChange, onDrawingChange, flip
   const flippedRef = useRef(flipped);
   flippedRef.current = flipped;
   const widthRef = useRef(0);
-  widthRef.current = width;
+  widthRef.current = size.width;
   const changeRef = useRef(onChange);
   changeRef.current = onChange;
+  const drawingChangeRef = useRef(onDrawingChange);
+  drawingChangeRef.current = onDrawingChange;
   const active = useRef(false);
 
   const pan = useMemo(() => {
@@ -33,7 +39,7 @@ export function StrategyCanvas({ theme, strokes, onChange, onDrawingChange, flip
       const w = widthRef.current || 1;
       return toStored(x / w, y / (w * ASPECT), flippedRef.current);
     };
-    const end = () => { if (active.current) { active.current = false; onDrawingChange?.(false); } };
+    const end = () => { if (active.current) { active.current = false; drawingChangeRef.current?.(false); } };
     // Gesture Handler (not PanResponder): the latter loses the touch to the parent ScrollView on iOS.
     return Gesture.Pan()
       .runOnJS(true)
@@ -42,7 +48,7 @@ export function StrategyCanvas({ theme, strokes, onChange, onDrawingChange, flip
     .blocksExternalGesture(...(scrollRef ? [scrollRef as never] : []))
       .onBegin((event) => {
         active.current = true;
-        onDrawingChange?.(true);
+        drawingChangeRef.current?.(true);
         changeRef.current([...strokesRef.current, { color: colorRef.current, points: [point(event.x, event.y)] }]);
       })
       .onUpdate((event) => {
@@ -56,20 +62,20 @@ export function StrategyCanvas({ theme, strokes, onChange, onDrawingChange, flip
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const w = width || 1;
+  const w = size.width;
   const h = w * ASPECT;
   return (
     <View style={{ gap: 10 }}>
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
         {DRAWING_COLORS.map((value, index) => <Choice key={value} theme={theme} label={`Pen ${index + 1}${color === value ? ' ✓' : ''}`} selected={color === value} onPress={() => setColor(value)} />)}
       </View>
-      <GestureHandlerRootView>
+      <View onLayout={(event) => setWidth(event.nativeEvent.layout.width)} style={{width:'100%',alignItems:'center'}}>
+      <GestureHandlerRootView style={{width:size.width,maxWidth:'100%'}}>
       <GestureDetector gesture={pan}>
       <View
         accessible
         accessibilityLabel={`Strategy field. ${strokes.length} strokes drawn. Draw with one finger.`}
-        onLayout={(event) => setWidth(event.nativeEvent.layout.width)}
-        style={{ width: '100%', height: width ? h : 220, borderRadius: 14, overflow: 'hidden', backgroundColor: theme.dark ? '#1b2330' : '#e6ebf2', borderWidth: 1, borderColor: theme.line }}
+        style={{ width: '100%', height: h, borderRadius: 14, overflow: 'hidden', backgroundColor: theme.dark ? '#1b2330' : '#e6ebf2', borderWidth: 1, borderColor: theme.line }}
       >
         {fieldArt ? <View pointerEvents="none" style={{ position: 'absolute', width: '100%', height: '100%' }}><Image source={fieldArt} resizeMode="stretch" style={{ width: '100%', height: '100%', transform: [{ rotate: flipped ? '180deg' : '0deg' }] }} /></View> : null}
         <Svg pointerEvents="none" width="100%" height="100%" viewBox={`0 0 ${w} ${h}`}>
@@ -83,6 +89,7 @@ export function StrategyCanvas({ theme, strokes, onChange, onDrawingChange, flip
  </View>
       </GestureDetector>
       </GestureHandlerRootView>
+      </View>
       <View style={{ flexDirection: 'row', gap: 10 }}>
         <Button theme={theme} secondary title="Undo" icon="undo" disabled={!strokes.length} onPress={() => onChange(strokes.slice(0, -1))} style={{ flex: 1 }} />
         <Button theme={theme} secondary title="Clear" disabled={!strokes.length} onPress={() => onChange([])} style={{ flex: 1 }} />

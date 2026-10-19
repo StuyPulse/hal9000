@@ -1,0 +1,2 @@
+export const REMOVE_REVOKED_VIEWER_SQL="DELETE FROM local_items WHERE scope='device' AND kind='meta' AND id='viewer' AND json_extract(json,'$.userId')=? AND json_extract(json,'$.organizationId')=? AND coalesce(json_extract(json,'$.demo'),0)=0";
+export function matchesRevokedViewer(viewer:{userId?:unknown;organizationId?:unknown;demo?:unknown},userId:string,organizationId:string){return viewer.userId===userId&&viewer.organizationId===organizationId&&!viewer.demo;}

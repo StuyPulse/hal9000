@@ -1,6 +1,7 @@
 import * as SQLite from 'expo-sqlite';
 import type { LocalSubmission, LocalPhoto } from './types';
 import { acknowledge,failRevision } from './sync-model';
+import {REMOVE_REVOKED_VIEWER_SQL} from './viewer-cache-model';
 
 let database: Promise<SQLite.SQLiteDatabase> | null = null;
 export function openStore() {
@@ -10,6 +11,8 @@ export async function putValue(scope:string,kind:string,id:string,value:unknown)
 export async function getValue<T>(scope:string,kind:string,id:string):Promise<T|null>{const db=await openStore();const row=await db.getFirstAsync<{json:string}>('SELECT json FROM local_items WHERE scope=? AND kind=? AND id=?',scope,kind,id);return row?JSON.parse(row.json) as T:null;}
 export async function listValues<T>(scope:string,kind:string):Promise<T[]>{const db=await openStore();const rows=await db.getAllAsync<{json:string}>('SELECT json FROM local_items WHERE scope=? AND kind=? ORDER BY id',scope,kind);return rows.map(r=>JSON.parse(r.json) as T);}
 export async function removeValue(scope:string,kind:string,id:string){const db=await openStore();await db.runAsync('DELETE FROM local_items WHERE scope=? AND kind=? AND id=?',scope,kind,id);}
+/** Revoke automatic workspace reopening, without deleting drafts or another account's cache pointer. */
+export async function removeCachedViewer(userId:string,organizationId:string){const db=await openStore();await db.runAsync(REMOVE_REVOKED_VIEWER_SQL,userId,organizationId);}
 export async function acknowledgeStored(scope:string,id:string,revision:number,serverUpdatedAt:string|null){const db=await openStore();await db.withExclusiveTransactionAsync(async tx=>{const row=await tx.getFirstAsync<{json:string}>('SELECT json FROM local_items WHERE scope=? AND kind=? AND id=?',scope,'entry',id);if(!row)return;const latest=JSON.parse(row.json) as LocalSubmission;await tx.runAsync('UPDATE local_items SET json=? WHERE scope=? AND kind=? AND id=?',JSON.stringify(acknowledge(latest,revision,serverUpdatedAt)),scope,'entry',id)});}
 export const listRecords=(scope:string)=>listValues<LocalSubmission>(scope,'entry');
 export async function failStored(scope:string,id:string,revision:number,error:string){const db=await openStore();await db.withExclusiveTransactionAsync(async tx=>{const row=await tx.getFirstAsync<{json:string}>('SELECT json FROM local_items WHERE scope=? AND kind=? AND id=?',scope,'entry',id);if(!row)return;const latest=JSON.parse(row.json) as LocalSubmission;await tx.runAsync('UPDATE local_items SET json=? WHERE scope=? AND kind=? AND id=?',JSON.stringify(failRevision(latest,revision,error)),scope,'entry',id)});}

@@ -1,9 +1,13 @@
 import { z } from "zod";
 import { validateNativeEntry } from "@wildcard/shared/src/native-contracts";
 import { canonicalJson } from "@wildcard/shared/src/relay-contract";
+import {hasBlockedContent, CONTENT_FILTER_MESSAGE} from "@wildcard/shared/src/content-filter";
 
 export class MobileError extends Error {
   constructor(public status: number, public code: string, message: string) { super(message); }
+}
+export function requireShareableContent(value: unknown) {
+  if (hasBlockedContent(value)) throw new MobileError(422, "content_filtered", CONTENT_FILTER_MESSAGE);
 }
 type Role = "admin" | "developer" | "scout" | "global_scout" | "master" | "strategist";
 export type Actor = { userId: string; organizationId: string; role: Role };
@@ -92,6 +96,7 @@ export async function correctReport(database: MobileDatabase, actor: Actor, inpu
   if (before.updated_at !== parsed.expectedUpdatedAt) return fail(409, "conflict", "This report changed on another device. Refresh before correcting it.");
   const team = await database.from("event_teams").select("team_id").eq("event_id", entry.event_id).eq("team_id", entry.team_id).maybeSingle();
   check(team.error); if (!team.data) return fail(422, "invalid_team", "The report team is not in this event.");
+  requireShareableContent(entry.payload);
   // Only mutable fields are written. The updated_at comparison is applied by
   // PostgreSQL in the same statement, not merely checked in application code.
   const update = await database.from("scouting_entries").update({ payload: entry.payload, last_edited_by: actor.userId }).eq("id", entry.id).eq("organization_id", actor.organizationId).eq("updated_at", parsed.expectedUpdatedAt).select("*").maybeSingle();

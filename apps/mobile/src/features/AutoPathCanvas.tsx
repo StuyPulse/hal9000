@@ -6,6 +6,8 @@ import Svg, { Defs, LinearGradient, Path, Stop } from 'react-native-svg';
 import type { Palette } from '../core/types';
 import { ScrollRefContext } from './common';
 import { Button } from '../components/ui';
+import { useLayout } from '../components/layout';
+import { fieldSize } from '../core/layout-model';
 import { appendPoint, canStartStroke, clampPoint, MAX_STROKES, PATH_COLORS, PATH_HEIGHT, PATH_WIDTH, START_OPACITY, strokesToSvg, svgToStrokes, type Stroke } from './autoPath';
 
 /**
@@ -18,17 +20,23 @@ export function AutoPathCanvas({ theme, value, onChange, onDrawingChange, fieldA
   const scrollRef = useContext(ScrollRefContext);
   const [color, setColor] = useState<string>(PATH_COLORS[0].value);
   const [width, setWidth] = useState(0);
+  const layout = useLayout();
+  const size = fieldSize(width || layout.contentWidth, layout.height);
+  const changeRef = useRef(onChange);
+  changeRef.current = onChange;
+  const drawingChangeRef = useRef(onDrawingChange);
+  drawingChangeRef.current = onDrawingChange;
   const strokesRef = useRef(strokes);
   const colorRef = useRef(color);
   const widthRef = useRef(0);
   const drawing = useRef(false);
   colorRef.current = color;
-  widthRef.current = width;
+  widthRef.current = size.width;
 
   const commit = (next: Stroke[], persist: boolean) => {
     strokesRef.current = next;
     setStrokes(next);
-    if (persist) onChange(strokesToSvg(next));
+    if (persist) changeRef.current(strokesToSvg(next));
   };
   const toPoint = (x: number, y: number) => {
     const w = widthRef.current || 1;
@@ -44,7 +52,7 @@ export function AutoPathCanvas({ theme, value, onChange, onDrawingChange, fieldA
     .onBegin((event) => {
       if (!canStartStroke(strokesRef.current)) return;
       drawing.current = true;
-      onDrawingChange?.(true);
+      drawingChangeRef.current?.(true);
       commit([...strokesRef.current, { color: colorRef.current, points: [toPoint(event.x, event.y)] }], false);
     })
     .onUpdate((event) => {
@@ -58,12 +66,11 @@ export function AutoPathCanvas({ theme, value, onChange, onDrawingChange, fieldA
   function finish() {
     if (!drawing.current) return;
     drawing.current = false;
-    onDrawingChange?.(false);
+    drawingChangeRef.current?.(false);
     // A tap that never moved leaves a one-point stroke; the website drops it too.
     commit(strokesRef.current.filter((stroke) => stroke.points.length > 1), true);
   }
 
-  const height = width * (PATH_HEIGHT / PATH_WIDTH);
   const usable = strokes.filter((stroke) => stroke.points.length > 1);
   return (
     <View style={{ gap: 10 }}>
@@ -76,13 +83,13 @@ export function AutoPathCanvas({ theme, value, onChange, onDrawingChange, fieldA
           </Pressable>
         ))}
       </View>
-      <GestureHandlerRootView>
+      <View onLayout={(event) => setWidth(event.nativeEvent.layout.width)} style={{width:'100%',alignItems:'center'}}>
+      <GestureHandlerRootView style={{width:size.width,maxWidth:'100%'}}>
       <GestureDetector gesture={pan}>
       <View
         accessible
         accessibilityLabel={`Autonomous path drawing area. ${usable.length} of ${MAX_STROKES} routes drawn. Draw with one finger.`}
-        onLayout={(event) => setWidth(event.nativeEvent.layout.width)}
-        style={{ width: '100%', height: height || 220, borderRadius: 14, overflow: 'hidden', backgroundColor: theme.dark ? '#1b2330' : '#e6ebf2', borderWidth: 1, borderColor: theme.line }}
+        style={{ width: '100%', height: size.height, borderRadius: 14, overflow: 'hidden', backgroundColor: theme.dark ? '#1b2330' : '#e6ebf2', borderWidth: 1, borderColor: theme.line }}
       >
         {fieldArt ? <View pointerEvents="none" style={{ position: 'absolute', width: '100%', height: '100%' }}><Image source={fieldArt} resizeMode="stretch" style={{ width: '100%', height: '100%', opacity: 0.9 }} /></View> : null}
         <Svg pointerEvents="none" width="100%" height="100%" viewBox={`0 0 ${PATH_WIDTH} ${PATH_HEIGHT}`}>
@@ -106,6 +113,7 @@ export function AutoPathCanvas({ theme, value, onChange, onDrawingChange, fieldA
       </View>
       </GestureDetector>
       </GestureHandlerRootView>
+      </View>
       <View style={{ flexDirection: 'row', gap: 10 }}>
         <Button theme={theme} secondary title="Undo stroke" icon="undo" disabled={!strokes.length} onPress={() => commit(strokesRef.current.slice(0, -1), true)} style={{ flex: 1 }} />
         <Button theme={theme} secondary title="Clear all" disabled={!strokes.length} onPress={() => commit([], true)} style={{ flex: 1 }} />

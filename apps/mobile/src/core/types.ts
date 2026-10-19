@@ -34,7 +34,7 @@ export type FeatureContext = {
  createDraft: (kind: EntryKind, teamId: string, matchId?: string | null, assignmentId?: string | null, payload?: Payload) => Promise<LocalSubmission>;
  saveDraft: (id: string, payload: Payload, finalize?: boolean) => Promise<void>;
  sync: () => Promise<void>; refresh: () => Promise<void>;
- addPhoto: (teamId: string, uri: string) => Promise<void>;
+ addPhoto: (teamId: string, uri: string, selectionId?: string) => Promise<void>;
  savePicklistRanking: (teamId: string, patch: Partial<PicklistRanking>) => Promise<void>;
  savePicklistRankings: (patches:{teamId:string;patch:Partial<PicklistRanking>}[]) => Promise<void>;
  saveStrategyDrawing: (strokes: unknown) => Promise<void>;

@@ -3,12 +3,14 @@ import {Appearance,AppState} from 'react-native';
 import NetInfo from '@react-native-community/netinfo';
 import * as Crypto from 'expo-crypto';
 import {client,requireClient} from './client';
-import {putValue,getValue,listRecords,listPhotos,acknowledgeStored,failStored,removeValue} from './storage';
+import {putValue,getValue,listRecords,listPhotos,acknowledgeStored,failStored,removeValue,removeCachedViewer} from './storage';
 import {loadViewer,loadEvents,loadBundle,uploadSnapshot,emptyRebuilt,writePicklist,writePicklistBulk,MembershipPendingError,type PicklistRow} from './data';
 import {DEMO_VIEWER,demoBundle} from './demo';
 import {scopedIdentity,updateLocal,reusableDraft,shouldUpload} from './sync-model';
 import {canEditReport,seedServerEdit} from './report-editing';
 import {stagePhoto,uploadPhoto} from './photos';
+import {queuePhotoSelection} from './photo-selection-model';
+import {safetyQueue} from './safety-sync';
 import {drawingQueue,overlayPendingDrawings} from './strategy-sync';
 import {authRedirect} from './auth-flows';
 import {apiRequest} from './mobile-api';
@@ -59,7 +61,7 @@ export function AppProvider({children}:{children:React.ReactNode}){
   if(v.demo||!connectionRef.current||refreshLock.current)return;
   refreshLock.current=true;const epoch=eventEpoch.current;
   try{
-   const fresh=await loadViewer();if(fresh.userId!==v.userId||fresh.organizationId!==v.organizationId)throw Error('Your online account or organization changed. Sign in to that workspace before syncing.');
+   const fresh=await loadViewer(v.organizationId);if(fresh.userId!==v.userId||fresh.organizationId!==v.organizationId)throw Error('Your online account or organization changed. Sign in to that workspace before syncing.');
    const s=scopedIdentity(v.userId,v.organizationId);if(scopeRef.current!==s)return;
    setViewer(fresh);await putValue('device','meta','viewer',fresh);
    const eventRows=await loadEvents(fresh);if(scopeRef.current!==s)return;
@@ -77,7 +79,12 @@ export function AppProvider({children}:{children:React.ReactNode}){
     const withPhotos={...latest,photos:cachedPhotos.photos};
     if(scopeRef.current===s&&eventRef.current===next.event.id)await saveBundle(withPhotos);else await workspaceCache.saveBundle(withPhotos,false);
    }).catch(()=>{});
-  }catch(e){if(e instanceof MembershipPendingError){setMembershipPending(true);setViewer(null);setBundle(null);scopeRef.current=null;}throw e;}
+  }catch(e){if(e instanceof MembershipPendingError&&scopeRef.current===scopedIdentity(v.userId,v.organizationId,v.demo)){
+   // Only an authoritative membership denial closes the workspace. Network
+   // failures still retain offline access; unsent rows are never destroyed.
+   scopeRef.current=null;eventEpoch.current++;setMembershipPending(true);setViewer(null);setBundle(null);setRecords([]);setPhotos([]);setEvents([]);setSyncing(false);
+   await removeCachedViewer(v.userId,v.organizationId);
+  }throw e;}
   finally{refreshLock.current=false;}
  },[saveBundle]);
  const backgroundRefresh=useRef<(v:Viewer)=>Promise<void>>(refreshOnline);backgroundRefresh.current=refreshOnline;
@@ -121,12 +128,14 @@ export function AppProvider({children}:{children:React.ReactNode}){
     try{await uploadPhoto(photo,viewer.userId);await putValue(scope,'photo',photo.id,{...photo,status:'synced',error:null})}
     catch(e){failures++;await putValue(scope,'photo',photo.id,{...photo,status:'failed',error:(e as Error).message})}
    }
+   await safetyQueue(scope).flush(()=>scopeRef.current===scope&&connectionRef.current);
+   const safetyPending=(await safetyQueue(scope).list()).some(row=>row.status==='pending');
    const drawings=await drawingQueue(scope).flush(()=>scopeRef.current===scope&&connectionRef.current);
    if(drawings.error&&scopeRef.current===scope)setError('Strategy drawing: '+drawings.error);
    const rankings=await flushPendingPicklist(scope,()=>scopeRef.current===scope&&connectionRef.current);
    if(rankings.error&&scopeRef.current===scope)setError(rankings.error);
    await reloadLocal();
-   if(!failures&&!drawings.error&&!rankings.error&&connectionRef.current){await putValue(scope,'meta','last-sync',{at:Date.now()});void backgroundRefresh.current(viewer).catch(e=>setError(e.message));}
+   if(!failures&&!safetyPending&&!drawings.error&&!rankings.error&&connectionRef.current){await putValue(scope,'meta','last-sync',{at:Date.now()});void backgroundRefresh.current(viewer).catch(e=>setError(e.message));}
   }catch(e){if(scopeRef.current===scope)setError((e as Error).message)}
   finally{syncLock.current=false;if(scopeRef.current===scope)setSyncing(false)}
  },[scope,viewer?.userId,viewer?.role,viewer?.demo,online,reloadLocal,saveBundle]);
@@ -193,7 +202,15 @@ export function AppProvider({children}:{children:React.ReactNode}){
   return operation;
  };
  const saveDraft=async(id:string,payload:Payload,finalize=false)=>{if(!scope||!viewer)throw Error('Sign in first');const operation=writeChain.current.then(async()=>{if(scopeRef.current!==scope)throw Error('The signed-in account changed. Reopen this report.');const current=await getValue<LocalSubmission>(scope,'entry',id);if(!current)throw Error('Local draft unavailable');if(!canEditReport(viewer,current.entry,current))throw Error('This report is read-only for your role. Your saved copy is retained.');if(scopeRef.current!==scope)throw Error('The signed-in account changed. Reopen this report.');const next=updateLocal(current,normalizeNativePayload(current.entry.entry_type,payload),finalize);if(finalize)validateNativeEntry(next.entry);await putValue(scope,'entry',id,next);await reloadLocal();});writeChain.current=operation.catch(()=>{});await operation;if(finalize){if(autosaveTimer.current)clearTimeout(autosaveTimer.current);autosaveTimer.current=null;if(scopeRef.current===scope)void syncRef.current()}else scheduleDraftSync()};
- const addPhoto=async(teamId:string,uri:string)=>{if(!viewer||!bundle||!scope)throw Error('Select an event');const photo=await stagePhoto(viewer,bundle,uri,teamId);await putValue(scope,'photo',photo.id,photo);await reloadLocal();void sync()};
+ const addPhoto=async(teamId:string,uri:string,selectionId?:string)=>{if(!viewer||!bundle||!scope)throw Error('Select an event');await serializeLocalWrite(async()=>{
+  if(scopeRef.current!==scope)throw Error('Your account changed. Reopen the photo chooser.');
+  // Keep the selection UUID: retrying a failed staging cleanup must not upload a duplicate.
+  await queuePhotoSelection({event_id:bundle.event.id,organization_id:viewer.organizationId,uploaded_by:viewer.userId,team_id:teamId},{
+   read:()=>selectionId?getValue<LocalPhoto>(scope,'photo',selectionId):Promise.resolve(null),
+   stage:()=>stagePhoto(viewer,bundle,uri,teamId,selectionId),
+   write:photo=>putValue(scope,'photo',photo.id,photo),
+  });
+ });await reloadLocal();if(scopeRef.current===scope)void sync()};
  const signOut=async()=>{setMembershipPending(false);scopeRef.current=null;setViewer(null);setBundle(null);setRecords([]);setPhotos([]);setEvents([]);setSyncing(false);await removeValue('device','meta','viewer');await client?.auth.signOut({scope:'local'});};
  const updatePractice=async(next:EventBundle)=>{if(!viewer?.demo||!scope||next.scope!==scope)throw Error('This operation is only available in local practice.');await saveBundle(next);setEvents([next.event]);};
  const receiveEntry=async(entry:NativeEntry,revision:number,proof?:SignedRelayProof)=>{if(!viewer||!bundle||!scope)throw Error('Select an event');if(!['master','admin','developer'].includes(viewer.role))throw Error('Master access is required');if(entry.organization_id!==viewer.organizationId||entry.event_id!==bundle.event.id)throw Error('QR belongs to a different organization/event.');if(!bundle.teams.some(t=>t.id===entry.team_id))throw Error('QR team is not in the downloaded event.');if(entry.match_id&&!bundle.matches.some(m=>m.id===entry.match_id&&[...m.red_teams,...m.blue_teams].includes(entry.team_id)))throw Error('QR match/team does not belong to this event.');if(proof&&canonicalJson(validateSignedProof(proof).envelope.entry)!==canonicalJson(entry))throw Error('The signed proof does not match this report.');const old=await getValue<LocalSubmission>(scope,'entry',entry.id);if(old?.origin==='own')throw Error('This device already has its own copy. A QR receipt cannot overwrite it.');if(old&&old.revision>revision)return;if(old&&old.revision===revision&&!proof)return;await putValue(scope,'entry',entry.id,{entry,revision,proof,acknowledgedRevision:null,status:'received',origin:'relay',error:proof?null:'Unsigned backup: enable signed relay on the original scout device and re-export before cloud delivery.',baseUpdatedAt:null,changedAt:new Date().toISOString()} satisfies LocalSubmission);await reloadLocal();};

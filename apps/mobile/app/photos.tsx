@@ -6,18 +6,22 @@ import {Screen} from '../src/components/Screen';
 import {Label,Section} from '../src/components/ui';
 import {useLayout} from '../src/components/layout';
 import {PhotoSubmissionQueue} from '../src/components/PhotoSubmissionQueue';
+import {useRouter} from 'expo-router';
 export default function Photos(){
+ const router=useRouter();
  const {bundle,photos,theme}=useApp();
  const [target,setTarget]=useState<string|null>(null);
- const {wide,large}=useLayout();
+ const {wide,large,contentWidth}=useLayout();
  if(!bundle)return <Screen><Label theme={theme}>Download an event first.</Label></Screen>;
  const local=photos.filter(p=>p.event_id===bundle.event.id);
  const covered=new Set([...bundle.photos.map(p=>p.team_id),...local.map(p=>p.team_id)]);
  const total=bundle.teams.length,done=bundle.teams.filter(t=>covered.has(t.id)).length;
  const teams=[...bundle.teams].sort((a,b)=>a.number-b.number);
  const number=(id:string)=>bundle.teams.find(t=>t.id===id)?.displayNumber??'';
- const cell={width:large?'15%':wide?'23%':'31.5%'} as const;
- const gallery=[...local.map(p=>({id:p.id,team:p.team_id,uri:p.localUri,status:p.status==='synced'?'':p.status==='failed'?'Failed':'Uploading'})),...bundle.photos.map(p=>({id:p.id,team:p.team_id,uri:p.localUri??p.signedUrl,status:''}))];
+ const columns=large?6:wide?4:3;
+ const cell={width:(contentWidth-10*(columns-1))/columns};
+ const localIds=new Set(local.map(p=>p.id));
+ const gallery=[...local.map(p=>({id:p.id,team:p.team_id,uri:p.localUri,status:p.status==='synced'?'':p.status==='failed'?'Failed':'Uploading'})),...bundle.photos.filter(p=>!localIds.has(p.id)).map(p=>({id:p.id,team:p.team_id,uri:p.localUri??p.signedUrl,status:''}))];
  return <Screen>
   <View style={{gap:8}}>
    <View style={{flexDirection:'row',justifyContent:'space-between',alignItems:'baseline'}}><Text style={{color:theme.text,fontSize:22,fontWeight:'800'}}>{done} of {total} teams</Text><Text style={{color:theme.muted,fontSize:14}}>have a photo</Text></View>
@@ -32,6 +36,7 @@ export default function Photos(){
     {gallery.map(p=><View key={p.id} style={{...cell,aspectRatio:1,borderRadius:12,overflow:'hidden',backgroundColor:theme.panel}}>
      {p.uri?<Image accessibilityLabel={`Robot photo, team ${number(p.team)}`} source={{uri:p.uri}} style={{width:'100%',height:'100%'}} resizeMode="cover"/>:<View style={{flex:1,alignItems:'center',justifyContent:'center'}}><Text style={{color:theme.muted,fontSize:12,textAlign:'center'}}>Reconnect to load</Text></View>}
      <View style={{position:'absolute',left:6,bottom:6,backgroundColor:'rgba(0,0,0,.7)',borderRadius:8,paddingHorizontal:8,paddingVertical:3}}><Text style={{color:'#fff',fontWeight:'800',fontSize:12}}>{number(p.team)}{p.status?` · ${p.status}`:''}</Text></View>
+     <Pressable accessibilityRole="button" accessibilityLabel={`Report photo of team ${number(p.team)}`} onPress={()=>router.push({pathname:'/safety',params:{targetKind:'photo',targetId:p.id,eventId:bundle.event.id}})} style={{position:'absolute',top:0,right:0,minHeight:48,minWidth:48,padding:8,justifyContent:'center',backgroundColor:'rgba(0,0,0,.8)'}}><Text style={{color:'#fff',fontSize:12}}>Report</Text></Pressable>
     </View>)}
    </View>
   </Section>:null}

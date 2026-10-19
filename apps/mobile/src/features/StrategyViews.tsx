@@ -168,13 +168,14 @@ function SourceNotice({ theme, analysis }: { theme: Palette; analysis: Analysis 
 
 function PhotoPager({ theme, photos, label, index, onIndex }: { theme: Palette; photos: { id: string; uri: string }[]; label: string; index: number; onIndex: (index: number) => void }) {
   const [width, setWidth] = useState(0);
+  const { height } = useLayout();
   const scroller = useRef<ScrollView>(null);
   useEffect(() => { if (width) scroller.current?.scrollTo({ x: index * width, animated: false }); }, [width]);
   return (
     <View onLayout={(event) => setWidth(event.nativeEvent.layout.width)} style={{ gap: 8 }}>
       <ScrollView ref={scroller} horizontal pagingEnabled showsHorizontalScrollIndicator={false} scrollEnabled={photos.length > 1} onMomentumScrollEnd={(event) => width && onIndex(Math.round(event.nativeEvent.contentOffset.x / width))} style={{ borderRadius: 16 }}>
         {photos.map((photo, position) => (
-          <Image key={photo.id} source={{ uri: photo.uri }} accessibilityLabel={`${label} ${position + 1} of ${photos.length}`} resizeMode="cover" style={{ width: width || '100%', aspectRatio: 4 / 3, backgroundColor: theme.panel }} />
+          <Image key={photo.id} source={{ uri: photo.uri }} accessibilityLabel={`${label} ${position + 1} of ${photos.length}`} resizeMode="contain" style={{ width: width || '100%', height: Math.min((width || 320) * 3 / 4, height * 0.55), backgroundColor: theme.panel }} />
         ))}
       </ScrollView>
       {photos.length > 1 ? (
@@ -230,10 +231,10 @@ function SummaryView({ analysis, theme }: { analysis: Analysis; theme: Palette }
   };
   const preScoutColumns = [['autos', 'Auto'], ['active_shift', 'Active HUB'], ['inactive_shift', 'Inactive HUB'], ['traversal', 'Traversal'], ['average_pieces', 'Average fuel'], ['with_them', 'With them'], ['against_them', 'Against them']].map(([key, title]) => ({ key, title, width: 200, sortable: false }));
   const sortedTeams = useMemo(() => [...analysis.bundle.teams].sort((a, b) => a.number - b.number), [analysis.bundle.teams]);
-  const { large, wide } = useLayout();
+  const { large, wide, compactHeight } = useLayout();
 
   return (
-    <Screen theme={theme} fill>
+    <Screen theme={theme} fill={!compactHeight}>
       <SourceNotice theme={theme} analysis={analysis} />
       <View style={{ flexDirection: 'row', gap: 10, alignItems: 'center' }}>
         <TextInput accessibilityLabel="Filter teams" value={filter} onChangeText={setFilter} placeholder="Filter teams" placeholderTextColor={theme.muted} autoCorrect={false} autoCapitalize="none" style={{ flex: 1, minHeight: 46, borderWidth: 1, borderRadius: 12, paddingHorizontal: 14, fontSize: 16, color: theme.text, backgroundColor: theme.surface, borderColor: theme.line }} />
@@ -244,7 +245,7 @@ function SummaryView({ analysis, theme }: { analysis: Analysis; theme: Palette }
         {layout !== 'prescout' ? METRIC_GROUPS.map((item) => <Choice key={item.id} theme={theme} label={item.label} selected={group === item.id} onPress={() => setGroup(item.id)} />) : null}
       </ScrollView>
       {layout === 'table' ? (
-        <View style={{ flex: 1, borderWidth: 1, borderColor: theme.line, borderRadius: 14, overflow: 'hidden' }}>
+        <View style={{ flex: compactHeight ? undefined : 1, height: compactHeight ? 300 : undefined, borderWidth: 1, borderColor: theme.line, borderRadius: 14, overflow: 'hidden' }}>
           <DataTable
             theme={theme} columns={columns} rows={rows} rowKey={(team) => team.id}
             sortKey={sortKey} sortDirection={direction} onSort={onSort}
@@ -261,7 +262,7 @@ function SummaryView({ analysis, theme }: { analysis: Analysis; theme: Palette }
         </View>
       ) : null}
       {layout === 'cards' ? (
-        <ScrollView style={{ flex: 1 }} contentContainerStyle={{ gap: 12, paddingBottom: 24, flexDirection: 'row', flexWrap: 'wrap' }}>
+        <ScrollView style={{ flex: compactHeight ? undefined : 1, height: compactHeight ? 340 : undefined }} contentContainerStyle={{ gap: 12, paddingBottom: 24, flexDirection: 'row', flexWrap: 'wrap' }}>
           {rows.map((team) => {
             const value = stats.get(team.id) ?? EMPTY_STATS;
             return (
@@ -292,7 +293,7 @@ function SummaryView({ analysis, theme }: { analysis: Analysis; theme: Palette }
         </ScrollView>
       ) : null}
       {layout === 'prescout' ? (
-        <View style={{ flex: 1, borderWidth: 1, borderColor: theme.line, borderRadius: 14, overflow: 'hidden' }}>
+        <View style={{ flex: compactHeight ? undefined : 1, height: compactHeight ? 300 : undefined, borderWidth: 1, borderColor: theme.line, borderRadius: 14, overflow: 'hidden' }}>
           <DataTable
             theme={theme} columns={preScoutColumns} rows={sortedTeams} rowKey={(team) => team.id} rowHeight={72}
             rowLabel={(team) => `Open team ${team.displayNumber}`} onPressRow={(team) => goTeam(router, team.id)}
