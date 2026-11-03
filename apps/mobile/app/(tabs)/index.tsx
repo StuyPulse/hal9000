@@ -15,7 +15,7 @@ import type {Match} from '../../src/core/types';
 const short=(m:Match)=>`${m.match_type==='qualification'?'Q':m.match_type==='practice'?'P':'E'}${m.match_number}`;
 
 export default function Home(){
- const {wide}=useLayout();
+ const {wide,contentWidth,compactHeight}=useLayout();
  const {bundle,records,theme,online,viewer,createDraft}=useApp();
  const router=useRouter();
  const [busy,setBusy]=useState(false);
@@ -46,6 +46,11 @@ export default function Home(){
  const start=async(a=next)=>{if(!a)return;setBusy(true);try{const draft=await createDraft('match',a.team_id,a.match_id,a.id);router.push({pathname:'/match/[id]',params:{id:draft.entry.id}})}catch(e){Alert.alert('Could not start',friendlyError(e))}finally{setBusy(false)}};
  const statusLabel=data.toSend?`${data.toSend} to send`:online?'Online':'Offline';
  const fill=side?ALLIANCE_FILL[side]:theme.graphite;
+ // Sized from the card's width, since auto-shrinking text collapses when the phone rotates.
+ // Exact column widths: flexible ones keep their stacked width when the phone turns to landscape.
+ const mainWidth=Math.floor((contentWidth-20)*1.25/2.25);
+ const cardWidth=(wide?mainWidth:contentWidth)-36;
+ const heroSize=Math.round(Math.min(compactHeight?84:112,cardWidth/(Math.max(3,nextTeam?.displayNumber.length??4)*.5)));
  const total=data.submitted+data.assignments.length;
  const progress=(title:string,done:number,of:number,onPress:()=>void)=><Pressable key={title} accessibilityRole="button" accessibilityLabel={`${title}, ${done} of ${of}`} onPress={onPress} style={({pressed})=>({paddingHorizontal:16,paddingVertical:12,gap:8,backgroundColor:pressed?theme.panel:'transparent'})}>
   <View style={{flexDirection:'row',justifyContent:'space-between',alignItems:'baseline'}}>
@@ -70,14 +75,14 @@ export default function Home(){
   </ScrollView>:null}
 
   <View style={{flexDirection:wide?'row':'column',gap:wide?20:12,alignItems:'flex-start'}}>
-   <View style={{flex:wide?1.25:undefined,width:wide?undefined:'100%',gap:12}}>
+   <View style={{width:wide?mainWidth:'100%',gap:12}}>
     {next&&nextTeam&&nextMatch?<View style={{backgroundColor:fill,borderRadius:22,padding:18,gap:14,borderTopWidth:2,borderBottomWidth:6,borderTopColor:'rgba(255,255,255,.25)',borderBottomColor:'rgba(0,0,0,.25)'}}>
      <View style={{flexDirection:'row',justifyContent:'space-between',alignItems:'baseline',gap:8}}>
       <Text style={{color:'#fff',fontSize:26,fontFamily:DISPLAY_BOLD,flexShrink:1}} numberOfLines={1}>{matchLabel(nextMatch)}</Text>
       {side?<Text style={{color:'rgba(255,255,255,.85)',fontSize:15,fontWeight:'700'}}>{side==='red'?'Red alliance':'Blue alliance'}</Text>:null}
      </View>
      <View accessible accessibilityLabel={`Team ${nextTeam.displayNumber}, ${nextTeam.name}`}>
-      <Text maxFontSizeMultiplier={1.1} adjustsFontSizeToFit numberOfLines={1} style={{color:'#fff',fontSize:112,lineHeight:112,fontFamily:DISPLAY,includeFontPadding:false}}>{nextTeam.displayNumber}</Text>
+      <Text maxFontSizeMultiplier={1} numberOfLines={1} style={{color:'#fff',fontSize:heroSize,lineHeight:heroSize,fontFamily:DISPLAY,includeFontPadding:false}}>{nextTeam.displayNumber}</Text>
       <Text numberOfLines={1} style={{color:'rgba(255,255,255,.85)',fontSize:17}}>{nextTeam.name}</Text>
      </View>
      <Pressable accessibilityRole="button" accessibilityLabel="Start scouting" disabled={busy} onPress={()=>void start()} style={({pressed})=>({minHeight:56,borderRadius:14,backgroundColor:'#fff',alignItems:'center',justifyContent:'center',opacity:busy?.6:pressed?.85:1})}>
@@ -99,7 +104,7 @@ export default function Home(){
     </List>
    </View>
 
-   <View style={{flex:wide?1:undefined,width:wide?undefined:'100%',gap:8}}>
+   <View style={{width:wide?contentWidth-mainWidth-20:'100%',gap:8}}>
     {data.assignments.length>1?<>
      <GroupLabel theme={theme}>Coming up</GroupLabel>
      <List theme={theme}>{data.assignments.slice(1,6).map(a=>{const t=team(a.team_id),m=bundle.matches.find(x=>x.id===a.match_id);return <ListRow key={a.id} theme={theme} title={m?matchLabel(m):'Match'} accessibilityLabel={`Scout ${t?.displayNumber} in ${m?matchLabel(m):'match'}`} lead={<TeamTag label={t?.displayNumber??'?'} alliance={sideOf(a.match_id,a.team_id)} size="md" theme={theme}/>} onPress={()=>void start(a)}/>})}</List>

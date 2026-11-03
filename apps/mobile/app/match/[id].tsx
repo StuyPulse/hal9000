@@ -67,7 +67,7 @@ function Counter({label,value,onStep,theme,fill}:{label:string;value:number;onSt
 export default function MatchCapture(){
  const {id}=useLocalSearchParams<{id:string}>();
  const {records,bundle,viewer,theme,saveDraft}=useApp();const router=useRouter();
- const {contentWidth,height,wide}=useLayout();
+ const {contentWidth,height,wide,compactHeight}=useLayout();
  const field=fieldSize(contentWidth,height);
  const record=records.find(r=>r.entry.id===id);
  const [payload,setPayload]=useState<Payload|null>(null),[mirror,setMirror]=useState(false),[saving,setSaving]=useState(false),[error,setError]=useState('');
@@ -90,13 +90,15 @@ export default function MatchCapture(){
  const reportBreak=()=>{if(!broke){void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning).catch(()=>undefined);toggleBroke(true)}setTimeout(()=>scroll.current?.scrollTo({y:Math.max(0,breakageY.current-12),animated:true}),50)};
  const submit=async()=>{setSaving(true);try{await saveDraft(id,normalizeRebuilt(latest.current!),true);void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(()=>undefined);router.replace({pathname:'/submission/[id]',params:{id}})}catch(e){setError(friendlyError(e))}finally{setSaving(false)}};
  const fill=ALLIANCE_FILL[alliance];
+ // Exact column widths: flexible ones keep their stacked width when the phone turns to landscape.
+ const half=wide?Math.floor((contentWidth-20)/2):contentWidth;
  const heading=(text:string)=><Text accessibilityRole="header" style={{color:theme.text,fontSize:26,fontFamily:DISPLAY_BOLD,marginTop:14}}>{text}</Text>;
  const period=(key:'auto'|'teleop')=>{const sc=payload[key] as {shoot:number;ferry:number};return <View style={{gap:12}}>{heading(key==='auto'?'Auto':'Teleop')}{(['shoot','ferry'] as const).map(k=><Counter key={k} label={k==='shoot'?'Scored':'Ferried'} value={sc[k]??0} fill={fill} theme={theme} onStep={d=>score(key,k,d)}/>)}{key==='teleop'?<Counter label="Fouls" value={Number(payload.fouls??0)} fill={theme.graphite} theme={theme} onStep={d=>set('fouls',clamp(Number(latest.current!.fouls??0)+d))}/>:null}</View>};
  const footer=<>{error?<Text accessibilityRole="alert" style={{color:theme.danger}}>{error}</Text>:null}<View style={{flexDirection:'row',gap:8}}>
-  {!noShow?<Pressable accessibilityRole="button" accessibilityLabel={broke?'Robot broke. Go to breakage details':'Robot broke'} onPress={reportBreak} style={({pressed})=>({flex:1,minHeight:54,borderRadius:14,alignItems:'center',justifyContent:'center',borderWidth:2,borderColor:theme.warning,backgroundColor:broke?theme.warning:pressed?theme.panel:'transparent'})}><Text style={{color:broke?theme.bg:theme.warning,fontSize:16,fontWeight:'800'}}>{broke?'Broke ✓':'Robot broke'}</Text></Pressable>:null}
-  <Button title={saving?'Saving…':editing?'Save changes':'Submit report'} theme={theme} disabled={saving} onPress={()=>void submit()} style={{flex:1.6}}/>
+  {!noShow?<Pressable accessibilityRole="button" accessibilityLabel={broke?'Robot broke. Go to breakage details':'Robot broke'} onPress={reportBreak} style={({pressed})=>({flex:1,minHeight:compactHeight?46:54,borderRadius:14,alignItems:'center',justifyContent:'center',borderWidth:2,borderColor:theme.warning,backgroundColor:broke?theme.warning:pressed?theme.panel:'transparent'})}><Text style={{color:broke?theme.bg:theme.warning,fontSize:16,fontWeight:'800'}}>{broke?'Broke ✓':'Robot broke'}</Text></Pressable>:null}
+  <Button title={saving?'Saving…':editing?'Save changes':'Submit report'} theme={theme} disabled={saving} onPress={()=>void submit()} style={{flex:1.6,minHeight:compactHeight?46:54,paddingVertical:compactHeight?8:14}}/>
  </View></>;
- return <Screen scrollRef={scroll} footerInset footer={footer}>
+ return <Screen scrollRef={scroll} footerInset pinFooter footer={footer}>
   <View style={{flexDirection:'row',alignItems:'center',gap:14}}>
    <TeamTag label={team?.displayNumber??'?'} alliance={alliance} size="lg" theme={theme}/>
    <View style={{flex:1,minWidth:0}}>
@@ -120,7 +122,7 @@ export default function MatchCapture(){
    </View>
    <View style={{flexDirection:'row',flexWrap:'wrap',gap:8}}>{spots.map((spot,index)=><View key={spot.id} style={{width:'48%',flexGrow:1}}><Choice label={`${index+1}  ${spot.label}`} selected={payload.starting_spot===spot.id} theme={theme} onPress={()=>set('starting_spot',payload.starting_spot===spot.id?null:spot.id)}/></View>)}</View>
 
-   <View style={{flexDirection:wide?'row':'column',gap:wide?20:0}}><View style={{flex:wide?1:undefined}}>{period('auto')}</View><View style={{flex:wide?1:undefined}}>{period('teleop')}</View></View>
+   <View style={{flexDirection:wide?'row':'column',gap:wide?20:0}}><View style={{width:half}}>{period('auto')}</View><View style={{width:half}}>{period('teleop')}</View></View>
 
    <View onLayout={e=>{breakageY.current=e.nativeEvent.layout.y}} style={{gap:12}}>
     {heading('Breakage')}

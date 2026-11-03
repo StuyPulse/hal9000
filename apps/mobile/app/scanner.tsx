@@ -22,7 +22,7 @@ type Finished = { code: string; saved: number; alreadyHere: number; rejected: { 
 
 export default function Scanner() {
   const { viewer, bundle, theme, receiveEntry, receiveEntries, records, sync, online } = useApp();
-  const { wide, compactHeight, height } = useLayout();
+  const { wide, compactHeight, height, contentWidth } = useLayout();
   const [permission, requestPermission] = useCameraPermissions();
   const focused = useIsFocused();
   const [appActive, setAppActive] = useState(AppState.currentState === 'active');
@@ -88,15 +88,17 @@ export default function Scanner() {
     } finally { processing.current = false; }
   };
   const split = wide && compactHeight;
+  // Exact widths: flexible columns keep their stacked width when the phone rotates.
+  const half = split ? Math.floor((contentWidth - 16) / 2) : contentWidth;
   const received = records.filter(r => r.origin === 'relay');
   return <Screen>
     <View style={{ flexDirection: split ? 'row' : 'column', gap: 16 }}>
-      <View style={{ flex: split ? 1 : undefined, minWidth: 0, gap: 12 }}>
+      <View style={{ width: half, gap: 12 }}>
         {permission?.granted ? focused && appActive ? <CameraView style={{ height: compactHeight ? Math.max(160, height * 0.48) : 300, borderRadius: 16, overflow: 'hidden' }} enableTorch={torch} barcodeScannerSettings={{ barcodeTypes: ['qr'] }} onMountError={() => setProgress('The camera didn\'t start. Close and reopen this screen.')} onBarcodeScanned={paused ? undefined : ({ data }) => void scan(data)} /> : <Label theme={theme} muted>Camera paused.</Label> : <>
           <Button title={permission?.canAskAgain === false ? 'Allow camera in Settings' : 'Allow camera'} theme={theme} onPress={() => { void (permission?.canAskAgain === false ? Linking.openSettings() : requestPermission()).catch(e => setProgress(friendlyError(e))); }} />
         </>}
       </View>
-      <View style={{ flex: split ? 1 : undefined, minWidth: 0, gap: 12 }}>
+      <View style={{ width: half, gap: 12 }}>
         {live ? <View accessibilityLabel={`Transfer ${live.code}: ${live.solved} of ${live.total} pieces`} accessibilityLiveRegion="polite" style={{ gap: 6 }}>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}><Text style={{ color: theme.text, fontSize: 30, fontFamily: DISPLAY, letterSpacing: 3 }}>{live.code}</Text><Text style={{ color: theme.muted, fontSize: 15, fontVariant: ['tabular-nums'] }}>{live.solved} of {live.total}</Text></View>
           <View style={{ height: 10, borderRadius: 5, backgroundColor: theme.panel, overflow: 'hidden' }}><View style={{ height: 10, width: `${Math.round(live.solved / live.total * 100)}%`, backgroundColor: theme.success }} /></View>

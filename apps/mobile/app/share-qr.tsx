@@ -18,7 +18,7 @@ const SPEEDS=[{label:'Slow',fps:2},{label:'Normal',fps:4},{label:'Fast',fps:7}];
 
 export default function ShareQr(){
  const {records,viewer,bundle,theme,markQrShared}=useApp();const router=useRouter();
- const {width,height,compactHeight}=useLayout();
+ const {width,height,compactHeight,contentWidth}=useLayout();
  const candidates=useMemo(()=>viewer&&bundle?qrCandidates(records,viewer,bundle.event.id):[],[records,viewer,bundle]);
  const [excluded,setExcluded]=useState<Set<string>>(new Set());
  const [transfer,setTransfer]=useState<QrTransfer|null>(null),[seq,setSeq]=useState(0),[speed,setSpeed]=useState(1),[easy,setEasy]=useState(false),[paused,setPaused]=useState(false),[busy,setBusy]=useState(false),[error,setError]=useState(''),[confirmed,setConfirmed]=useState(false);
@@ -42,7 +42,9 @@ export default function ShareQr(){
  };
  const toggleEasy=()=>{const next=!easy;setEasy(next);void start(next?EASY_SCAN_BLOCK_SIZE:DEFAULT_BLOCK_SIZE)};
  const confirm=async()=>{if(!transfer)return;try{await markQrShared(transfer.reports);setConfirmed(true)}catch(e){setError(friendlyError(e))}};
- const size=Math.min(width-40,compactHeight?Math.max(180,height-110):420);
+ // On a short landscape screen the code sits beside its controls so it is never cut off.
+ const side=compactHeight&&width>height;
+ const size=side?Math.max(180,Math.min(contentWidth*.5,height-170)):Math.min(contentWidth,compactHeight?Math.max(180,height-110):420);
  if(!transfer)return <Screen footer={<Button title={busy?'Preparing…':`Show QR for ${chosen.length} report${chosen.length===1?'':'s'}`} icon="qr" theme={theme} disabled={busy||!chosen.length} onPress={()=>void start()}/>}>
   {candidates.length?null:<Label theme={theme} muted>Nothing to share. Reports you submit show up here until they upload.</Label>}
   {candidates.length>1&&<View style={{flexDirection:'row',gap:8}}><Button title="Select all" theme={theme} secondary disabled={!excluded.size} onPress={()=>setExcluded(new Set())} style={{flex:1}}/><Button title="Select none" theme={theme} secondary disabled={excluded.size===candidates.length} onPress={()=>setExcluded(new Set(candidates.map(r=>r.entry.id)))} style={{flex:1}}/></View>}
@@ -53,23 +55,26 @@ export default function ShareQr(){
   </Pressable>})}
   {error?<Text accessibilityRole="alert" style={{color:theme.danger}}>{error}</Text>:null}
  </Screen>;
- return <Screen footer={confirmed?<Button title="Done" theme={theme} onPress={()=>router.back()}/>:<Button title="The receiver has them" theme={theme} onPress={()=>void confirm()}/>}>
+ const heading=<View style={{flexDirection:'row',justifyContent:'space-between',alignItems:'baseline'}}><Text style={{color:theme.text,fontSize:24,fontFamily:DISPLAY_BOLD}}>{transfer.reports.length} report{transfer.reports.length===1?'':'s'}</Text><Text accessibilityLabel={`Code ${transfer.encoder.code.split('').join(' ')}`} style={{color:theme.text,fontSize:36,fontFamily:DISPLAY,letterSpacing:3}}>{transfer.encoder.code}</Text></View>;
+ return <Screen pinFooter footer={confirmed?<Button title="Done" theme={theme} onPress={()=>router.back()}/>:<Button title="The receiver has them" theme={theme} onPress={()=>void confirm()}/>}>
   {confirmed?<>
    <Text accessibilityRole="header" style={{color:theme.success,fontSize:40,fontFamily:DISPLAY}}>Shared</Text>
    <Label theme={theme} muted>{transfer.reports.length===1?'It still uploads':'They still upload'} from this phone when you're online.</Label>
-  </>:<>
-   <View style={{flexDirection:'row',justifyContent:'space-between',alignItems:'baseline'}}><Text style={{color:theme.text,fontSize:24,fontFamily:DISPLAY_BOLD}}>{transfer.reports.length} report{transfer.reports.length===1?'':'s'}</Text><Text accessibilityLabel={`Code ${transfer.encoder.code.split('').join(' ')}`} style={{color:theme.text,fontSize:36,fontFamily:DISPLAY,letterSpacing:3}}>{transfer.encoder.code}</Text></View>
+  </>:<>{side?null:heading}<View style={{flexDirection:side?'row':'column',gap:side?16:12,alignItems:side?'flex-start':'stretch'}}>
    <View accessible accessibilityRole="image" accessibilityLabel={`Animated QR code for ${transfer.reports.length} reports, transfer code ${transfer.encoder.code}`} style={{alignItems:'center',padding:12,backgroundColor:'#fff',borderRadius:16}}>
     <QRCode value={transfer.encoder.frame(seq)} size={size-24} ecl="M" backgroundColor="#fff" color="#000"/>
    </View>
-   <Label theme={theme} muted>Point the receiver's Scan reports here until it shows code {transfer.encoder.code}.</Label>
-   <View style={{flexDirection:'row',gap:8}}>{SPEEDS.map((option,index)=><Button key={option.label} title={option.label} theme={theme} secondary={speed!==index} onPress={()=>setSpeed(index)} style={{flex:1}}/>)}</View>
-   <View style={{flexDirection:'row',gap:8}}>
-    <Button title={paused?'Play':'Pause'} theme={theme} secondary onPress={()=>setPaused(!paused)} style={{flex:1}}/>
-    <Button title={easy?'Denser code':'Easier code'} theme={theme} secondary disabled={busy} onPress={toggleEasy} style={{flex:1}}/>
+   <View style={{gap:12,width:side?contentWidth-size-16:undefined}}>
+    {side?heading:null}
+    <Label theme={theme} muted>Point the receiver's Scan reports here until it shows code {transfer.encoder.code}.</Label>
+    <View style={{flexDirection:'row',gap:8}}>{SPEEDS.map((option,index)=><Button key={option.label} title={option.label} theme={theme} secondary={speed!==index} onPress={()=>setSpeed(index)} style={{flex:1,minHeight:side?46:54,paddingVertical:side?8:14}}/>)}</View>
+    <View style={{flexDirection:'row',gap:8}}>
+     <Button title={paused?'Play':'Pause'} theme={theme} secondary onPress={()=>setPaused(!paused)} style={{flex:1,minHeight:side?46:54,paddingVertical:side?8:14}}/>
+     <Button title={easy?'Denser code':'Easier code'} theme={theme} secondary disabled={busy} onPress={toggleEasy} style={{flex:1,minHeight:side?46:54,paddingVertical:side?8:14}}/>
+    </View>
+    {transfer.unsignedCount>0&&<Text accessibilityRole="alert" style={{color:theme.warning,fontSize:15,lineHeight:21}}>{transfer.unsignedCount} unsigned: only this phone can upload {transfer.unsignedCount===1?'it':'them'}. Go online once to fix this.</Text>}
    </View>
-   {transfer.unsignedCount>0&&<Text accessibilityRole="alert" style={{color:theme.warning,fontSize:15,lineHeight:21}}>{transfer.unsignedCount} unsigned: only this phone can upload {transfer.unsignedCount===1?'it':'them'}. Go online once to fix this.</Text>}
-  </>}
+  </View></>}
   {error?<Text accessibilityRole="alert" style={{color:theme.danger}}>{error}</Text>:null}
  </Screen>;
 }

@@ -7,20 +7,23 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useApp } from '../core/context';
 import { useLayout } from './layout';
 
-export function Screen({ children, scroll = true, scrollEnabled = true, scrollRef, footer, footerInset = true, topInset = false }: {
+export function Screen({ children, scroll = true, scrollEnabled = true, scrollRef, footer, footerInset = true, topInset = false, pinFooter = false }: {
   children: React.ReactNode; scroll?: boolean; scrollEnabled?: boolean;
   scrollRef?: React.RefObject<unknown>; footer?: React.ReactNode; footerInset?: boolean; topInset?: boolean;
+  /** Keep the footer on screen even on short windows, for actions that must always be in reach. */
+  pinFooter?: boolean;
 }) {
   const { theme, viewer, error, dismissError, refresh, online } = useApp();
   const [pulling, setPulling] = useState(false);
   const insets = useSafeAreaInsets();
   const headerHeight = useContext(HeaderHeightContext) ?? 0;
-  const { gutter, maxWidth, compactHeight, inlineActions } = useLayout();
-  const column = { width: '100%' as const, maxWidth, alignSelf: 'center' as const };
+  const { gutter, maxWidth, compactHeight, inlineActions, safeWidth } = useLayout();
+  // An exact width, not '100%': iOS keeps the old percentage width when the phone rotates with this screen open.
+  const column = { width: Math.min(safeWidth, maxWidth), alignSelf: 'center' as const };
   // On short windows the action scrolls too, rather than consuming the form's height.
-  const inlineFooter = inlineActions && scroll;
+  const inlineFooter = inlineActions && scroll && !pinFooter;
   const practiceNotice=viewer?.demo?<Text style={{alignSelf:'center',backgroundColor:theme.panel,color:theme.warning,fontSize:12,fontWeight:'700',overflow:'hidden',borderRadius:10,paddingHorizontal:10,paddingVertical:compactHeight?2:4}}>Practice mode</Text>:null;
-  const action = footer ? <View style={{ paddingHorizontal: gutter, paddingTop: 12, paddingBottom: footerInset ? Math.max(12, insets.bottom) : 12, gap: 8, backgroundColor: theme.bg }}><View style={{ ...column, gap: 8 }}>{footer}</View></View> : null;
+  const action = footer ? <View style={{ paddingHorizontal: gutter, paddingTop: compactHeight ? 6 : 12, paddingBottom: footerInset ? Math.max(compactHeight ? 6 : 12, insets.bottom) : compactHeight ? 6 : 12, gap: 8, backgroundColor: theme.bg }}><View style={{ ...column, width: Math.max(0, column.width - gutter * 2), gap: 8 }}>{footer}</View></View> : null;
   return <KeyboardAvoidingView style={{ flex: 1, backgroundColor: theme.bg }} behavior={Platform.OS === 'ios' ? 'padding' : undefined} keyboardVerticalOffset={headerHeight}>
     <View style={{ flex: 1, minHeight: 0, paddingLeft: insets.left, paddingRight: insets.right, paddingTop: topInset ? insets.top : 0 }}>
       {!scroll?practiceNotice:null}
