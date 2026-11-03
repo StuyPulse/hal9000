@@ -3,7 +3,13 @@ import {File,Directory,Paths} from 'expo-file-system';
 import {manipulateAsync,SaveFormat} from 'expo-image-manipulator';
 import * as Crypto from 'expo-crypto';
 import {requireClient} from './client';
+import {isConnectionFailure} from './sync-model';
+import {relativeDocumentPath,resolveDocumentUri} from './photo-selection-model';
 import type {LocalPhoto,Viewer,EventBundle} from './types';
+/** Stored photo paths are relative to the document directory, which can move when the app updates. */
+export function storedPhotoUri(uri:string){if(Platform.OS==='web')return uri;try{return relativeDocumentPath(uri,Paths.document.uri)}catch{return uri}}
+export function resolvePhotoUri(uri:string){if(Platform.OS==='web')return uri;try{return resolveDocumentUri(uri,Paths.document.uri)}catch{return uri}}
+export const resolvePhoto=(photo:LocalPhoto):LocalPhoto=>({...photo,localUri:resolvePhotoUri(photo.localUri)});
 export async function stagePhoto(viewer:Viewer,bundle:EventBundle,uri:string,teamId:string,id=Crypto.randomUUID()):Promise<LocalPhoto>{
  if(!bundle.teams.some(t=>t.id===teamId))throw Error('Choose a team in this event.');
  if(!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id))throw Error('Invalid photo identifier. Reopen the photo chooser.');
@@ -15,12 +21,12 @@ export async function stagePhoto(viewer:Viewer,bundle:EventBundle,uri:string,tea
   const dir=new Directory(Paths.document,'hal9000-photos',viewer.userId);dir.create({idempotent:true,intermediates:true});
   const target=new File(dir,`${id}.jpg`);
   // A prior copy may exist if persisting the queue failed; retry the same owned file.
-  new File(localUri).copy(target,{overwrite:true});localUri=target.uri;
+  new File(localUri).copy(target,{overwrite:true});localUri=storedPhotoUri(target.uri);
  }
  return {id,organization_id:viewer.organizationId,event_id:bundle.event.id,team_id:teamId,uploaded_by:viewer.userId,storage_path:`${viewer.userId}/${bundle.event.id}/${teamId}/${id}.jpg`,localUri,status:'pending',error:null};
 }
-export async function uploadPhoto(photo:LocalPhoto,expectedUserId?:string){const c=requireClient();if(expectedUserId){const {data,error}=await c.auth.getUser();if(error||data.user?.id!==expectedUserId||photo.uploaded_by!==expectedUserId)throw Error('Your account changed. This photo is retained in its original workspace.');}const {data:existing}=await c.from('pit_photos').select('id,storage_path').eq('id',photo.id).maybeSingle();if(existing?.storage_path===photo.storage_path)return;
- const buffer=Platform.OS==='web'?await (await fetch(photo.localUri)).arrayBuffer():await new File(photo.localUri).arrayBuffer();if(buffer.byteLength>10*1024*1024)throw Error('Compressed photo exceeds 10 MB. Capture a smaller photo.');
+export async function uploadPhoto(photo:LocalPhoto,expectedUserId?:string){const c=requireClient();if(expectedUserId){const {data,error}=await c.auth.getUser();if(error&&isConnectionFailure(error))throw error;if(error||data.user?.id!==expectedUserId||photo.uploaded_by!==expectedUserId)throw Error('Your account changed. This photo is retained in its original workspace.');}const {data:existing}=await c.from('pit_photos').select('id,storage_path').eq('id',photo.id).maybeSingle();if(existing?.storage_path===photo.storage_path)return;
+ const buffer=Platform.OS==='web'?await (await fetch(photo.localUri)).arrayBuffer():await new File(resolvePhotoUri(photo.localUri)).arrayBuffer();if(buffer.byteLength>10*1024*1024)throw Error('Compressed photo exceeds 10 MB. Capture a smaller photo.');
  const {error:uploadError}=await c.storage.from('pit-photos').upload(photo.storage_path,buffer,{contentType:'image/jpeg',upsert:false});if(uploadError&& !/already exists|duplicate/i.test(uploadError.message))throw uploadError;
  const {error}=await c.from('pit_photos').insert({id:photo.id,organization_id:photo.organization_id,event_id:photo.event_id,team_id:photo.team_id,storage_path:photo.storage_path,uploaded_by:photo.uploaded_by});if(error){const {data:after}=await c.from('pit_photos').select('storage_path').eq('id',photo.id).maybeSingle();if(after?.storage_path!==photo.storage_path)throw error;}
 }

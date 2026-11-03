@@ -15,11 +15,14 @@ import {proofForReport} from '../../src/core/relay-device';
 import {SvgXml} from 'react-native-svg';
 import {matchLabel,manualMatchLabel} from '../../src/features/stats';
 import {openAssignments} from '../../src/core/assignments';
+import {staleAcknowledgedCopy} from '../../src/core/sync-model';
 export default function Submission(){
  const {id}=useLocalSearchParams<{id:string}>();
  const {bundle,records,theme,viewer,deleteLocalDraft,claimReport,deleteReport,createDraft,sync,syncing,online}=useApp();
  const router=useRouter();
- const local=records.find(r=>r.entry.id===id),entry=local?.entry??bundle?.entries.find(e=>e.id===id);
+ const local=records.find(r=>r.entry.id===id),server=bundle?.entries.find(e=>e.id===id);
+ // A fully uploaded local copy is only a cache: show a newer server version instead.
+ const entry=local&&!staleAcknowledgedCopy(local,server)?local.entry:server??local?.entry;
  const [frames,setFrames]=useState<string[]>([]),[frame,setFrame]=useState(0),[qrError,setQrError]=useState(''),[opening,setOpening]=useState(false),[qrWidth,setQrWidth]=useState(0),[showRaw,setShowRaw]=useState(false),[showLegacy,setShowLegacy]=useState(false);
  useEffect(()=>{
   let active=true;setFrames([]);setFrame(0);setQrError('');
@@ -34,9 +37,9 @@ export default function Submission(){
  const manual=entry.payload.manual_match as {alliance?:'red'|'blue'}&Record<string,unknown>|undefined;
  const alliance=manual?.alliance??(match?(match.red_teams.includes(entry.team_id)?'red':match.blue_teams.includes(entry.team_id)?'blue':null):null);
  const title=entry.entry_type==='match'?(manual?manualMatchLabel(manual):match?matchLabel(match):'Match'):entry.entry_type==='pit'?'Pit report':'Pre-scout report';
- const state=entry.status==='draft'?{label:'Draft',tone:'warn' as const}:!local?{label:'Uploaded',tone:'ok' as const}:local.status==='synced'?{label:'Uploaded',tone:'ok' as const}:local.error?{label:'Needs attention',tone:'bad' as const}:{label:'Saved on this phone',tone:'quiet' as const};
+ const state=entry.status==='draft'?{label:'Draft',tone:'warn' as const}:!local?{label:'Uploaded',tone:'ok' as const}:local.status==='synced'?{label:'Uploaded',tone:'ok' as const}:local.status==='failed'?{label:'Needs attention',tone:'bad' as const}:{label:'Saved on this phone',tone:'quiet' as const};
  // After submitting, the next assignment is one tap away.
- const upcoming=entry.status==='submitted'&&entry.scout_user_id===viewer?.userId&&bundle?openAssignments(bundle,records).map(a=>({a,m:bundle.matches.find(m=>m.id===a.match_id)})).find(x=>x.m):undefined;
+ const upcoming=entry.status==='submitted'&&viewer&&entry.scout_user_id===viewer.userId&&bundle?openAssignments(bundle,records,viewer.userId).map(a=>({a,m:bundle.matches.find(m=>m.id===a.match_id)})).find(x=>x.m):undefined;
  const nextAssignment=upcoming&&upcoming.m?upcoming:undefined;
  const startNext=async()=>{if(!nextAssignment)return;setOpening(true);try{const draft=await createDraft('match',nextAssignment.a.team_id,nextAssignment.a.match_id,nextAssignment.a.id);router.replace({pathname:'/match/[id]',params:{id:draft.entry.id}})}catch(e){Alert.alert('Could not start',friendlyError(e))}finally{setOpening(false)}};
  return <Screen>
@@ -48,7 +51,8 @@ export default function Submission(){
    </View>
   </View>
   {local?.reviewRequired&&<Label theme={theme}>These edits aren't published yet. Open the report and save changes.</Label>}
-  {local?.error&&<Text selectable accessibilityRole="alert" style={{color:theme.danger}}>{local.error}</Text>}
+  {local?.status==='failed'&&local.error?<Text selectable accessibilityRole="alert" style={{color:theme.danger}}>{local.error}</Text>:null}
+  {local&&local.status!=='failed'&&(local.note??local.error)?<Label theme={theme} muted>{local.note??local.error}</Label>:null}
   {nextAssignment&&<Button title={opening?'Opening…':`Scout next: ${teamOf(nextAssignment.a.team_id)?.displayNumber} in ${matchLabel(nextAssignment.m!)}`} disabled={opening} theme={theme} onPress={()=>void startNext()}/>}
   {local&&entry.status==='submitted'&&local.status!=='synced'&&!viewer?.demo&&<Button title={syncing?'Syncing…':online?'Sync now':'Sync when online'} icon="sync" secondary theme={theme} disabled={syncing||!online} onPress={()=>void sync()}/>}
   {canEditReport(viewer,entry,local)&&<Button title={opening&&!nextAssignment?'Opening…':'Edit report'} secondary={Boolean(nextAssignment)} disabled={opening} theme={theme} onPress={()=>void edit()}/>}

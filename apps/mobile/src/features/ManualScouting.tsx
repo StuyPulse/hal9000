@@ -79,7 +79,7 @@ export function ManualScoutingScreen({ kind, entryId, fieldArt }: { kind: Manual
       if (!recordIdRef.current) {
         // createDraft returns an existing own draft for this team. Keep its saved fields as the base
         // so starting a fresh form never silently erases earlier work.
-        const existing = app.records.find((item) => item.origin === 'own' && item.entry.entry_type === kind && item.entry.team_id === team && item.entry.event_id === eventId && item.entry.status === 'draft');
+        const existing = app.records.find((item) => item.origin === 'own' && item.entry.scout_user_id === app.viewer?.userId && item.entry.entry_type === kind && item.entry.team_id === team && item.entry.event_id === eventId && item.entry.status === 'draft');
         const base = existing ? joinPayload({ ...splitPayload(existing.entry.payload).fields, ...current }, { ...splitPayload(existing.entry.payload).extras, ...other }) : payload;
         creating.current ??= app.createDraft(kind, team, null, null, base).then((created) => {
           basePayload.current = created.entry.payload;
@@ -127,7 +127,7 @@ export function ManualScoutingScreen({ kind, entryId, fieldArt }: { kind: Manual
     return [...submitted];
   }, [bundle?.entries, records, kind, eventId]);
 
-  const drafts = useMemo(() => records.filter((record) => record.entry.entry_type === kind && record.entry.event_id === eventId && record.entry.status === 'draft' && record.origin === 'own' && record.entry.id !== recordId), [records, kind, eventId, recordId]);
+  const drafts = useMemo(() => records.filter((record) => record.entry.entry_type === kind && record.entry.event_id === eventId && record.entry.status === 'draft' && record.origin === 'own' && record.entry.scout_user_id === viewer?.userId && record.entry.id !== recordId), [records, kind, eventId, recordId, viewer?.userId]);
   const chooseTeam = (id:string) => {
     const existing = drafts.find(item=>item.entry.team_id===id);
     if(existing)adoptRecord(existing);
@@ -171,8 +171,11 @@ export function ManualScoutingScreen({ kind, entryId, fieldArt }: { kind: Manual
     if (id) setStep('done');
   }
 
-  function startAnother() {
+  async function startAnother() {
     if (timer.current) clearTimeout(timer.current);
+    timer.current = null;
+    // Save the pending autosave first; a failed save keeps this report open with its error.
+    if (dirty.current && latest.current.teamId && !(await persist(false))) return;
     recordIdRef.current = null;
     creating.current = null;
     dirty.current = false;
@@ -192,7 +195,7 @@ export function ManualScoutingScreen({ kind, entryId, fieldArt }: { kind: Manual
           {record?.error ? <Notice theme={theme} tone="danger">{record.error}</Notice> : null}
         </Card>
         {recordId ? <Button theme={theme} title="View report" icon="check" onPress={() => router.push(`/submission/${recordId}` as never)} /> : null}
-        <Button theme={theme} secondary title={kind === 'pit' ? 'Scout another robot' : 'Start another report'} onPress={startAnother} />
+        <Button theme={theme} secondary title={kind === 'pit' ? 'Scout another robot' : 'Start another report'} onPress={() => void startAnother()} />
       </Screen>
     );
   }
@@ -271,7 +274,7 @@ export function ManualScoutingScreen({ kind, entryId, fieldArt }: { kind: Manual
         </View>
       ) : null}
       <TeamPicker theme={theme} teams={bundle.teams} value={teamId} disabled={editing || Boolean(recordId)} markedIds={markedTeamIds} markedLabel={kind === 'pit' ? 'Pit report submitted' : 'Pre-scout report submitted'} onChange={chooseTeam} />
-      {recordId && !editing ? <Button theme={theme} secondary title="Scout another team" onPress={startAnother} /> : null}
+      {recordId && !editing ? <Button theme={theme} secondary title="Scout another team" onPress={() => void startAnother()} /> : null}
       {kind === 'pre_scout' && teamId ? (() => {
         const scouts = coordination.byTeam.get(teamId) ?? [];
         const names = scouts.filter((id) => id !== viewer.userId).map((id) => bundle.profiles?.[id] ?? 'A scout');

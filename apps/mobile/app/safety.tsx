@@ -61,7 +61,7 @@ export default function Safety(){
   <Section title="Reports saved on this device" theme={theme}>
    {!local.length?<Label theme={theme} muted>No locally saved safety reports.</Label>:local.map(row=><View key={row.report.id} style={{gap:6,paddingVertical:12,borderBottomWidth:1,borderColor:theme.line}}>
     <Text selectable style={{color:theme.text}}>{row.report.details}</Text>
-    <Label theme={theme} muted>{row.status==='sent'?'Received by the server · awaiting review status below':viewer?.demo?'Local practice only':'Pending delivery'} · {row.report.id}</Label>
+    <Label theme={theme} muted>{row.status==='sent'?'Received by the server · awaiting review status below':viewer?.demo?'Local practice only':row.status==='failed'?'Not accepted by the server · discard it in Settings':'Pending delivery'} · {row.report.id}</Label>
     {row.error?<Label theme={theme}>{friendlyError(row.error)}</Label>:null}
    </View>)}
    <Button title="Retry pending reports" secondary theme={theme} disabled={busy||!online||!viewer||viewer.demo||!local.some(row=>row.status==='pending')} onPress={()=>void run(retry)}/>

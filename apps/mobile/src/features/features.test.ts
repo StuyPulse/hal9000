@@ -234,11 +234,16 @@ test('picklist history groups sessions and restores prior boards', () => {
   assert.equal(describeChange(changes[1], (id) => String(id), () => undefined), 'Moved from t1 to t2 · Updated note');
 });
 
-test('removing a tier appends its teams to the neighbouring tier', () => {
+test('removing a tier moves its teams to the top of the tier below, or after the tier above', () => {
   const orders = { __unsorted__: [], hi: [{ teamId: 'a', rank: 1 }], lo: [{ teamId: 'b', rank: 1 }, { teamId: 'c', rank: 2 }] };
   const plan = planRemoveTier('hi', ['__unsorted__', 'hi', 'lo'], orders);
   assert.equal(plan.fallback, 'lo');
-  assert.deepEqual(plan.patches, [{ teamId: 'a', rank: 3072, category_id: 'lo' }]);
+  // b's rank 1 leaves no room above it, so the destination tier is renumbered with a first.
+  assert.deepEqual(plan.patches, [{ teamId: 'a', rank: 1024, category_id: 'lo' }, { teamId: 'b', rank: 2048, category_id: 'lo' }, { teamId: 'c', rank: 3072, category_id: 'lo' }]);
+  assert.deepEqual(planRemoveTier('hi', ['__unsorted__', 'hi', 'lo'], { ...orders, lo: [{ teamId: 'b', rank: 4096 }] }).patches, [{ teamId: 'a', rank: 3072, category_id: 'lo' }]);
+  const last = planRemoveTier('lo', ['__unsorted__', 'hi', 'lo'], { ...orders, hi: [{ teamId: 'a', rank: 5000 }] });
+  assert.equal(last.fallback, 'hi');
+  assert.deepEqual(last.patches, [{ teamId: 'b', rank: 6024, category_id: 'hi' }, { teamId: 'c', rank: 7048, category_id: 'hi' }]);
   assert.equal(planRemoveTier('only', ['__unsorted__', 'only'], { only: [] }).fallback, null);
   assert.equal(validateMetaName('  ', []), 'Enter a name.');
   assert.equal(validateMetaName('Elite', ['elite']), 'That name already exists.');
@@ -369,4 +374,71 @@ test('scout display name falls back to the viewer for their own reports only', (
   assert.equal(scoutDisplayName({ me: 'Profile Me' }, 'me', viewer), 'Profile Me');
   assert.equal(scoutDisplayName(undefined, 'me', viewer), 'Mekot');
   assert.equal(scoutDisplayName({}, 'you', viewer), 'Unknown scout');
+});
+
+import { MIN_RANK, compareTierTeams, nextSortOrder, planMoveWithinTier, planPlaceGroupInTier, planTierOrder, renumberTier, type RankPatch, type TierItem } from './picklist';
+
+// Apply patches and sort with the same comparator the board uses; returns the displayed order.
+const displayed = (tier: TierItem[], patches: RankPatch[], extra: string[] = []) => {
+  const ranks = new Map<string, number | null>(tier.map(item => [item.teamId, item.rank]));
+  for (const patch of patches) ranks.set(patch.teamId, patch.rank);
+  const ids = [...tier.map(item => item.teamId), ...extra];
+  return ids.map((id, index) => ({ id, number: index + 1, opr: 100 - index })).sort(compareTierTeams(id => ranks.get(id))).map(team => team.id);
+};
+
+test('picklist moves next to unranked teams renumber the tier in displayed order (website rule)', () => {
+  const tier = [{ teamId: 'a', rank: 1024 }, { teamId: 'b', rank: null }, { teamId: 'c', rank: null }, { teamId: 'd', rank: null }];
+  const moved = planMoveWithinTier(tier, 'd', -1, 'tier')!;
+  assert.deepEqual(moved, renumberTier(['a', 'b', 'd', 'c'], 'tier'));
+  assert.deepEqual(displayed(tier, moved), ['a', 'b', 'd', 'c']);
+  assert.equal(planMoveWithinTier(tier, 'a', -1, 'tier'), null);
+  // Equal ranks cannot be swapped, so they renumber too.
+  assert.deepEqual(planMoveWithinTier([{ teamId: 'a', rank: 5 }, { teamId: 'b', rank: 5 }], 'b', -1, 'tier'), renumberTier(['b', 'a'], 'tier'));
+  // Crossing into a tier that has unranked teams renumbers that tier.
+  const crossing = planMove('x', ['hi', 'lo'], { hi: [{ teamId: 'x', rank: 1024 }], lo: [{ teamId: 'y', rank: null }] }, 'hi', 1);
+  assert.deepEqual(crossing, renumberTier(['x', 'y'], 'lo'));
+});
+
+test('picklist inserts never write rank < 1 and renumber tiers with missing ranks', () => {
+  for (const top of [1, 512, 1024]) {
+    const tier = [{ teamId: 'a', rank: top }, { teamId: 'b', rank: 4096 }];
+    const patches = planInsert('x', tier, 0, 'tier');
+    assert.ok(patches.every(patch => patch.rank >= MIN_RANK));
+    assert.deepEqual(displayed(tier, patches, ['x']), ['x', 'a', 'b']);
+  }
+  assert.deepEqual(planInsert('x', [{ teamId: 'a', rank: 4096 }], 0, 'tier'), [{ teamId: 'x', rank: 3072, category_id: 'tier' }]);
+  assert.deepEqual(planInsert('x', [], 0, UNSORTED), [{ teamId: 'x', rank: 1024, category_id: null }]);
+  const mixed = [{ teamId: 'a', rank: 1024 }, { teamId: 'b', rank: null }, { teamId: 'c', rank: null }];
+  const patches = planInsert('x', mixed, 2, 'tier');
+  assert.deepEqual(patches, renumberTier(['a', 'b', 'x', 'c'], 'tier'));
+  assert.deepEqual(displayed(mixed, patches, ['x']), ['a', 'b', 'x', 'c']);
+  assert.deepEqual(planMoveToTier('x', { lo: [{ teamId: 'y', rank: null }] }, 'lo'), renumberTier(['y', 'x'], 'lo'));
+});
+
+test('picklist group placement follows the website rules', () => {
+  assert.deepEqual(planPlaceGroupInTier([{ teamId: 'a', rank: 1024 }, { teamId: 'b', rank: 5000 }], ['x', 'y'], 'end', 't').map(p => p.rank), [6024, 7048]);
+  assert.deepEqual(planPlaceGroupInTier([{ teamId: 'a', rank: 4096 }], ['x', 'y'], 'start', 't').map(p => p.rank), [2048, 3072]);
+  assert.deepEqual(planPlaceGroupInTier([], ['x', 'y'], 'start', 't').map(p => p.rank), [1024, 2048]);
+  assert.deepEqual(planPlaceGroupInTier([{ teamId: 'a', rank: 1024 }, { teamId: 'b', rank: null }], ['x'], 'end', 't'), renumberTier(['a', 'b', 'x'], 't'));
+  assert.deepEqual(planPlaceGroupInTier([{ teamId: 'a', rank: 1024 }], [], 'end', 't'), []);
+});
+
+test('picklist restore keeps rank null and teams with no row at the restore point go back unranked', () => {
+  const created = { id: 'n', team_id: 'b', actor_user_id: 'u', action: 'created' as const, before_state: null, after_state: { rank: 1024 }, created_at: new Date(Date.UTC(2026, 0, 1, 13)).toISOString() };
+  const noted = { id: 'm', team_id: 'a', actor_user_id: 'u', action: 'updated' as const, before_state: { rank: null, category_id: null, note: '' }, after_state: { rank: 1024, category_id: 't', note: 'x' }, created_at: new Date(Date.UTC(2026, 0, 1, 13, 1)).toISOString() };
+  const older = { id: 'o', team_id: 'a', actor_user_id: 'v', action: 'updated' as const, before_state: null, after_state: { rank: null }, created_at: new Date(Date.UTC(2026, 0, 1, 10)).toISOString() };
+  const revisions = groupRevisions([noted, created, older]);
+  const current = new Map<string, FullRanking>([['a', { rank: 1024, category_id: 't', note: 'x', selected: false, tag_ids: [] }], ['b', { rank: 1024, category_id: null, note: '', selected: false, tag_ids: [] }]]);
+  const plan = planRestore(current, revisions, 1, ['a', 'b']);
+  assert.deepEqual(plan.find(item => item.teamId === 'a')?.state, { rank: null, category_id: null, note: '', selected: false, tag_ids: [] });
+  assert.deepEqual(plan.find(item => item.teamId === 'b')?.state, { rank: null, category_id: null, note: '', selected: false, tag_ids: [] });
+});
+
+test('tier order renumbers 0..n on every move and new tiers go last', () => {
+  const tiers = [{ id: 'a', sort_order: 0 }, { id: 'b', sort_order: 2 }, { id: 'c', sort_order: 2 }];
+  assert.deepEqual(planTierOrder(tiers, 'c', -1).map(entry => [entry.item.id, entry.sort_order]), [['c', 1]]);
+  assert.deepEqual(planTierOrder(tiers, 'a', 1).map(entry => [entry.item.id, entry.sort_order]), [['b', 0], ['a', 1]]);
+  assert.deepEqual(planTierOrder(tiers, 'a', -1), []);
+  assert.equal(nextSortOrder(tiers), 3);
+  assert.equal(nextSortOrder([]), 0);
 });

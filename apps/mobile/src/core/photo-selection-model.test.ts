@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {discardPhotoSelection,isOwnedSelectionFile,validSelectionLocation,queuePhotoSelection} from './photo-selection-model';
+import {discardPhotoSelection,isOwnedSelectionFile,validSelectionLocation,queuePhotoSelection,relativeDocumentPath,resolveDocumentUri} from './photo-selection-model';
 
 const photo={id:'photo-1',eventId:'event-1',localUri:'file:///documents/staged/photo-1.jpg',createdAt:'2026-10-18'};
 test('removal unlinks staged file before removing its row',async()=>{
@@ -30,7 +30,8 @@ test('file ownership requires exact app-owned path, never a library or remote UR
 test('workspace and filename components cannot escape the staging directory',()=>{
  const uuid='00000000-0000-4000-8000-000000000001';
  assert.equal(validSelectionLocation(`live:${uuid}:${uuid}`,uuid),true);
- assert.equal(validSelectionLocation(`practice:${uuid}:${uuid}`,uuid),true);
+ assert.equal(validSelectionLocation(`demo:${uuid}:${uuid}`,uuid),true,'practice scopes start with demo:');
+ assert.equal(validSelectionLocation(`practice:${uuid}:${uuid}`,uuid),false);
  for(const part of ['..','../../other','file:///documents','/','bad-id']){
   assert.equal(validSelectionLocation(part,uuid),false);
   assert.equal(validSelectionLocation(`live:${uuid}:${uuid}`,part),false);
@@ -51,4 +52,18 @@ test('new selection is staged and durably saved once before delivery',async()=>{
  const steps:string[]=[];
  await queuePhotoSelection(destination,{read:async()=>null,stage:async()=>{steps.push('stage');return destination},write:async value=>{assert.equal(value,destination);steps.push('save')}});
  assert.deepEqual(steps,['stage','save']);
+});
+
+test('queued photo paths survive the app container moving after an update',()=>{
+ const before='file:///var/mobile/Containers/Data/Application/OLD/Documents/',after='file:///var/mobile/Containers/Data/Application/NEW/Documents/';
+ const stored=relativeDocumentPath(before+'hal9000-photos/user/photo.jpg',before);
+ assert.equal(stored,'hal9000-photos/user/photo.jpg');
+ assert.equal(resolveDocumentUri(stored,after),after+'hal9000-photos/user/photo.jpg');
+ assert.equal(resolveDocumentUri(stored,after.slice(0,-1)),after+'hal9000-photos/user/photo.jpg');
+ // Rows saved by older versions hold the old absolute URI: re-base it.
+ assert.equal(resolveDocumentUri(before+'hal9000-photo-selections/live:a:b/photo.jpg',after),after+'hal9000-photo-selections/live:a:b/photo.jpg');
+ // Anything this app does not own is left untouched.
+ for(const uri of ['ph://library/1','blob:https://example.com/1','file:///tmp/other/photo.jpg',before+'other/photo.jpg']){
+  assert.equal(relativeDocumentPath(uri,before),uri);assert.equal(resolveDocumentUri(uri,after),uri);
+ }
 });

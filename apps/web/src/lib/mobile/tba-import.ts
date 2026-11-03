@@ -6,6 +6,22 @@ import { MobileError, type Actor, type MobileDatabase } from "./operations";
 
 const eventSchema = z.object({ name: z.string().min(1), start_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), end_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), remap_teams: tbaTeamRemapsSchema.optional() });
 const teamsSchema = z.array(z.object({ key: z.string().regex(/^frc\d+$/), team_number: z.number().int().positive(), nickname: z.string().nullable() }));
+type TeamRemaps = Record<string, string>;
+/**
+ * events.tba_team_remaps holds both TBA's remap_teams and admin event aliases.
+ * A re-import or live sync merges instead of replacing: every existing key is
+ * kept (an admin alias wins over TBA's value for the same key), new TBA keys are
+ * added, and a TBA entry whose label an existing alias already uses is dropped
+ * so one label never maps to two teams.
+ */
+export function mergeTeamRemaps(official: unknown, existing: unknown): TeamRemaps {
+  const tba = tbaTeamRemapsSchema.parse(official ?? {});
+  const stored = Object.fromEntries(Object.entries(existing && typeof existing === "object" && !Array.isArray(existing) ? existing : {}).filter(([key, label]) => tbaTeamRemapsSchema.safeParse({ [key]: label }).success)) as TeamRemaps;
+  const storedLabels = new Set(Object.values(stored));
+  const merged: TeamRemaps = {};
+  for (const [key, label] of Object.entries(tba)) if (!(key in stored) && !storedLabels.has(label)) merged[key] = label;
+  return { ...merged, ...stored };
+}
 function checked(result: any, resource: string) {
   if (result.error) throw new MobileError(503, "import_database_failed", `TBA import could not save ${resource}. Earlier import steps may have completed; retry safely.`);
   return result.data;
@@ -24,8 +40,8 @@ export async function importEvent(database: MobileDatabase, actor: Actor, input:
   const [rawEvent, rawTeams, rawMatches, rawPractice] = await Promise.all(responses.map((result) => result.json()));
   const event = eventSchema.parse(rawEvent); const teams = teamsSchema.parse(rawTeams);
   const matches = z.array(tbaLiveMatchSchema).parse([...z.array(z.unknown()).parse(rawMatches), ...z.array(z.unknown()).parse(rawPractice)]);
-  const existing = checked(await database.from("events").select("id").eq("organization_id", actor.organizationId).eq("event_key", parsed.eventKey).maybeSingle(), "event lookup");
-  const patch = { name: event.name, starts_at: `${event.start_date}T00:00:00Z`, ends_at: `${event.end_date}T23:59:59Z`, is_manual: false, tba_team_remaps: event.remap_teams ?? {} };
+  const existing = checked(await database.from("events").select("id,tba_team_remaps").eq("organization_id", actor.organizationId).eq("event_key", parsed.eventKey).maybeSingle(), "event lookup");
+  const patch = { name: event.name, starts_at: `${event.start_date}T00:00:00Z`, ends_at: `${event.end_date}T23:59:59Z`, is_manual: false, tba_team_remaps: mergeTeamRemaps(event.remap_teams, existing?.tba_team_remaps) };
   const saved = existing
     ? checked(await database.from("events").update(patch).eq("id", existing.id).eq("organization_id", actor.organizationId).select("id").single(), "event")
     : checked(await database.from("events").insert({ ...patch, organization_id: actor.organizationId, event_key: parsed.eventKey, status: "upcoming" }).select("id").single(), "event");

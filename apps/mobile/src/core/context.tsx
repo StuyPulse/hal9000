@@ -4,13 +4,13 @@ import NetInfo from '@react-native-community/netinfo';
 import * as Crypto from 'expo-crypto';
 import {client,requireClient} from './client';
 import {putValue,getValue,listRecords,listPhotos,acknowledgeStored,failStored,removeValue,removeCachedViewer} from './storage';
-import {loadViewer,loadEvents,loadBundle,uploadSnapshot,emptyRebuilt,writePicklist,writePicklistBulk,MembershipPendingError,type PicklistRow} from './data';
+import {loadViewer,loadEvents,loadBundle,uploadSnapshot,emptyRebuilt,MembershipPendingError} from './data';
 import {DEMO_VIEWER,demoBundle} from './demo';
-import {scopedIdentity,updateLocal,reusableDraft,shouldUpload,isConnectionFailure} from './sync-model';
+import {scopedIdentity,updateLocal,reusableDraft,uploadableHere,isConnectionFailure,staleAcknowledgedCopy} from './sync-model';
 import {canReceiveQr,canUploadRelay,relayReceiptAction,scheduleWarning} from './relay-receipt';
 import {ensureRelayDevice} from './relay-device';
 import {canEditReport,seedServerEdit} from './report-editing';
-import {stagePhoto,uploadPhoto} from './photos';
+import {stagePhoto,uploadPhoto,resolvePhoto} from './photos';
 import {queuePhotoSelection} from './photo-selection-model';
 import {safetyQueue} from './safety-sync';
 import {drawingQueue,overlayPendingDrawings} from './strategy-sync';
@@ -37,7 +37,7 @@ const light:Palette={bg:'#eceef1',surface:'#fff',panel:'#e1e5ea',text:'#14171c',
 export function AppProvider({children}:{children:React.ReactNode}){
  const [ready,setReady]=useState(false),[viewer,setViewer]=useState<Viewer|null>(null),[bundle,setBundle]=useState<EventBundle|null>(null),[events,setEvents]=useState<Event[]>([]),[records,setRecords]=useState<LocalSubmission[]>([]),[photos,setPhotos]=useState<LocalPhoto[]>([]),[online,setOnline]=useState(true),[syncing,setSyncing]=useState(false),[error,setErrorRaw]=useState<string|null>(null),[appearance,setAppearanceState]=useState<'light'|'dark'|'system'>('system'),[systemDark,setSystemDark]=useState(Appearance.getColorScheme()==='dark');
  const setError=useCallback((message:string|null)=>setErrorRaw(message===null?null:friendlyError(message)),[]);
- const writeChain=useRef(Promise.resolve()),syncLock=useRef(false),scopeRef=useRef<string|null>(null);
+ const writeChain=useRef(Promise.resolve()),syncLock=useRef(false),syncAgain=useRef(false),scopeRef=useRef<string|null>(null);
  const autosaveTimer=useRef<ReturnType<typeof setTimeout>|null>(null);
  const [workspaceMode,setWorkspaceMode]=useState<WorkspaceMode>('active'),[membershipPending,setMembershipPending]=useState(false);
  const modeRef=useRef<WorkspaceMode>('active'),eventRef=useRef<string|undefined>(undefined),eventEpoch=useRef(0),connectionRef=useRef(true),refreshLock=useRef(false);
@@ -45,9 +45,11 @@ export function AppProvider({children}:{children:React.ReactNode}){
  const scope=viewer?scopedIdentity(viewer.userId,viewer.organizationId,viewer.demo):null;
  scopeRef.current=scope;
  const theme=appearance==='dark'||appearance==='system'&&systemDark?dark:light;
- const exclusiveReportMutation=<T,>(operation:()=>Promise<T>)=>excludeSync(syncLock,operation);
+ // A sync asked for while the lock is held runs once the holder finishes, instead of waiting for the next timer.
+ const runRequestedSync=()=>{if(!syncAgain.current)return;syncAgain.current=false;void syncRef.current()};
+ const exclusiveReportMutation=<T,>(operation:()=>Promise<T>)=>excludeSync(syncLock,operation).finally(runRequestedSync);
  const serializeLocalWrite=<T,>(operation:()=>Promise<T>)=>serializeWrite(writeChain,operation);
- const reloadLocal=useCallback(async()=>{if(!scope){setRecords([]);setPhotos([]);return}const [r,p]=await Promise.all([listRecords(scope),listPhotos(scope)]);if(scopeRef.current===scope){setRecords(r.sort((a,b)=>b.changedAt.localeCompare(a.changedAt)));setPhotos(p)}},[scope]);
+ const reloadLocal=useCallback(async()=>{if(!scope){setRecords([]);setPhotos([]);return}const [r,p]=await Promise.all([listRecords(scope),listPhotos(scope)]);if(scopeRef.current===scope){setRecords(r.sort((a,b)=>b.changedAt.localeCompare(a.changedAt)));setPhotos(p.map(resolvePhoto))}},[scope]);
  const saveBundle=useCallback(async(incoming:EventBundle)=>{const next=await overlayPendingPicklist(await overlayPendingDrawings(incoming));await workspaceCache.saveBundle(next);if(scopeRef.current===next.scope){eventRef.current=next.event.id;setBundle(next)}},[]);
  const activate=useCallback(async(v:Viewer)=>{
   const s=scopedIdentity(v.userId,v.organizationId,v.demo);scopeRef.current=s;
@@ -55,7 +57,7 @@ export function AppProvider({children}:{children:React.ReactNode}){
   await putValue('device','meta','viewer',v);
   const [cached,localRecords,localPhotos,eventRows,mode]=await Promise.all([workspaceCache.bundle(s),listRecords(s),listPhotos(s),workspaceCache.events(s),getValue<WorkspaceMode>(s,'meta','workspace-mode')]);if(scopeRef.current!==s)return;
   modeRef.current=mode??'active';setWorkspaceMode(modeRef.current);
-  setRecords(localRecords.sort((a,b)=>b.changedAt.localeCompare(a.changedAt)));setPhotos(localPhotos);
+  setRecords(localRecords.sort((a,b)=>b.changedAt.localeCompare(a.changedAt)));setPhotos(localPhotos.map(resolvePhoto));
   setEvents(eventRows??(cached?[cached.event]:[]));
   if(cached){eventRef.current=cached.event.id;await saveBundle(cached)}else eventRef.current=undefined;
   if(v.demo){const b={...(cached??demoBundle()),profiles:{...cached?.profiles,[v.userId]:v.displayName}};await saveBundle(b);if(scopeRef.current===s)setEvents([b.event]);}
@@ -113,10 +115,11 @@ export function AppProvider({children}:{children:React.ReactNode}){
  useEffect(()=>{const sub=Appearance.addChangeListener(({colorScheme})=>setSystemDark(colorScheme==='dark'));return()=>sub.remove()},[]);
  useEffect(()=>{void reloadLocal()},[reloadLocal]);
  const sync=useCallback(async()=>{
-  if(!scope||!viewer||!online||viewer.demo||syncLock.current)return;
-  syncLock.current=true;setSyncing(true);let failures=0;
+  if(!scope||!viewer||!online||viewer.demo)return;
+  if(syncLock.current){syncAgain.current=true;return}
+  syncLock.current=true;syncAgain.current=false;setSyncing(true);let failures=0,connectionLost=false;
   try{
-   const queued=(await listRecords(scope)).filter(shouldUpload).filter(r=>r.origin!=='relay'||canUploadRelay(viewer.role));
+   const queued=(await listRecords(scope)).filter(r=>uploadableHere(r,viewer.role));
    for(const snapshot of queued){
     if(scopeRef.current!==scope||!connectionRef.current)break;
     try{const serverTime=await uploadSnapshot(snapshot,viewer.userId);await serializeLocalWrite(async()=>{
@@ -126,13 +129,13 @@ export function AppProvider({children}:{children:React.ReactNode}){
     })}
     catch(e){failures++;
      // A dead connection is not the report's fault: leave it pending and stop, rather than wait out a timeout per report.
-     if(isConnectionFailure(e))break;
+     if(isConnectionFailure(e)){connectionLost=true;break}
      const message=snapshot.origin==='relay'?'Received copy is safe locally. The server may not authorize this account to upload another scout’s report. '+(e as Error).message:(e as Error).message;await serializeLocalWrite(()=>failStored(scope,snapshot.entry.id,snapshot.revision,message))}
    }
    for(const photo of (await listPhotos(scope)).filter(p=>p.status!=='synced')){
     if(scopeRef.current!==scope||!connectionRef.current)break;
     try{await uploadPhoto(photo,viewer.userId);await putValue(scope,'photo',photo.id,{...photo,status:'synced',error:null})}
-    catch(e){failures++;if(isConnectionFailure(e))break;await putValue(scope,'photo',photo.id,{...photo,status:'failed',error:(e as Error).message})}
+    catch(e){failures++;if(isConnectionFailure(e)){connectionLost=true;break}await putValue(scope,'photo',photo.id,{...photo,status:'failed',error:(e as Error).message})}
    }
    await safetyQueue(scope).flush(()=>scopeRef.current===scope&&connectionRef.current);
    const safetyPending=(await safetyQueue(scope).list()).some(row=>row.status==='pending');
@@ -141,9 +144,12 @@ export function AppProvider({children}:{children:React.ReactNode}){
    const rankings=await flushPendingPicklist(scope,()=>scopeRef.current===scope&&connectionRef.current);
    if(rankings.error&&scopeRef.current===scope)setError(rankings.error);
    await reloadLocal();
-   if(!failures&&!safetyPending&&!drawings.error&&!rankings.error&&connectionRef.current){await putValue(scope,'meta','last-sync',{at:Date.now()});void backgroundRefresh.current(viewer).catch(e=>setError(e.message));}
+   // The server was reached and every row was attempted. A report the server keeps refusing
+   // is shown on that report; it must not freeze "last synced" for everything else.
+   if(!connectionLost&&connectionRef.current&&scopeRef.current===scope)await putValue(scope,'meta','last-sync',{at:Date.now()});
+   if(!failures&&!safetyPending&&!drawings.error&&!rankings.error&&connectionRef.current)void backgroundRefresh.current(viewer).catch(e=>setError(e.message));
   }catch(e){if(scopeRef.current===scope)setError((e as Error).message)}
-  finally{syncLock.current=false;if(scopeRef.current===scope)setSyncing(false)}
+  finally{syncLock.current=false;if(scopeRef.current===scope)setSyncing(false);runRequestedSync()}
  },[scope,viewer?.userId,viewer?.role,viewer?.demo,online,reloadLocal,saveBundle]);
  const syncRef=useRef(sync);syncRef.current=sync;
  useEffect(()=>()=>{if(autosaveTimer.current)clearTimeout(autosaveTimer.current);autosaveTimer.current=null},[scope]);
@@ -172,8 +178,12 @@ export function AppProvider({children}:{children:React.ReactNode}){
   if(!viewer||!scope)return;const event=events.find(e=>e.id===id);if(!event)throw Error('Event not available');
   const cached=await workspaceCache.bundle(scope,id);if(scopeRef.current!==scope)return;
   if(!cached&&!connectionRef.current)throw Error('This event has not been downloaded yet. Connect once to download it.');
+  const previous={event:eventRef.current,mode:modeRef.current};
   const epoch=++eventEpoch.current;eventRef.current=id;const mode:WorkspaceMode=event.status==='active'?'active':'review';modeRef.current=mode;setWorkspaceMode(mode);await putValue(scope,'meta','workspace-mode',mode);
-  await openDownloadedEvent({cached:cached?{...cached,event}:null,online:!viewer.demo&&connectionRef.current,display:saveBundle,fetch:()=>loadBundle(viewer,event,cached),current:()=>scopeRef.current===scope&&epoch===eventEpoch.current,retain:next=>workspaceCache.saveBundle(next,false),failed:e=>{if(scopeRef.current===scope)setError('Using downloaded event data. '+(e as Error).message)}});
+  // A first download that fails must not leave the phone pointing at an event it isn't showing.
+  const rollBack=async()=>{if(epoch!==eventEpoch.current||scopeRef.current!==scope)return;eventRef.current=previous.event;modeRef.current=previous.mode;setWorkspaceMode(previous.mode);await putValue(scope,'meta','workspace-mode',previous.mode).catch(()=>undefined)};
+  try{await openDownloadedEvent({cached:cached?{...cached,event}:null,online:!viewer.demo&&connectionRef.current,display:saveBundle,fetch:()=>loadBundle(viewer,event,cached),current:()=>scopeRef.current===scope&&epoch===eventEpoch.current,retain:next=>workspaceCache.saveBundle(next,false),failed:e=>{if(scopeRef.current===scope)setError('Using downloaded event data. '+(e as Error).message)}})}
+  catch(e){await rollBack();throw e}
  };
  const createDraft=async(kind:EntryKind,teamId:string,matchId:string|null=null,assignmentId:string|null=null,payload?:Payload)=>{
   if(!scope||!viewer||!bundle)throw Error('Select a downloaded event first.');
@@ -184,7 +194,7 @@ export function AppProvider({children}:{children:React.ReactNode}){
    if(scopeRef.current!==scope)throw Error('The signed-in account changed. Reopen this report.');
    const saved=await listRecords(scope);
    if(scopeRef.current!==scope)throw Error('The signed-in account changed. Reopen this report.');
-   const existing=saved.find(r=>reusableDraft(r,{eventId:bundle.event.id,kind,teamId,matchId,payload:initialPayload}));
+   const existing=saved.find(r=>reusableDraft(r,{userId:viewer.userId,eventId:bundle.event.id,kind,teamId,matchId,payload:initialPayload}));
    if(existing)return existing;
    const record:LocalSubmission={entry:{id:Crypto.randomUUID(),organization_id:viewer.organizationId,event_id:bundle.event.id,team_id:teamId,match_id:matchId,assignment_id:assignmentId,scout_user_id:viewer.userId,entry_type:kind,form_version:kind==='match'?4:2,payload:initialPayload,status:'draft',submitted_at:null},revision:1,acknowledgedRevision:null,status:'draft',error:null,origin:'own',baseUpdatedAt:null,changedAt:new Date().toISOString()};
    if(scopeRef.current!==scope)throw Error('The signed-in account changed. Reopen this report.');
@@ -197,10 +207,14 @@ export function AppProvider({children}:{children:React.ReactNode}){
   if(!scope||!viewer||!bundle)throw Error('Select an event');
   const operation=writeChain.current.then(async()=>{
    const local=await getValue<LocalSubmission>(scope,'entry',id);
-   if(local){if(!canEditReport(viewer,local.entry,local))throw Error('Your role cannot edit this report.');return local}
    const entry=bundle.entries.find(e=>e.id===id&&e.event_id===bundle.event.id);
+   if(local){
+    if(!canEditReport(viewer,local.entry,local))throw Error('Your role cannot edit this report.');
+    // Pending or unpublished work stays. A fully uploaded copy is replaced by a newer server version.
+    if(!staleAcknowledgedCopy(local,entry))return local;
+   }
    if(!entry)throw Error('Refresh this event to download the report.');
-   const seeded=seedServerEdit(viewer,entry);
+   const seeded=seedServerEdit(viewer,entry,local);
    await putValue(scope,'entry',id,seeded);
    await reloadLocal();
    return seeded;
@@ -234,8 +248,9 @@ export function AppProvider({children}:{children:React.ReactNode}){
    if(action==='conflict'){summary.rejected.push({id:entry.id,reason:'A different version of this report is already here. The saved copy was kept.'});continue}
    assertScope();
    const warning=scheduleWarning(entry,teamIds,bundle.matches);
+   // Informational: it explains where the copy goes next. Only a failed upload needs attention.
    const note=!canUploadRelay(viewer.role)?'Saved for viewing here. A master or the scout uploads this report.':proof?warning:'Unsigned copy: it counts on this phone, but the scout\'s own device has to upload it.';
-   await putValue(scope,'entry',entry.id,{entry,revision,proof,acknowledgedRevision:null,status:'received',origin:'relay',error:note,baseUpdatedAt:null,changedAt:new Date().toISOString()} satisfies LocalSubmission);
+   await putValue(scope,'entry',entry.id,{entry,revision,proof,acknowledgedRevision:null,status:'received',origin:'relay',error:null,note,baseUpdatedAt:null,changedAt:new Date().toISOString()} satisfies LocalSubmission);
    summary.saved++;
   }
   await reloadLocal();
@@ -245,7 +260,7 @@ export function AppProvider({children}:{children:React.ReactNode}){
  const markQrShared=async(reports:{id:string;revision:number}[])=>serializeLocalWrite(async()=>{
   if(!scope)return;
   const at=new Date().toISOString();
-  for(const {id,revision} of reports){const current=await getValue<LocalSubmission>(scope,'entry',id);if(current?.revision===revision&&current.status!=='synced')await putValue(scope,'entry',id,{...current,qrShared:{revision,at}} satisfies LocalSubmission)}
+  for(const {id,revision} of reports){const current=await getValue<LocalSubmission>(scope,'entry',id);if(current?.revision===revision&&current.status!=='synced')await putValue(scope,'entry',id,{...current,qrShared:{revision,at,entry:current.entry}} satisfies LocalSubmission)}
   await reloadLocal();
  });
  const deleteLocalDraft=async(id:string)=>serializeLocalWrite(()=>exclusiveReportMutation(async()=>{if(!scope||!viewer)return;const r=await getValue<LocalSubmission>(scope,'entry',id);if(r?.entry.status!=='draft')throw Error('Only unsubmitted drafts can be removed.');if(!viewer.demo&&r.baseUpdatedAt){if(!online)throw Error('This draft is backed up to the server. Connect before deleting it.');await apiRequest('/api/mobile/reports','DELETE',{entryId:id,eventId:r.entry.event_id,expectedUpdatedAt:r.baseUpdatedAt},{expectedUserId:viewer.userId,expectedOrganizationId:viewer.organizationId});}if(scopeRef.current!==scope)return;await removeValue(scope,'entry',id);await reloadLocal()}));
@@ -291,18 +306,32 @@ export function AppProvider({children}:{children:React.ReactNode}){
   await removeValue(scope,'shared-intent',`source:${teamId}:${matchKey}`);
  };
  const savePicklistRankings=async(patches:{teamId:string;patch:Partial<PicklistRanking>}[])=>{
-  if(!viewer||!bundle||!scope)throw Error('Select an event');if(!patches.length)return;
+  if(!viewer||!bundle||!scope)throw Error('Select an event');if(!patches.length)return {uploaded:false,error:null};
   const {picklistQueue}=await import('./picklist-sync');const queue=picklistQueue(scope);
   await queue.save(viewer,bundle,patches); // SQLite before any request; captures the owner, event and changed-field baselines.
-  if(scopeRef.current!==scope)return;
+  if(scopeRef.current!==scope)return {uploaded:false,error:null};
   await saveBundle(await queue.overlay(bundle));
-  if(viewer.demo||!online)return;
+  if(viewer.demo||!online)return {uploaded:false,error:null};
   const result=await queue.flush(()=>scopeRef.current===scope&&connectionRef.current);
-  if(scopeRef.current!==scope)return;
-  if(result.error){setError(result.error);return;} // Durable local success, with a visible retained-upload error.
+  if(scopeRef.current!==scope)return {uploaded:false,error:null};
+  // Durable local success either way. A conflict dropped some edits, so refresh to show the shared picklist.
+  if(result.error){setError(result.error);await refresh().catch(()=>undefined);return {uploaded:false,error:result.error};}
   await refresh();
+  return {uploaded:true,error:null};
  };
- const savePicklistRanking=(teamId:string,patch:Partial<PicklistRanking>)=>savePicklistRankings([{teamId,patch}]);
+ /** Throws away picklist edits that never uploaded, and puts the board back to what this phone last knew from the server. */
+ const discardPendingPicklist=async()=>{
+  if(!bundle||!scope)return;
+  const {picklistQueue}=await import('./picklist-sync');const queue=picklistQueue(scope);
+  const batch=await queue.pendingFor(bundle.event.id);
+  await queue.discard(bundle.event.id);
+  if(scopeRef.current!==scope||!batch)return;
+  const restored=new Map(batch.intents.map(intent=>[intent.teamId,intent]));
+  const rankings=bundle.rankings.flatMap(row=>{const intent=restored.get(row.team_id);if(!intent)return [row];return intent.existed?[{...row,...intent.base}]:[]});
+  await saveBundle({...bundle,rankings});
+  if(online&&!viewer?.demo)await refresh().catch(()=>undefined);
+ };
+ const savePicklistRanking=async(teamId:string,patch:Partial<PicklistRanking>)=>{await savePicklistRankings([{teamId,patch}])};
  const saveGlobalDocument=async(url:string)=>{if(!viewer||!bundle)throw Error('Select an event');if(!['admin','strategist','developer'].includes(viewer.role))throw Error('Your role cannot change the global document');const normalized=normalizeGoogleDocumentUrl(url);if(!normalized)throw Error(GOOGLE_DOCUMENT_ERROR);url=normalized;if(!viewer.demo){const {error:writeError}=await requireClient().from('event_global_documents').upsert({event_id:bundle.event.id,organization_id:viewer.organizationId,document_url:url,updated_by:viewer.userId},{onConflict:'event_id'});if(writeError)throw writeError;}await saveBundle({...bundle,globalDocument:url})};
 
  const saveStrategyDrawing=async(strokes:unknown)=>{
@@ -369,5 +398,5 @@ export function AppProvider({children}:{children:React.ReactNode}){
   await saveBundle({...bundle,robotProfiles:{...bundle.robotProfiles,[teamId]:next}});
  };
 
- return <Context.Provider value={{ready,membershipPending,viewer,bundle,events,records,photos,theme,online,syncing,error,appearance,setAppearance:v=>{setAppearanceState(v);void putValue('device','meta','appearance',v)},signIn,signUp,completeExternalSignIn,startDemo:()=>activate(DEMO_VIEWER),signOut,selectEvent,dismissError:()=>setError(null),createDraft,saveDraft,claimReport,deleteReport,saveManualIdentity,updatePractice,sync,refresh,addPhoto,receiveEntry,receiveEntries,markQrShared,deleteLocalDraft,savePicklistRanking,savePicklistRankings,saveGlobalDocument,saveStrategyDrawing,savePicklistMeta,deletePicklistMeta,saveRobotProfile,saveReportSource}}>{children}</Context.Provider>
+ return <Context.Provider value={{ready,membershipPending,viewer,bundle,events,records,photos,theme,online,syncing,error,appearance,setAppearance:v=>{setAppearanceState(v);void putValue('device','meta','appearance',v)},signIn,signUp,completeExternalSignIn,startDemo:()=>activate(DEMO_VIEWER),signOut,selectEvent,dismissError:()=>setError(null),createDraft,saveDraft,claimReport,deleteReport,saveManualIdentity,updatePractice,sync,refresh,addPhoto,receiveEntry,receiveEntries,markQrShared,deleteLocalDraft,savePicklistRanking,discardPendingPicklist,savePicklistRankings,saveGlobalDocument,saveStrategyDrawing,savePicklistMeta,deletePicklistMeta,saveRobotProfile,saveReportSource}}>{children}</Context.Provider>
 }

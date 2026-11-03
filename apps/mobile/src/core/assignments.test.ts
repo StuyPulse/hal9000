@@ -11,17 +11,24 @@ const report=(over:Partial<NativeEntry>,local:Partial<LocalSubmission>={}):Local
 
 test('open assignments are sorted by match and skip completed ones', () => {
  const assignments=[assignment('a3','m3','t1'),assignment('a1','m1','t1'),assignment('a2','m2','t4','complete')];
- assert.deepEqual(openAssignments({event,matches,assignments},[]).map(a=>a.id),['a1','a3']);
+ assert.deepEqual(openAssignments({event,matches,assignments},[],'u1').map(a=>a.id),['a1','a3']);
 });
 
 test('a report closes its assignment by ID or by the same robot in the same match', () => {
  const assignments=[assignment('a1','m1','t1'),assignment('a2','m2','t4'),assignment('a3','m3','t2')];
  const records=[report({assignment_id:'a1',match_id:'m1',team_id:'t1'}),report({assignment_id:null,match_id:'m2',team_id:'t4'})];
- assert.deepEqual(openAssignments({event,matches,assignments},records).map(a=>a.id),['a3']);
+ assert.deepEqual(openAssignments({event,matches,assignments},records,'u1').map(a=>a.id),['a3']);
 });
 
 test('drafts, received reports and other events leave assignments open', () => {
  const assignments=[assignment('a1','m1','t1')];
  const records=[report({status:'draft'}),report({},{origin:'relay'}),report({event_id:'other'}),report({entry_type:'pit'})];
- assert.deepEqual(openAssignments({event,matches,assignments},records).map(a=>a.id),['a1']);
+ assert.deepEqual(openAssignments({event,matches,assignments},records,'u1').map(a=>a.id),['a1']);
+});
+
+test('another scout\'s claimed report does not complete this account\'s assignment', () => {
+ const assignments=[assignment('a1','m1','t1')];
+ const records=[report({assignment_id:'a1',scout_user_id:'u2'}),report({assignment_id:null,scout_user_id:'u2'})];
+ assert.deepEqual(openAssignments({event,matches,assignments},records,'u1').map(a=>a.id),['a1']);
+ assert.deepEqual(openAssignments({event,matches,assignments},records,'u2').map(a=>a.id),[]);
 });

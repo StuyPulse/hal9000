@@ -21,6 +21,23 @@ export function sameSignedReport(remote: Record<string, unknown>, entry: Record<
     && canonicalJson(remote.payload) === canonicalJson(entry.payload)
     && (remote.match_id === entry.match_id || Boolean((entry.payload as any)?.manual_match && entry.match_id === null));
 }
+function manualIdentity(payload: unknown) {
+  const manual = (payload as { manual_match?: unknown } | null)?.manual_match;
+  if (!manual || typeof manual !== "object" || Array.isArray(manual)) return null;
+  const { stage, label, alliance } = manual as Record<string, unknown>;
+  return canonicalJson({ stage: stage ?? null, label: label ?? null, alliance: alliance ?? null });
+}
+/**
+ * The scout's own draft autosave may already be on the server under the same
+ * permanent ID. The signed submission may replace it only when it is still a
+ * draft by the same author with the same fixed report identity.
+ */
+export function signedEntryCanReplaceDraft(remote: Record<string, unknown>, entry: Record<string, unknown>) {
+  if (remote.status !== "draft" || entry.status !== "submitted" || typeof remote.updated_at !== "string" || !remote.updated_at) return false;
+  if (!["id", "organization_id", "event_id", "team_id", "assignment_id", "scout_user_id", "entry_type", "form_version"].every((key) => (remote[key] ?? null) === (entry[key] ?? null))) return false;
+  if ((remote.match_id ?? null) !== (entry.match_id ?? null)) return false;
+  return manualIdentity(remote.payload) === manualIdentity(entry.payload);
+}
 export async function relayReport(database: MobileDatabase, actor: Actor, input: unknown) {
   if (!["master", "admin", "developer"].includes(actor.role)) throw new MobileError(403, "forbidden", "Master relay access is required.");
   const proof = proofSchema.parse(input);
@@ -55,17 +72,29 @@ export async function relayReport(database: MobileDatabase, actor: Actor, input:
   }
   const existing = await database.from("scouting_entries").select("*").eq("id", entry.id).maybeSingle();
   if (existing.error) throw new MobileError(503, "database_unavailable", "This report could not be checked.");
-  if (existing.data) {
-    if (!sameSignedReport(existing.data, entry)) throw new MobileError(409, "conflict", "This report ID already contains different data. Relay never overwrites it.");
-    return { entry: existing.data, alreadyReceived: true };
-  }
   const { updated_at: _serverTimestamp, ...insert } = entry;
+  // Promote the author's own server draft. The updated_at match is applied by
+  // PostgreSQL in the same statement, so a concurrent write is never clobbered.
+  const promote = async (draft: Record<string, unknown>) => {
+    const updated = await database.from("scouting_entries").update({ payload: insert.payload, status: insert.status, submitted_at: insert.submitted_at }).eq("id", entry.id).eq("organization_id", actor.organizationId).eq("scout_user_id", entry.scout_user_id).eq("status", "draft").eq("updated_at", draft.updated_at).select("*").maybeSingle();
+    if (!updated.error && updated.data && sameSignedReport(updated.data, entry)) return { entry: updated.data, alreadyReceived: false };
+    const after = await database.from("scouting_entries").select("*").eq("id", entry.id).maybeSingle();
+    if (!after.error && after.data && sameSignedReport(after.data, entry)) return { entry: after.data, alreadyReceived: true };
+    if (after.data) throw new MobileError(409, "conflict", "This report changed on another device while it was being relayed.");
+    throw new MobileError(503, "relay_upload_failed", "The signed report was not uploaded. Keep it in the relay queue and retry.");
+  };
+  if (existing.data) {
+    if (sameSignedReport(existing.data, entry)) return { entry: existing.data, alreadyReceived: true };
+    if (signedEntryCanReplaceDraft(existing.data, entry)) return promote(existing.data);
+    throw new MobileError(409, "conflict", "This report ID already contains different data. Relay never overwrites it.");
+  }
   const result = await database.from("scouting_entries").insert(insert).select("*").maybeSingle();
   if (result.error) {
     // Concurrent direct upload and relay may race. Read back, acknowledge only
     // equal signed content, and never replace the winner.
     const raced = await database.from("scouting_entries").select("*").eq("id", entry.id).maybeSingle();
     if (!raced.error && raced.data && sameSignedReport(raced.data, entry)) return { entry: raced.data, alreadyReceived: true };
+    if (!raced.error && raced.data && signedEntryCanReplaceDraft(raced.data, entry)) return promote(raced.data);
     if (raced.data) throw new MobileError(409, "conflict", "This report ID was received with different data.");
     throw new MobileError(503, "relay_upload_failed", "The signed report was not uploaded. Keep it in the relay queue and retry.");
   }

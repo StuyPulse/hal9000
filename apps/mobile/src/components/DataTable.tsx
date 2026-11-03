@@ -51,7 +51,7 @@ export function DataTable<Row>({ theme, columns, rows, rowKey, firstTitle = 'Tea
           </Animated.View>
         </View>
       </View>
-      <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator contentContainerStyle={{ paddingBottom: 24 }}>
+      <ScrollView nestedScrollEnabled style={{ flex: 1 }} showsVerticalScrollIndicator contentContainerStyle={{ paddingBottom: 24 }}>
       <View style={{ flexDirection: 'row' }}>
         <View style={{ width: firstWidth, backgroundColor: theme.bg, borderRightWidth: 1, borderColor: theme.line, zIndex: 2 }}>
           {rows.map((row) => (

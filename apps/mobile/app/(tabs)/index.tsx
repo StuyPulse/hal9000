@@ -10,6 +10,7 @@ import {ALLIANCE_FILL,Button,DISPLAY,DISPLAY_BOLD,GroupLabel,Label,List,ListRow,
 import {eventEntries} from '../../src/core/report-overlay';
 import {compareMatches,matchLabel} from '../../src/features/stats';
 import {openAssignments} from '../../src/core/assignments';
+import {toSendCount} from '../../src/core/sync-model';
 import type {Match} from '../../src/core/types';
 
 const short=(m:Match)=>`${m.match_type==='qualification'?'Q':m.match_type==='practice'?'P':'E'}${m.match_number}`;
@@ -22,7 +23,7 @@ export default function Home(){
  const data=useMemo(()=>{
   if(!bundle||!viewer)return null;
   const mine=records.filter(r=>r.entry.event_id===bundle.event.id&&r.origin==='own');
-  const assignments=openAssignments(bundle,records);
+  const assignments=openAssignments(bundle,records,viewer.userId);
   const all=eventEntries(bundle,records).filter(e=>e.status==='submitted');
   const covered=(type:string)=>new Set(all.filter(e=>e.entry_type===type).map(e=>e.team_id)).size;
   const matches=[...bundle.matches].sort(compareMatches);
@@ -30,7 +31,7 @@ export default function Home(){
    assignments,matches,
    onField:matches.find(m=>m.status!=='played'&&m.status!=='cancelled'),
    mineMatches:new Set(bundle.assignments.map(a=>a.match_id)),
-   toSend:records.filter(r=>r.entry.event_id===bundle.event.id&&r.status!=='synced'&&r.entry.status==='submitted').length,
+   toSend:toSendCount(records,bundle.event.id,viewer.role),
    drafts:mine.filter(r=>r.entry.status==='draft').length,
    submitted:mine.filter(r=>r.entry.status==='submitted'&&r.entry.entry_type==='match').length,
    submittedAll:mine.filter(r=>r.entry.status==='submitted').length,

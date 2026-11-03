@@ -1,4 +1,6 @@
 "use server";
+
+import { mergeTeamRemaps } from "@/lib/mobile/tba-import";
 import { z } from "zod";
 import { tbaTeamRemapsSchema } from "../tba-team-remaps-schema";
 import { resolveTbaTeamNumbers, saveTbaMatchRows, tbaLiveMatchSchema, tbaMatchRows } from "../tba-matches";
@@ -64,7 +66,8 @@ export async function importTbaEvent(_: ActionState, formData: FormData): Promis
         event_key: parsed.data.eventKey,
         name: event.data.name,
         tba_team_remaps_etag: eventResponse.headers.get("etag"),
-        tba_team_remaps: tbaTeamRemapsSchema.parse((eventPayload as { remap_teams?: unknown }).remap_teams ?? {}),
+        // Admin aliases set in the app live in this column too; a re-import must not erase them.
+        tba_team_remaps: mergeTeamRemaps(tbaTeamRemapsSchema.parse((eventPayload as { remap_teams?: unknown }).remap_teams ?? {}), existing?.tba_team_remaps),
         starts_at: `${event.data.start_date}T00:00:00Z`,
         ends_at: `${event.data.end_date}T23:59:59Z`,
         // Refreshing an event must not deactivate it.

@@ -2,13 +2,25 @@ import {canonicalJson,type SignedRelayProof} from '@wildcard/shared/src/relay-co
 import {validateNativeEntry} from '@wildcard/shared/src/native-contracts';
 import type {LocalSubmission,NativeEntry} from './types';
 
+function serverMillis(entry:NativeEntry):number|null{
+ const parsed=entry.updated_at?Date.parse(entry.updated_at.replace(/(\.\d{3})\d+/,'$1')):NaN;
+ return Number.isFinite(parsed)?parsed:null;
+}
+/** Edited copies keep the server timestamp they were seeded from. */
+function newerServerBase(old:NativeEntry,incoming:NativeEntry):boolean{
+ const before=serverMillis(old),after=serverMillis(incoming);
+ return after!==null&&(before===null||after>before);
+}
 export type ReceiptAction='save'|'already-here'|'own-copy'|'conflict';
 /** Scanning the same report twice must change nothing, and must never undo a cloud acknowledgment. */
 export function relayReceiptAction(old:LocalSubmission|null,entry:NativeEntry,revision:number,proof?:SignedRelayProof):ReceiptAction{
  if(!old)return 'save';
  if(old.origin==='own')return 'own-copy';
- if(old.revision>revision)return 'already-here';
- if(old.revision<revision)return 'save';
+ // An edit seeded from a newer server copy restarts its revision count on the
+ // scout's phone; it is still the later report, not an older one already here.
+ const newerBase=newerServerBase(old.entry,entry);
+ if(old.revision>revision&&!newerBase)return 'already-here';
+ if(old.revision<revision||newerBase)return 'save';
  if(canonicalJson(validateNativeEntry(old.entry))!==canonicalJson(validateNativeEntry(entry)))return 'conflict';
  if(old.status==='synced'||!proof)return 'already-here';
  // An unsigned backup can gain a signature, which is what lets it reach the cloud.

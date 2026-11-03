@@ -9,6 +9,7 @@ import {Screen} from '../../src/components/Screen';
 import {ALLIANCE_FILL,Button,Choice,DISPLAY,DISPLAY_BOLD,Input,Label,Section,Status,TeamTag} from '../../src/components/ui';
 import {BREAKAGE_TAGS,initialBreakageIssues,normalizeMatchTimestamp,normalizeRebuilt} from '../../src/core/rebuilt';
 import {canEditReport} from '../../src/core/report-editing';
+import {staleAcknowledgedCopy} from '../../src/core/sync-model';
 import {matchLabel,manualMatchLabel} from '../../src/features/stats';
 import type {Palette,Payload} from '../../src/core/types';
 import {useLayout} from '../../src/components/layout';
@@ -66,13 +67,17 @@ function Counter({label,value,onStep,theme,fill}:{label:string;value:number;onSt
 
 export default function MatchCapture(){
  const {id}=useLocalSearchParams<{id:string}>();
- const {records,bundle,viewer,theme,saveDraft}=useApp();const router=useRouter();
+ const {records,bundle,viewer,theme,saveDraft,claimReport}=useApp();const router=useRouter();
  const {contentWidth,height,wide,compactHeight}=useLayout();
  const field=fieldSize(contentWidth,height);
  const record=records.find(r=>r.entry.id===id);
- const [payload,setPayload]=useState<Payload|null>(null),[mirror,setMirror]=useState(false),[saving,setSaving]=useState(false),[error,setError]=useState('');
- const latest=useRef<Payload|null>(null),loaded=useRef<string|null>(null),saveVersion=useRef(0),breakageY=useRef(0),scroll=useRef<{scrollTo:(o:{y:number;animated:boolean})=>void}>(null);
- useEffect(()=>{if(record&&loaded.current!==id){loaded.current=id;const p={...record.entry.payload,breakage_issues:initialBreakageIssues(record.entry.payload),defense_level:record.entry.payload.defense_level??5};latest.current=p;setPayload(p)}},[id,record]);
+ const [payload,setPayload]=useState<Payload|null>(null),[mirror,setMirror]=useState(false),[saving,setSaving]=useState(false),[submitting,setSubmitting]=useState(false),[error,setError]=useState(''),[reseeded,setReseeded]=useState(false);
+ const latest=useRef<Payload|null>(null),loaded=useRef<string|null>(null),reseeding=useRef(false),saveVersion=useRef(0),breakageY=useRef(0),scroll=useRef<{scrollTo:(o:{y:number;animated:boolean})=>void}>(null);
+ // A fully uploaded copy older than the server is reseeded before the form opens. Never
+ // once editing has started: that would put the server's base under the screen's older values.
+ const stale=!reseeded&&loaded.current!==id&&staleAcknowledgedCopy(record,bundle?.entries.find(e=>e.id===id));
+ useEffect(()=>{if(!stale||reseeding.current)return;reseeding.current=true;void claimReport(id).catch(()=>undefined).finally(()=>{reseeding.current=false;setReseeded(true)})},[stale,id]);
+ useEffect(()=>{if(record&&!stale&&loaded.current!==id){loaded.current=id;const p={...record.entry.payload,breakage_issues:initialBreakageIssues(record.entry.payload),defense_level:record.entry.payload.defense_level??5};latest.current=p;setPayload(p)}},[id,record,stale]);
  if(!record||!payload||!bundle)return <Screen><Label theme={theme} muted>Loading…</Label></Screen>;
  if(!canEditReport(viewer,record.entry,record))return <Screen><Label theme={theme}>Your role can only view this report.</Label><Button title="View report" theme={theme} onPress={()=>router.replace({pathname:'/submission/[id]',params:{id}})}/></Screen>;
  const team=bundle.teams.find(t=>t.id===record.entry.team_id),match=bundle.matches.find(m=>m.id===record.entry.match_id);
@@ -88,7 +93,8 @@ export default function MatchCapture(){
  const toggleBroke=(on:boolean)=>change({...latest.current!,robot_broke:on,breakage_issues:on&&!issues.length?[{timestamp:'',issue:null}]:issues});
  // A robot can break at any moment, so this stays in the footer and jumps to the details.
  const reportBreak=()=>{if(!broke){void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning).catch(()=>undefined);toggleBroke(true)}setTimeout(()=>scroll.current?.scrollTo({y:Math.max(0,breakageY.current-12),animated:true}),50)};
- const submit=async()=>{setSaving(true);try{await saveDraft(id,normalizeRebuilt(latest.current!),true);void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(()=>undefined);router.replace({pathname:'/submission/[id]',params:{id}})}catch(e){setError(friendlyError(e))}finally{setSaving(false)}};
+ // Background autosave must never block Submit: the final save writes the latest values anyway.
+ const submit=async()=>{if(submitting)return;setSubmitting(true);try{await saveDraft(id,normalizeRebuilt(latest.current!),true);void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(()=>undefined);router.replace({pathname:'/submission/[id]',params:{id}})}catch(e){setError(friendlyError(e))}finally{setSubmitting(false)}};
  const fill=ALLIANCE_FILL[alliance];
  // Exact column widths: flexible ones keep their stacked width when the phone turns to landscape.
  const half=wide?Math.floor((contentWidth-20)/2):contentWidth;
@@ -96,7 +102,7 @@ export default function MatchCapture(){
  const period=(key:'auto'|'teleop')=>{const sc=payload[key] as {shoot:number;ferry:number};return <View style={{gap:12}}>{heading(key==='auto'?'Auto':'Teleop')}{(['shoot','ferry'] as const).map(k=><Counter key={k} label={k==='shoot'?'Scored':'Ferried'} value={sc[k]??0} fill={fill} theme={theme} onStep={d=>score(key,k,d)}/>)}{key==='teleop'?<Counter label="Fouls" value={Number(payload.fouls??0)} fill={theme.graphite} theme={theme} onStep={d=>set('fouls',clamp(Number(latest.current!.fouls??0)+d))}/>:null}</View>};
  const footer=<>{error?<Text accessibilityRole="alert" style={{color:theme.danger}}>{error}</Text>:null}<View style={{flexDirection:'row',gap:8}}>
   {!noShow?<Pressable accessibilityRole="button" accessibilityLabel={broke?'Robot broke. Go to breakage details':'Robot broke'} onPress={reportBreak} style={({pressed})=>({flex:1,minHeight:compactHeight?46:54,borderRadius:14,alignItems:'center',justifyContent:'center',borderWidth:2,borderColor:theme.warning,backgroundColor:broke?theme.warning:pressed?theme.panel:'transparent'})}><Text style={{color:broke?theme.bg:theme.warning,fontSize:16,fontWeight:'800'}}>{broke?'Broke ✓':'Robot broke'}</Text></Pressable>:null}
-  <Button title={saving?'Saving…':editing?'Save changes':'Submit report'} theme={theme} disabled={saving} onPress={()=>void submit()} style={{flex:1.6,minHeight:compactHeight?46:54,paddingVertical:compactHeight?8:14}}/>
+  <Button title={submitting?'Saving…':editing?'Save changes':'Submit report'} theme={theme} disabled={submitting} onPress={()=>void submit()} style={{flex:1.6,minHeight:compactHeight?46:54,paddingVertical:compactHeight?8:14}}/>
  </View></>;
  return <Screen scrollRef={scroll} footerInset pinFooter footer={footer}>
   <View style={{flexDirection:'row',alignItems:'center',gap:14}}>
@@ -105,7 +111,7 @@ export default function MatchCapture(){
     <Text numberOfLines={1} style={{color:theme.text,fontSize:24,fontFamily:DISPLAY_BOLD}}>{metadata?manualMatchLabel(metadata):match?matchLabel(match):'Match'}</Text>
     <Text numberOfLines={1} style={{color:alliance==='red'?theme.red:theme.blue,fontSize:14,fontWeight:'700'}}>{alliance==='red'?'Red':'Blue'} alliance{editing?' · editing':''}</Text>
    </View>
-   <Status label={saving?'Saving':'Saved'} tone={saving?'quiet':'ok'} theme={theme}/>
+   <Status label={saving?'Saving':error?'Not saved':'Saved'} tone={saving?'quiet':error?'bad':'ok'} theme={theme}/>
   </View>
 
   {metadata&&<Section title="Match details" theme={theme}>{editing?<Button title="Correct match details" secondary theme={theme} onPress={()=>router.push({pathname:'/edit-manual',params:{id}})}/>:<>

@@ -1,6 +1,7 @@
 import { tbaTeamRemapsSchema } from "./tba-team-remaps-schema";
 import { z } from "zod";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { mergeTeamRemaps } from "./mobile/tba-import";
 import { resolveTbaTeamNumbers, saveTbaMatchRows, tbaLiveMatchSchema, tbaMatchRows } from "./tba-matches";
 
 export type LiveSyncResult = { updated: boolean; skipped?: boolean; message: string };
@@ -81,7 +82,8 @@ export async function syncLiveEvent(eventId: string, organizationId: string): Pr
 
   if (!eventResponse.ok && eventResponse.status !== 304) throw new Error(`TBA event mapping sync returned HTTP ${eventResponse.status}.`);
   const eventPayload = eventResponse.status === 304 ? { remap_teams: event.tba_team_remaps } : await eventResponse.json();
-  const remaps = tbaTeamRemapsSchema.parse(eventPayload.remap_teams ?? {});
+  // Keep admin event aliases stored alongside TBA's remap_teams (see mergeTeamRemaps).
+  const remaps = mergeTeamRemaps(tbaTeamRemapsSchema.parse(eventPayload.remap_teams ?? {}), event.tba_team_remaps);
   const mappingChanged = JSON.stringify(event.tba_team_remaps) !== JSON.stringify(remaps);
   const numberFromKey = await resolveTbaTeamNumbers(baseUrl, key, parsed.data, eventPayload);
   let teamIdByNumber = new Map<number, string>();

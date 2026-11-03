@@ -11,9 +11,15 @@ const SECTIONS: { id: LeaderboardSection; label: string }[] = [
 ];
 const ROUNDS: { id: MatchRound; label: string }[] = [{ id: 'practice', label: 'Practice' }, { id: 'qualification', label: 'Qualification' }, { id: 'playoff', label: 'Playoffs' }];
 
+/** "Offline · data from <time>": the counts below come from the last download, not the live server. */
+function offlineLabel(downloadedAt: string | undefined) {
+  const at = downloadedAt ? new Date(downloadedAt) : null;
+  return at && Number.isFinite(at.getTime()) ? `Offline · data from ${at.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}` : 'Offline · showing downloaded data';
+}
+
 /** Scout contribution counts for the active event, computed exactly as the website's /leaderboard. */
 export function LeaderboardScreen() {
-  const { theme, bundle, records, viewer } = useFeatureApp();
+  const { theme, bundle, records, viewer, online } = useFeatureApp();
   const [section, setSection] = useState<LeaderboardSection>('all');
   const [rounds, setRounds] = useState<MatchRound[]>(ALL_ROUNDS);
   const [includePending, setIncludePending] = useState(false);
@@ -40,7 +46,7 @@ export function LeaderboardScreen() {
 
   return (
     <Screen theme={theme}>
-      {bundle.event.status !== 'active' ? null : null}
+      {!online && !viewer?.demo ? <Notice theme={theme} tone="warning">{offlineLabel(bundle.downloadedAt)}</Notice> : null}
       {pendingSubmittedCount(bundle, records) && !viewer?.demo ? <><Notice theme={theme} tone="warning">{pendingSubmittedCount(bundle, records)} report(s) are pending on this device. {includePending ? 'Preview counts include them and are not the confirmed website leaderboard.' : 'Confirmed counts below exclude them until cloud delivery.'}</Notice><Choice theme={theme} label="Preview pending local reports" selected={includePending} onPress={() => setIncludePending(value => !value)} /></> : null}
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
         {SECTIONS.map((item) => <Choice key={item.id} theme={theme} label={item.label} selected={section === item.id} onPress={() => setSection(item.id)} />)}

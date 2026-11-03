@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { generateKeyPairSync, sign } from "node:crypto";
 import { canonicalJson } from "@wildcard/shared/src/relay-contract";
-import { relayReport, sameSignedReport, validSignature } from "./relay-operations";
+import { relayReport, sameSignedReport, signedEntryCanReplaceDraft, validSignature } from "./relay-operations";
 import { registerDevice } from "./device-operations";
 import { requireManager } from "./admin-operations";
 import { MobileError, type Actor, type MobileDatabase } from "./operations";
@@ -19,7 +19,7 @@ const device = { id: id(7), user_id: entry.scout_user_id, organization_id: actor
 function fake(results: Record<string, { data: any; error?: unknown }[]>): MobileDatabase {
   return { auth: { getUser: async () => ({ data: null }) }, from(table) {
     const execute = () => Promise.resolve(results[table]?.shift() ?? { data: null });
-    const query: any = { select: () => query, eq: () => query, insert: () => query, maybeSingle: execute, then: (resolve: any, reject: any) => execute().then(resolve, reject) }; return query;
+    const query: any = { select: () => query, eq: () => query, insert: () => query, update: () => query, maybeSingle: execute, then: (resolve: any, reject: any) => execute().then(resolve, reject) }; return query;
   } };
 }
 const ready = () => ({ mobile_device_keys: [{ data: device }], organization_members: [{ data: { role: "scout" } }], events: [{ data: { id: entry.event_id, organization_id: actor.organizationId, status: "active" } }], event_teams: [{ data: { team_id: entry.team_id } }] });
@@ -73,4 +73,24 @@ test("active-event unassigned pre-scout relay follows current live policy", asyn
   const env = { ...envelope, entry: pre }; const proof = { envelope: env, signature: sign(null, Buffer.from(canonicalJson(env)), privateKey).toString("base64") };
   const results = { ...ready(), events: [{ data: { id: entry.event_id, status: "active" } }, { data: { id: entry.event_id, status: "active" } }], scouting_entries: [{ data: pre }] };
   assert.equal((await relayReport(fake(results), actor, proof)).alreadyReceived, true);
+});
+const draft = { ...entry, status: "draft", submitted_at: null, payload: { comments: "autosaved" }, updated_at: "2026-10-12T23:00:00.000Z" };
+test("the author's own server draft is promoted to the signed submission", async () => {
+  const result = await relayReport(fake({ ...ready(), scouting_entries: [{ data: draft }, { data: { ...entry, updated_at: "2026-10-13T01:00:00.000Z" } }] }), actor, { envelope, signature });
+  assert.equal(result.alreadyReceived, false);
+  assert.equal(result.entry.status, "submitted");
+});
+test("draft promotion requires the same author and fixed identity", () => {
+  assert.equal(signedEntryCanReplaceDraft(draft, entry), true);
+  for (const patch of [{ scout_user_id: id(9) }, { team_id: id(9) }, { event_id: id(9) }, { entry_type: "match" }, { match_id: id(8) }, { assignment_id: id(8) }, { status: "submitted" }, { updated_at: null }]) assert.equal(signedEntryCanReplaceDraft({ ...draft, ...patch }, entry), false);
+  const manual = (label: string) => ({ manual_match: { stage: "Qualification", label, alliance: "red" } });
+  assert.equal(signedEntryCanReplaceDraft({ ...draft, payload: manual("1") }, { ...entry, payload: { ...manual("1"), comments: "final" } }), true);
+  assert.equal(signedEntryCanReplaceDraft({ ...draft, payload: manual("1") }, { ...entry, payload: manual("2") }), false);
+});
+test("a draft from another author or a changed draft is never overwritten", async () => {
+  await assert.rejects(relayReport(fake({ ...ready(), scouting_entries: [{ data: { ...draft, scout_user_id: id(9) } }] }), actor, { envelope, signature }), status(409));
+  // The optimistic updated_at check matched nothing: someone saved in between.
+  await assert.rejects(relayReport(fake({ ...ready(), scouting_entries: [{ data: draft }, { data: null }, { data: { ...draft, payload: { comments: "newer" }, updated_at: "2026-10-13T02:00:00.000Z" } }] }), actor, { envelope, signature }), status(409));
+  // The concurrent writer already delivered the same signed report.
+  assert.equal((await relayReport(fake({ ...ready(), scouting_entries: [{ data: draft }, { data: null }, { data: entry }] }), actor, { envelope, signature })).alreadyReceived, true);
 });

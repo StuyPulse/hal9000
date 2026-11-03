@@ -8,8 +8,13 @@ export const matchInput=z.object({number:z.coerce.number().int().positive(),type
 export const manualScheduleInput=z.object({number:z.coerce.number().int().positive(),type:z.enum(['qualification','playoff','practice']),scheduledAt:z.string().datetime({offset:true}).nullable().optional()});
 export function manualCompletionPatch(){return {status:'played'} as const;}
 export const assignmentInput=z.object({matchId:z.string().uuid(),teamId:z.string().uuid(),scoutId:z.string().uuid()});
-export const invitationRoles=['scout','global_scout','strategist','admin'] as const;
-export const editableRoles=['scout','global_scout','strategist','master','admin'] as const;
+// Every role an admin may grant. Developer is granted only by a developer.
+export const invitationRoles=['scout','global_scout','strategist','master','admin'] as const;
+export const editableRoles=invitationRoles;
+export function assignableRoles(actingRole:string):string[]{return actingRole==='developer'?[...editableRoles,'developer']:[...editableRoles];}
+export function assertAssignableRole(actingRole:string,role:string){if(!assignableRoles(actingRole).includes(role))throw Error(role==='developer'?'Only a developer can grant the developer role.':'Choose a valid role.');}
+/** The server gates email access on can_manage_email_access, not on role. */
+export function canOpenEmailAccess(viewer:Pick<Viewer,'role'|'demo'|'canManageEmailAccess'>|null|undefined){return !!viewer&&(viewer.canManageEmailAccess===true||viewer.demo&&['admin','developer'].includes(viewer.role));}
 export function eventTeamNumberFromInput(value:string|number,bundle:EventBundle){
  const label=String(value).trim();if(!/^\d+[A-Za-z]*$/.test(label))throw Error('Enter a valid team number.');
  const number=/^\d+$/.test(label)?Number(label):bundle.teams.find(t=>t.displayNumber.toLowerCase()===label.toLowerCase())?.number;
@@ -39,14 +44,46 @@ export const editableFormSchema=formDefinitionSchema.superRefine((form,ctx)=>{
   if(f.type==='select'&&(!f.options?.length||f.options.some(v=>!v.trim())||new Set(f.options).size!==f.options.length))ctx.addIssue({code:'custom',path:['fields',i,'options'],message:'Select fields need distinct, nonempty choices.'});
  }
 });
-export function planAssignments(bundle:EventBundle,scoutIds:string[]){
+// Mirrors apps/web/src/lib/admin/assignment-plan.ts so the preview shows what the server creates.
+export const UNASSIGNABLE_MATCH_STATUSES:ReadonlySet<string>=new Set(['played','complete','cancelled']);
+export function isAssignableMatch(match:{status?:string|null}){return !match.status||!UNASSIGNABLE_MATCH_STATUSES.has(match.status);}
+export type PlannedAssignment={match_id:string;team_id:string;scout_user_id:string;assignment_type:'objective'};
+/** Round-robin that never gives one scout two robots in a match, skips played/complete/cancelled matches and leaves slots open when the roster is short. */
+export function planAssignments(bundle:EventBundle,scoutIds:string[]):{assignments:PlannedAssignment[];unfilled:number;skippedMatches:number}{
  const scouts=[...new Set(scoutIds)].sort();if(!scouts.length)throw Error('Choose at least one eligible scout.');
- const occupied=new Set(bundle.assignments.filter(a=>a.assignment_type==='objective').map(a=>`${a.match_id}:${a.team_id}`));
- const rows:{match_id:string;team_id:string;scout_user_id:string;assignment_type:'objective'}[]=[];
+ const existing=bundle.assignments.filter(a=>a.assignment_type==='objective');
+ const occupied=new Set(existing.map(a=>`${a.match_id}:${a.team_id}`)),busy=new Set(existing.map(a=>`${a.match_id}:${a.scout_user_id}`));
+ const rows:PlannedAssignment[]=[];let unfilled=0,skippedMatches=0,cursor=0;
  const matches=[...bundle.matches].sort((a,b)=>a.scheduled_at==null?(b.scheduled_at==null?a.id.localeCompare(b.id):1):b.scheduled_at==null?-1:a.scheduled_at.localeCompare(b.scheduled_at)||a.id.localeCompare(b.id));
- for(const match of matches){for(const teamId of [...new Set([...match.red_teams,...match.blue_teams])]){
-  if(occupied.has(`${match.id}:${teamId}`))continue;rows.push({match_id:match.id,team_id:teamId,scout_user_id:scouts[rows.length%scouts.length],assignment_type:'objective'});
- }}return rows;
+ for(const match of matches){
+  if(!isAssignableMatch(match)){skippedMatches++;continue;}
+  const used=new Set(scouts.filter(s=>busy.has(`${match.id}:${s}`)));
+  for(const teamId of [...new Set([...match.red_teams,...match.blue_teams])]){
+   if(occupied.has(`${match.id}:${teamId}`))continue;
+   let chosen=-1;for(let offset=0;offset<scouts.length;offset++){const index=(cursor+offset)%scouts.length;if(!used.has(scouts[index])){chosen=index;break;}}
+   if(chosen<0){unfilled++;continue;}
+   used.add(scouts[chosen]);cursor=(chosen+1)%scouts.length;rows.push({match_id:match.id,team_id:teamId,scout_user_id:scouts[chosen],assignment_type:'objective'});
+  }
+ }return {assignments:rows,unfilled,skippedMatches};
+}
+/** Manual assignment: the match must still be upcoming and the scout must not already hold another robot in it. */
+export function assertManualAssignmentAllowed(bundle:EventBundle,matchId:string,teamId:string,scoutId:string){
+ const match=bundle.matches.find(m=>m.id===matchId);if(!match||![...match.red_teams,...match.blue_teams].includes(teamId))throw Error('Choose a team in the selected match.');
+ if(!isAssignableMatch(match))throw Error('This match was already played. Choose an upcoming match.');
+ if(bundle.assignments.some(a=>a.assignment_type==='objective'&&a.match_id===matchId&&a.scout_user_id===scoutId&&a.team_id!==teamId))throw Error('This scout already has another robot in this match.');
+}
+/** A write that succeeded is reported as saved even when the follow-up refresh fails, so it is not repeated. */
+export async function successAfterRefresh(success:string,refresh:()=>Promise<void>,describe:(error:unknown)=>string){
+ try{await refresh();return success;}catch(error){return `${success} The screen could not refresh (${describe(error)}). Refresh before repeating this change.`;}
+}
+type ClearEntry={assignment_id?:string|null;team_id:string;scout_user_id:string;entry_type:string;status:string};
+/** Practice "Clear pending": keep completed/submitted match assignments and prescout assignments that already have a submitted pre-scout report. */
+export function practiceClearPlan(bundle:EventBundle,entries:ClearEntry[]){
+ const submitted=entries.filter(e=>e.status==='submitted');
+ const submittedIds=new Set(submitted.filter(e=>e.assignment_id).map(e=>e.assignment_id!)),submittedPrescout=new Set(submitted.filter(e=>e.entry_type==='pre_scout').map(e=>`${e.team_id}:${e.scout_user_id}`));
+ const assignments=bundle.assignments.filter(a=>a.status!=='complete'&&!submittedIds.has(a.id));
+ const allPrescout=bundle.prescoutAssignments??[];const prescout=allPrescout.filter(a=>!submittedPrescout.has(`${a.team_id}:${a.scout_user_id}`));
+ return {assignments,prescout,keptPrescout:allPrescout.filter(a=>!prescout.includes(a))};
 }
 export function protectAssignment(bundle:EventBundle,id:string){
  const a=bundle.assignments.find(a=>a.id===id);if(!a)throw Error('Refresh: this assignment is no longer available.');

@@ -1,6 +1,6 @@
 import {formDefinitionSchema} from '@wildcard/shared';
 import {requireClient} from './client';
-import {scopedIdentity,sameReport,sameManualIdentity} from './sync-model';
+import {scopedIdentity,sameReport,sameManualIdentity,isConnectionFailure,uploadBase} from './sync-model';
 import {validateNativeEntry} from '@wildcard/shared/src/native-contracts';
 import {apiRequest,MobileApiError} from './mobile-api';
 import type {Event,EventBundle,Viewer,NativeEntry,LocalSubmission,Payload,PicklistRanking} from './types';
@@ -20,10 +20,13 @@ async function paged(table:string,filter:(q:any)=>any){const rows:any[]=[];for(l
 async function optional(table:string,filter:(q:any)=>any){return paged(table,filter)}
 export async function loadBundle(viewer:Viewer,event:Event,previous?:EventBundle|null):Promise<EventBundle>{
  const rankingSnapshotStartedAt=Date.now();
+ // Assignments carry no event_id: load only this event's matches (chunked to keep URLs short), ordered by id so paging is stable.
+ const matchesLoad=paged('matches',q=>q.eq('event_id',event.id));
+ const eventAssignments=async(rows:any[])=>{const ids=rows.map(m=>m.id),out:any[]=[];for(let i=0;i<ids.length;i+=100){out.push(...await paged('scouting_assignments',q=>{const scoped=q.in('match_id',ids.slice(i,i+100)).order('id');return ['admin','developer'].includes(viewer.role)?scoped:scoped.eq('scout_user_id',viewer.userId)}))}return out;};
  const c=requireClient();const [eventTeamRows,matches,assignments,forms,entries,photos,rankings,categories,tags,documents,reportSources,prescoutAssignments,strategyDrawings]=await Promise.all([
- paged('event_teams',q=>q.eq('event_id',event.id)),paged('matches',q=>q.eq('event_id',event.id)),paged('scouting_assignments',q=>['admin','developer'].includes(viewer.role)?q:q.eq('scout_user_id',viewer.userId)),paged('form_definitions',q=>q.eq('organization_id',viewer.organizationId).eq('is_active',true)),paged('scouting_entries',q=>q.eq('event_id',event.id).order('created_at',{ascending:false}).order('id')),optional('pit_photos',q=>q.eq('event_id',event.id)),optional('shared_picklist_rankings',q=>q.eq('event_id',event.id)),optional('picklist_categories',q=>q.eq('organization_id',viewer.organizationId)),optional('picklist_tags',q=>q.eq('organization_id',viewer.organizationId)),optional('event_global_documents',q=>q.eq('event_id',event.id)),optional('match_report_sources',q=>q.eq('event_id',event.id)),optional('prescout_assignments',q=>q.eq('event_id',event.id)),optional('strategy_drawings',q=>q.eq('event_id',event.id).eq('user_id',viewer.userId))]);
+ paged('event_teams',q=>q.eq('event_id',event.id)),matchesLoad,matchesLoad.then(eventAssignments),paged('form_definitions',q=>q.eq('organization_id',viewer.organizationId).eq('is_active',true)),paged('scouting_entries',q=>q.eq('event_id',event.id).order('created_at',{ascending:false}).order('id')),optional('pit_photos',q=>q.eq('event_id',event.id)),optional('shared_picklist_rankings',q=>q.eq('event_id',event.id)),optional('picklist_categories',q=>q.eq('organization_id',viewer.organizationId)),optional('picklist_tags',q=>q.eq('organization_id',viewer.organizationId)),optional('event_global_documents',q=>q.eq('event_id',event.id)),optional('match_report_sources',q=>q.eq('event_id',event.id)),optional('prescout_assignments',q=>q.eq('event_id',event.id)),optional('strategy_drawings',q=>q.eq('event_id',event.id).eq('user_id',viewer.userId))]);
  const ids=eventTeamRows.map(r=>r.team_id);const teamRows=ids.length?await paged('teams',q=>q.eq('organization_id',viewer.organizationId).in('id',ids)):[];
- const picklistHistory=await optional('picklist_change_log',q=>q.eq('event_id',event.id).order('created_at',{ascending:false}));
+ const picklistHistory=await optional('picklist_change_log',q=>q.eq('event_id',event.id).order('created_at',{ascending:false}).order('id',{ascending:false}));
  const authorIds=[...new Set([viewer.userId,...entries.map(e=>e.scout_user_id),...picklistHistory.map(h=>h.actor_user_id).filter(Boolean)])];
  const profileRows=authorIds.length?await optional('profiles',q=>q.in('id',authorIds)):[];
  if(photos.length){const {data:signed}=await c.storage.from('pit-photos').createSignedUrls(photos.map(p=>p.storage_path),3600);for(const photo of photos)photo.signedUrl=signed?.find(p=>p.path===photo.storage_path)?.signedUrl;}
@@ -39,7 +42,8 @@ export async function loadBundle(viewer:Viewer,event:Event,previous?:EventBundle
 }
 export async function uploadSnapshot(record:LocalSubmission,expectedUserId?:string):Promise<string|null>{
  const c=requireClient();const validated=validateNativeEntry(record.entry);const {updated_at:_,...entry}=validated;
- if(expectedUserId){const {data,error}=await c.auth.getUser();if(error||data.user?.id!==expectedUserId)throw Error('Sign in as the owner of this workspace before uploading. Your report is retained.');}
+ // An unreachable Auth server is a connection failure, not a different account: rethrow it unchanged.
+ if(expectedUserId){const {data,error}=await c.auth.getUser();if(error&&isConnectionFailure(error))throw error;if(error||data.user?.id!==expectedUserId)throw Error('Sign in as the owner of this workspace before uploading. Your report is retained.');}
  const binding={expectedUserId,expectedOrganizationId:entry.organization_id};
  if(record.origin==='relay'&&record.proof){const {entry:received}=await apiRequest<{entry:NativeEntry}>('/api/mobile/relay','POST',record.proof,binding);return received.updated_at??null;}
  if(record.origin==='relay')throw Error('Unsigned receipt is retained as a backup. The original scout must enable signed relay and re-export before cloud delivery.');
@@ -49,31 +53,12 @@ export async function uploadSnapshot(record:LocalSubmission,expectedUserId?:stri
  // Preserve that link on later score-only edits; never infer a new identity here.
  if(remote&&entry.match_id===null&&remote.match_id&&entry.payload.report_source==='manual'&&sameManualIdentity(entry.payload,remote.payload))entry.match_id=remote.match_id;
  const confirm=async()=>{const {data:confirmed,error}=await c.from('scouting_entries').select('*').eq('id',entry.id).maybeSingle();if(error)throw error;if(!confirmed||!sameReport(entry,confirmed as NativeEntry))throw Error('The upload was sent but its exact report could not be confirmed. Your local revision is retained; refresh and retry.');return confirmed.updated_at??null;};
- if(remote){if(!record.baseUpdatedAt||record.baseUpdatedAt!==remote.updated_at)throw Error('Conflict: this report was changed on another device. Your local copy is retained.');const {data,error}=await c.from('scouting_entries').update(entry).eq('id',entry.id).eq('updated_at',record.baseUpdatedAt).select('updated_at').maybeSingle();if(error||!data){await apiRequest<{entry:NativeEntry}>('/api/mobile/reports','PATCH',{entry,expectedUpdatedAt:record.baseUpdatedAt},binding);}return confirm();}
+ if(remote){const base=uploadBase(record,remote as NativeEntry);if(!base||base!==remote.updated_at)throw Error('Conflict: this report was changed on another device. Your local copy is retained.');const {data,error}=await c.from('scouting_entries').update(entry).eq('id',entry.id).eq('updated_at',base).select('updated_at').maybeSingle();if(error||!data){await apiRequest<{entry:NativeEntry}>('/api/mobile/reports','PATCH',{entry,expectedUpdatedAt:base},binding);}return confirm();}
+ // The server once held this report. If it is gone now, it was deleted there: never resurrect it.
+ if(record.baseUpdatedAt)throw Error('This report was deleted on the server, so it was not uploaded again. Your local copy is retained on this phone.');
  const {error}=await c.from('scouting_entries').insert(entry).select('updated_at').single();if(error){const {data:after}=await c.from('scouting_entries').select('*').eq('id',entry.id).maybeSingle();if(after&&sameReport(entry,after as NativeEntry))return after.updated_at??null;throw error;}return confirm();
 }
-export async function writePicklist(viewer:Viewer,eventId:string,teamId:string,patch:Partial<PicklistRanking>){
- const allowed=['admin','developer','global_scout','strategist','master'].includes(viewer.role);
- if(!allowed)throw Error('Your role cannot edit the shared picklist.');
- const c=requireClient();
- const {data:existing,error:readError}=await c.from('shared_picklist_rankings').select('id').eq('event_id',eventId).eq('team_id',teamId).maybeSingle();
- if(readError)throw readError;
- const fields={rank:patch.rank,category_id:patch.category_id,note:patch.note,selected:patch.selected,tag_ids:patch.tag_ids,updated_by:viewer.userId};
- const query=existing?c.from('shared_picklist_rankings').update(fields).eq('id',existing.id):c.from('shared_picklist_rankings').insert({...fields,organization_id:viewer.organizationId,event_id:eventId,team_id:teamId,created_by:viewer.userId});
- const {data,error}=await query.select('id');
- if(error)throw error;
- if(!data?.length)throw Error('The server did not authorize this picklist change.');
-}
-export type PicklistRow={team_id:string;rank:number|null;category_id:string|null;note:string;selected:boolean;tag_ids:string[]};
 /** One request for a multi-team change, like the website's picklist board (upsert on event_id,team_id). */
-export async function writePicklistBulk(viewer:Viewer,eventId:string,rows:PicklistRow[],createdBy:Record<string,string|undefined>={}){
- if(!rows.length)return;
- if(!['admin','developer','global_scout','strategist','master'].includes(viewer.role))throw Error('Your role cannot edit the shared picklist.');
- const payload=rows.map(row=>({organization_id:viewer.organizationId,event_id:eventId,team_id:row.team_id,created_by:createdBy[row.team_id]??viewer.userId,updated_by:viewer.userId,rank:row.rank,category_id:row.category_id,note:row.note,selected:row.selected,tag_ids:row.tag_ids}));
- const {data,error}=await requireClient().from('shared_picklist_rankings').upsert(payload,{onConflict:'event_id,team_id'}).select('id,team_id');
- if(error)throw error;
- if((data?.length??0)!==rows.length)throw Error('The server did not authorize every picklist change. Refresh and try again.');
-}
 export function emptyRebuilt():Payload{return {no_show:false,starting_spot:null,starting_spot_confirmed:false,auto:{shoot:0,ferry:0},teleop:{shoot:0,ferry:0},auto_fuel:0,teleop_fuel:0,fouls:0,defense:false,defense_level:null,defended_teams:[],robot_broke:false,breakage_issues:[],comments:'',report_source:'scheduled',manual_match:null};}
 
 /** Offline ranking transport. Preflight detects touched-field changes; the bulk upsert itself

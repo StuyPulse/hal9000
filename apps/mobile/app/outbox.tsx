@@ -1,6 +1,6 @@
 import React,{useEffect,useState} from 'react';
 import {getValue} from '../src/core/storage';
-import {scopedIdentity} from '../src/core/sync-model';
+import {scopedIdentity,toSendCount} from '../src/core/sync-model';
 import { Pressable, Share, View } from 'react-native';
 import { Text } from '../src/components/AppText';
 import {useRouter} from 'expo-router';
@@ -18,7 +18,8 @@ export default function Outbox(){
  useEffect(()=>{if(!scope)return;void getValue<{at:number}>(scope,'meta','last-sync').then(v=>setLastSync(v?.at??null)).catch(()=>undefined)},[scope,syncing,records]);
  const ago=(at:number)=>{const m=Math.round((Date.now()-at)/60000);return m<1?'just now':m<60?`${m} min ago`:m<1440?`${Math.round(m/60)} h ago`:new Date(at).toLocaleDateString()};
  const local=records.filter(r=>r.entry.event_id===bundle?.event.id);
- const waiting=local.filter(r=>r.status!=='synced'&&r.entry.status==='submitted').length;
+ // Only reports this account can actually deliver; held relay copies are not "to send".
+ const waiting=bundle&&viewer?toSendCount(local,bundle.event.id,viewer.role):0;
  const pendingPhotos=photos.filter(p=>p.status!=='synced').length;
  const teamNumber=(id:string)=>bundle?.teams.find(t=>t.id===id)?.displayNumber??'?';
  const kind=(t:string)=>t==='pre_scout'?'Pre-scout':t==='pit'?'Pit':'Match';
@@ -40,7 +41,7 @@ export default function Outbox(){
   </View>
   {local.length?<>
    <GroupLabel theme={theme}>On this phone</GroupLabel>
-   <List theme={theme}>{local.map(r=>{const state=r.entry.status==='draft'?'draft':deliveryState(r);return <ListRow key={r.entry.id} theme={theme} title={kind(r.entry.entry_type)} detail={r.error} lead={<TeamTag label={teamNumber(r.entry.team_id)} size="md" theme={theme}/>} tail={<Status label={state==='draft'?'Draft':deliveryLabel[state]} tone={tones[state]} theme={theme}/>} onPress={()=>open(r.entry.id)}/>})}</List>
+   <List theme={theme}>{local.map(r=>{const state=r.entry.status==='draft'?'draft':deliveryState(r);return <ListRow key={r.entry.id} theme={theme} title={kind(r.entry.entry_type)} detail={r.status==='failed'?r.error:r.note??r.error} lead={<TeamTag label={teamNumber(r.entry.team_id)} size="md" theme={theme}/>} tail={<Status label={state==='draft'?'Draft':deliveryLabel[state]} tone={tones[state]} theme={theme}/>} onPress={()=>open(r.entry.id)}/>})}</List>
    <Pressable accessibilityRole="button" accessibilityLabel={`Export a backup of ${local.length} reports`} onPress={()=>void Share.share({message:JSON.stringify({exportedAt:new Date().toISOString(),event:bundle?.event.name,reports:local.map(r=>({entry:r.entry,revision:r.revision,status:r.status}))},null,2),title:'HAL9000 reports backup'}).catch(()=>undefined)} style={{alignSelf:'flex-start',minHeight:44,justifyContent:'center'}}><Text style={{color:theme.text,fontWeight:'700',fontSize:15,textDecorationLine:'underline'}}>Export backup</Text></Pressable>
   </>:<Label theme={theme} muted>No reports on this phone yet.</Label>}
   {cloud.length?<>

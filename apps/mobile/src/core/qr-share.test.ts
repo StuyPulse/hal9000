@@ -66,3 +66,10 @@ test('strategists can hold reports but only relay roles upload',()=>{
  assert.equal(canReceiveQr('strategist'),true);assert.equal(canUploadRelay('strategist'),false);
  assert.equal(canReceiveQr('scout'),false);assert.equal(canUploadRelay('master'),true);
 });
+test('a later edit seeded from a newer server copy is not discarded as already here',()=>{
+ const e=entry(),relayed=local({entry:e,origin:'relay',revision:5,status:'synced',acknowledgedRevision:5});
+ const reseeded={...e,payload:{comments:'later'},updated_at:'2026-11-02T16:00:00.123456+00:00'};
+ assert.equal(relayReceiptAction(relayed,reseeded,2),'save');
+ assert.equal(relayReceiptAction(local({entry:reseeded,origin:'relay',revision:2,status:'received'}),reseeded,2),'already-here','a replay is still idempotent');
+ assert.equal(relayReceiptAction(local({entry:reseeded,origin:'relay',revision:3}),{...e,updated_at:'2026-11-02T15:00:00Z'},2),'already-here','an older base stays older');
+});

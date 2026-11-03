@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { createPicklistQueue, nextPicklistBatch, overlayPicklistRows, planPicklistUpload, rankingDefaults, type PicklistBatch, type PicklistStore } from './picklist-queue';
+import { PicklistConflictError, createPicklistQueue, isPicklistConflict, nextPicklistBatch, overlayPicklistRows, planPicklistUpload, rankingDefaults, type PicklistBatch, type PicklistStore } from './picklist-queue';
 import type { EventBundle, PicklistRanking, Viewer } from './types';
 
 const viewer = { userId: 'owner', organizationId: 'org', role: 'strategist', demo: false } as Viewer;
@@ -18,8 +18,9 @@ test('offline ranking writes persist before upload and all teams share a revisio
  await queue.flush(); assert.equal(uploads, 1);
 });
 
-test('OPR-based new-row defaults match website and untouched fields preserve teammate changes', () => {
- assert.equal(rankingDefaults(bundle, 'b').rank, 1024);
+test('new rows have no rank unless the patch sets one, and untouched fields preserve teammate changes', () => {
+ assert.equal(rankingDefaults(bundle, 'b').rank, null);
+ assert.throws(() => rankingDefaults(bundle, 'not-in-event'), /registered/);
  const batch = nextPicklistBatch(null, viewer, bundle, [{ teamId: 'a', patch: { note: 'mine' } }]);
  const planned = planPicklistUpload(batch, [{ ...row, selected: true, tag_ids: ['external'], rank: 500 }]);
  assert.equal(planned[0].note, 'mine'); assert.equal(planned[0].selected, true); assert.equal(planned[0].rank, 500); assert.deepEqual(planned[0].tag_ids, ['external']);
@@ -27,7 +28,7 @@ test('OPR-based new-row defaults match website and untouched fields preserve tea
  assert.throws(() => planPicklistUpload(batch, []), /removed/);
 });
 
-test('failed/conflicting batch is retained and not falsely acknowledged', async () => {
+test('a failed (non-conflict) upload is retained and not falsely acknowledged', async () => {
  const { rows, store } = memory(); const queue = createPicklistQueue(store, async () => { throw Error('Picklist conflict: note changed.'); });
  await queue.save(viewer, bundle, [{ teamId: 'a', patch: { note: 'mine' } }]);
  assert.match((await queue.flush()).error ?? '', /conflict/); assert.equal(rows.get('event')?.acknowledged, undefined); assert.equal(rows.get('event')?.intents[0].patch.note, 'mine');
@@ -82,4 +83,63 @@ test('queued edits survive restart and stale offline cache never expires acknowl
  assert.equal((await second.overlay(bundle)).rankings[0].note, 'offline persisted');
  await second.flush(); now += 86400000;
  assert.equal((await second.overlay(bundle)).rankings[0].note, 'offline persisted');
+});
+
+const savedRows = (batch: PicklistBatch, remote: PicklistRanking[]) => planPicklistUpload(batch, remote).map(item => ({ ...item, updated_at: '2026-10-14T01:00:00Z' }));
+
+test('a note, tag or selection on an unranked team never gives it a rank', () => {
+ const batch = nextPicklistBatch(null, viewer, bundle, [{ teamId: 'b', patch: { note: 'fast', selected: true, tag_ids: ['t'] } }]);
+ assert.equal(overlayPicklistRows(bundle.rankings, batch).find(item => item.team_id === 'b')?.rank, null);
+ assert.equal(planPicklistUpload(batch, [row])[0].rank, null);
+ const ranked = nextPicklistBatch(null, viewer, bundle, [{ teamId: 'b', patch: { rank: 2048, category_id: 'tier' } }]);
+ assert.equal(planPicklistUpload(ranked, [row])[0].rank, 2048);
+});
+
+test('conflicts are typed per team', () => {
+ const batch = nextPicklistBatch(null, viewer, bundle, [{ teamId: 'a', patch: { note: 'mine' } }]);
+ try { planPicklistUpload(batch, [{ ...row, note: 'teammate' }]); assert.fail('expected a conflict'); }
+ catch (error) { assert.ok(isPicklistConflict(error)); assert.equal((error as PicklistConflictError).teamId, 'a'); }
+ assert.equal(isPicklistConflict(Error('Picklist conflict: plain text')), false);
+});
+
+test('one conflicting team does not block the other edits in the batch', async () => {
+ const { rows, store } = memory(); const remote = [{ ...row, note: 'teammate' }]; const sizes: number[] = [];
+ const queue = createPicklistQueue(store, async batch => { sizes.push(batch.intents.length); return savedRows(batch, remote); });
+ await queue.save(viewer, bundle, [{ teamId: 'a', patch: { note: 'mine' } }, { teamId: 'b', patch: { selected: true } }]);
+ const result = await queue.flush();
+ assert.deepEqual(sizes, [2, 1, 1]); assert.match(result.error ?? '', /Another device changed a team/);
+ const latest = rows.get('event')!;
+ assert.deepEqual(latest.intents.map(intent => intent.teamId), ['b']); assert.deepEqual(latest.acknowledged?.map(item => item.team_id), ['b']);
+ // Later edits start a fresh batch instead of folding into the conflicted one, and they upload.
+ await queue.save(viewer, { ...bundle, rankings: remote }, [{ teamId: 'a', patch: { note: 'after refresh' } }]);
+ assert.equal(rows.get('event')?.acknowledged, undefined); assert.equal(rows.get('event')?.intents.length, 1);
+ assert.equal((await queue.flush()).error, null); assert.ok(rows.get('event')?.acknowledged);
+});
+
+test('a batch whose only team conflicts is dropped so later edits still upload', async () => {
+ const { rows, store } = memory(); let remote = [{ ...row, note: 'teammate' }];
+ const queue = createPicklistQueue(store, async batch => savedRows(batch, remote));
+ await queue.save(viewer, bundle, [{ teamId: 'a', patch: { note: 'mine' } }]);
+ assert.match((await queue.flush()).error ?? '', /not uploaded/); assert.equal(rows.size, 0);
+ remote = [{ ...row, note: 'teammate' }];
+ await queue.save(viewer, { ...bundle, rankings: remote }, [{ teamId: 'a', patch: { selected: true } }]);
+ assert.equal((await queue.flush()).error, null); assert.equal(rows.get('event')?.acknowledged?.[0].selected, true);
+});
+
+test('a network failure during per-team retry keeps the unfinished teams queued', async () => {
+ const { rows, store } = memory(); let calls = 0;
+ const queue = createPicklistQueue(store, async batch => { calls++; if (calls === 1) throw new PicklistConflictError('a', 'Picklist conflict (note).'); if (calls === 2) throw new PicklistConflictError('a', 'Picklist conflict (note).'); throw Error('Network request failed'); });
+ await queue.save(viewer, bundle, [{ teamId: 'a', patch: { note: 'mine' } }, { teamId: 'b', patch: { selected: true } }]);
+ assert.equal((await queue.flush()).error, 'Network request failed');
+ const latest = rows.get('event')!; assert.equal(latest.acknowledged, undefined); assert.deepEqual(latest.intents.map(intent => intent.teamId), ['b']);
+});
+
+test('discarding pending offline picklist changes removes only that event', async () => {
+ const { rows, store } = memory(); const queue = createPicklistQueue(store, async () => { throw Error('offline'); });
+ await queue.save(viewer, bundle, [{ teamId: 'a', patch: { note: 'mine' } }]);
+ await queue.save(viewer, { ...bundle, event: { ...bundle.event, id: 'other' } }, [{ teamId: 'a', patch: { note: 'elsewhere' } }]);
+ assert.ok(await queue.pendingFor('event'));
+ await queue.discard('event');
+ assert.equal(await queue.pendingFor('event'), null); assert.equal(rows.has('other'), true);
+ assert.equal((await queue.overlay(bundle)).rankings[0].note, 'original');
 });

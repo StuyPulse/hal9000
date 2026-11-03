@@ -33,5 +33,26 @@ export function isOwnedSelectionFile(actualUri: string, expectedUri: string) {
 
 export function validSelectionLocation(scope: string, id: string) {
   const uuid='[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}';
-  return new RegExp(`^(practice|live):${uuid}:${uuid}$`,'i').test(scope) && new RegExp(`^${uuid}$`,'i').test(id);
+  return new RegExp(`^(demo|live):${uuid}:${uuid}$`,'i').test(scope) && new RegExp(`^${uuid}$`,'i').test(id);
+}
+
+/** Folders this app owns inside the document directory. */
+export const OWNED_PHOTO_FOLDERS=['hal9000-photos','hal9000-photo-selections'];
+const withSlash=(uri:string)=>uri.endsWith('/')?uri:uri+'/';
+/**
+ * App updates can move the iOS container, so queued photos store a path
+ * relative to the document directory instead of an absolute file URI.
+ */
+export function relativeDocumentPath(uri:string,documentUri:string):string {
+ const base=withSlash(documentUri),relative=uri.startsWith(base)?uri.slice(base.length):null;
+ return relative!==null&&OWNED_PHOTO_FOLDERS.some(folder=>relative.startsWith(folder+'/'))?relative:uri;
+}
+/** Resolves a stored path, re-basing older absolute URIs onto the current document directory. */
+export function resolveDocumentUri(stored:string,documentUri:string):string {
+ const base=withSlash(documentUri);
+ for(const folder of OWNED_PHOTO_FOLDERS){
+  if(stored.startsWith(folder+'/'))return base+stored;
+  if(/^file:\/\//i.test(stored)){const at=stored.indexOf('/'+folder+'/');if(at>=0)return base+stored.slice(at+1);}
+ }
+ return stored;
 }
