@@ -107,7 +107,7 @@ export default function Scanner() {
         </View>)}
         <View style={{ flexDirection: 'row', gap: 8 }}>
           <Button title={torch ? 'Light off' : 'Light'} theme={theme} secondary disabled={!permission?.granted} onPress={() => setTorch(!torch)} style={{ flex: 1 }} />
-          <Button title="Reset" theme={theme} secondary onPress={() => { frames.current = []; setPaused(false); setProgress('Point at a scout\'s code'); }} style={{ flex: 1 }} />
+          <Button title="Scan next report" theme={theme} secondary onPress={() => { frames.current = []; setPaused(false); setProgress('Point at a scout\'s code'); }} style={{ flex: 1 }} />
         </View>
         {canUploadRelay(viewer.role) ? <Button title={online ? 'Upload received reports' : 'Upload when connected'} theme={theme} disabled={!online} onPress={() => void sync()} /> : <Label theme={theme} muted>A master or the scout uploads these.</Label>}
       </View>

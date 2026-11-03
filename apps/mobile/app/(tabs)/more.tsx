@@ -13,6 +13,7 @@ const groups:{title:string;routes:Route[];roles?:string[]}[]=[
  {title:'Strategy',routes:[['Compare teams','/strategy/compare','swap'],['Picklist','/strategy/picklist','clipboard'],['Match strategy','/strategy/strategy','flag'],['Teams','/teams','team']]},
  {title:'QR handoff',routes:[['Scan reports','/scanner','scan']],roles:['master','admin','developer','strategist']},
  {title:'Admin',routes:[['Event setup','/admin','shield'],['Email access','/admin/email-access','mail']],roles:['admin','developer']},
+ {title:'Device',routes:[['Settings and event download','/settings','settings']]},
 ];
 export default function More(){
  const {theme,viewer}=useApp();const router=useRouter();

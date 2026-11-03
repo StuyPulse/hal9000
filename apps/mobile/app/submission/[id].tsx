@@ -17,7 +17,7 @@ import {matchLabel,manualMatchLabel} from '../../src/features/stats';
 import {openAssignments} from '../../src/core/assignments';
 export default function Submission(){
  const {id}=useLocalSearchParams<{id:string}>();
- const {bundle,records,theme,viewer,deleteLocalDraft,claimReport,deleteReport,createDraft}=useApp();
+ const {bundle,records,theme,viewer,deleteLocalDraft,claimReport,deleteReport,createDraft,sync,syncing,online}=useApp();
  const router=useRouter();
  const local=records.find(r=>r.entry.id===id),entry=local?.entry??bundle?.entries.find(e=>e.id===id);
  const [frames,setFrames]=useState<string[]>([]),[frame,setFrame]=useState(0),[qrError,setQrError]=useState(''),[opening,setOpening]=useState(false),[qrWidth,setQrWidth]=useState(0),[showRaw,setShowRaw]=useState(false),[showLegacy,setShowLegacy]=useState(false);
@@ -50,6 +50,7 @@ export default function Submission(){
   {local?.reviewRequired&&<Label theme={theme}>These edits aren't published yet. Open the report and save changes.</Label>}
   {local?.error&&<Text selectable accessibilityRole="alert" style={{color:theme.danger}}>{local.error}</Text>}
   {nextAssignment&&<Button title={opening?'Opening…':`Scout next: ${teamOf(nextAssignment.a.team_id)?.displayNumber} in ${matchLabel(nextAssignment.m!)}`} disabled={opening} theme={theme} onPress={()=>void startNext()}/>}
+  {local&&entry.status==='submitted'&&local.status!=='synced'&&!viewer?.demo&&<Button title={syncing?'Syncing…':online?'Sync now':'Sync when online'} icon="sync" secondary theme={theme} disabled={syncing||!online} onPress={()=>void sync()}/>}
   {canEditReport(viewer,entry,local)&&<Button title={opening&&!nextAssignment?'Opening…':'Edit report'} secondary={Boolean(nextAssignment)} disabled={opening} theme={theme} onPress={()=>void edit()}/>}
   {entry.status==='submitted'&&Boolean(entry.payload.manual_match)&&viewer&&local?.origin!=='relay'&&(['admin','developer'].includes(viewer.role)||entry.scout_user_id===viewer.userId)&&<Button title="Correct match details" secondary theme={theme} onPress={()=>router.push({pathname:'/edit-manual',params:{id}})}/>}
   {reportGroups(entry.entry_type,entry.payload,id=>teamOf(id)?.displayNumber??'Unknown team').map(group=><Section key={group.title} title={group.title} theme={theme}><Card theme={theme}>{group.rows.map(row=><View key={row.label} style={{flexDirection:'row',justifyContent:'space-between',gap:12}}><Text style={{color:theme.muted,fontSize:15,flexShrink:1}}>{row.label}</Text><Text selectable style={{color:theme.text,fontSize:15,fontWeight:'700',flex:1,textAlign:'right',fontVariant:['tabular-nums']}}>{row.value}</Text></View>)}</Card></Section>)}

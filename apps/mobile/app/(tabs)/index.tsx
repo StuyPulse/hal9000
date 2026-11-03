@@ -33,6 +33,7 @@ export default function Home(){
    toSend:records.filter(r=>r.entry.event_id===bundle.event.id&&r.status!=='synced'&&r.entry.status==='submitted').length,
    drafts:mine.filter(r=>r.entry.status==='draft').length,
    submitted:mine.filter(r=>r.entry.status==='submitted'&&r.entry.entry_type==='match').length,
+   submittedAll:mine.filter(r=>r.entry.status==='submitted').length,
    pit:covered('pit'),pre:covered('pre_scout'),
    recent:[...mine].sort((a,b)=>b.changedAt.localeCompare(a.changedAt)).slice(0,3),
   };
@@ -92,7 +93,10 @@ export default function Home(){
      {progress('Pit scouting',data.pit,bundle.teams.length,()=>router.push('/pit'))}
      {progress('Pre-scouting',data.pre,bundle.teams.length,()=>router.push('/pre-scout'))}
     </List>
-    {data.drafts?<ListRow theme={theme} title={`${data.drafts} unfinished draft${data.drafts===1?'':'s'}`} onPress={()=>router.push('/outbox')}/>:null}
+    <List theme={theme}>
+     <ListRow theme={theme} title="Your submitted reports" tail={<Text style={{color:theme.text,fontSize:20,fontFamily:DISPLAY_BOLD}}>{data.submittedAll}</Text>} onPress={()=>router.push({pathname:'/submissions',params:{}})}/>
+     {data.drafts?<ListRow theme={theme} title={`${data.drafts} unfinished draft${data.drafts===1?'':'s'}`} onPress={()=>router.push('/outbox')}/>:null}
+    </List>
    </View>
 
    <View style={{flex:wide?1:undefined,width:wide?undefined:'100%',gap:8}}>
