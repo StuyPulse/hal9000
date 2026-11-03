@@ -2,34 +2,38 @@
 name: HAL9000 native
 description: Current native scouting interface, extracted from implementation
 colors:
-  light-bg: "#f8f9fb"
+  light-bg: "#eceef1"
   light-surface: "#ffffff"
-  light-panel: "#eef2f7"
-  light-text: "#171d28"
-  light-muted: "#626e7e"
-  light-line: "#dce2e9"
-  light-tint: "#244bc1"
+  light-panel: "#e1e5ea"
+  light-text: "#14171c"
+  light-muted: "#5a6270"
+  light-line: "#d5dae1"
+  light-tint: "#14171c"
   light-on-tint: "#ffffff"
-  light-selection: "#e6edff"
-  light-success: "#237443"
-  light-warning: "#895214"
-  light-danger: "#ac2038"
-  light-red: "#a92438"
-  light-blue: "#24589f"
-  dark-bg: "#10151d"
-  dark-surface: "#1b222d"
-  dark-panel: "#202b3a"
-  dark-text: "#f2f5fa"
-  dark-muted: "#a2adbd"
-  dark-line: "#303947"
-  dark-tint: "#b9cbff"
-  dark-on-tint: "#15284d"
-  dark-selection: "#253653"
-  dark-success: "#84d8a8"
-  dark-warning: "#f0c377"
-  dark-danger: "#ff9caa"
-  dark-red: "#ff9daa"
-  dark-blue: "#9fbfff"
+  light-selection: "#e1e5ea"
+  light-success: "#007a3d"
+  light-warning: "#9a5b00"
+  light-danger: "#c4122f"
+  light-red: "#d5001f"
+  light-blue: "#0a4bdc"
+  dark-bg: "#121418"
+  dark-surface: "#1c1f25"
+  dark-panel: "#262a31"
+  dark-text: "#f2f4f7"
+  dark-muted: "#9aa3b0"
+  dark-line: "#2e333b"
+  dark-tint: "#f2f4f7"
+  dark-on-tint: "#14171c"
+  dark-selection: "#2e333b"
+  dark-success: "#4cc38a"
+  dark-warning: "#f0b45a"
+  dark-danger: "#ff7a8a"
+  dark-red: "#ff5c6c"
+  dark-blue: "#7aa2ff"
+  light-graphite: "#2b3038"
+  dark-graphite: "#3a404a"
+  alliance-red-fill: "#d5001f"
+  alliance-blue-fill: "#0a4bdc"
 typography:
   heading:
     fontFamily: system
@@ -76,7 +80,7 @@ components:
 
 ## Overview
 
-This records the existing React Native implementation, not a proposed replacement identity. Source authority is `src/core/context.tsx`, `src/components/ui.tsx`, `src/components/Screen.tsx`, native route layouts and the match-capture screen. `PRODUCT.md` records user-confirmed platform and brand constraints. No new metaphor or qualitative direction has been invented.
+This records the React Native implementation after the Bumper redesign: team numbers are padded bumper tags (`TeamTag`), counters are alliance-coloured tiles where the whole tile adds one, and near-black ink is the action colour so red and blue only mean an alliance. Source authority is `src/core/context.tsx`, `src/components/ui.tsx`, `src/components/Screen.tsx`, native route layouts and the match-capture screen. `PRODUCT.md` records user-confirmed platform and brand constraints. No new metaphor or qualitative direction has been invented.
 
 The interface is task-oriented: native navigation, system typography, blue action tint, readable form groups and large scoring controls. The earlier browser study in `docs/mobile-design` is reference material, not the native runtime.
 

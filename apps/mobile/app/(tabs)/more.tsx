@@ -1,31 +1,29 @@
 import React from 'react';
-import { Pressable, View } from 'react-native';
+import { View } from 'react-native';
 import { Text } from '../../src/components/AppText';
 import {useRouter} from 'expo-router';
 import {useApp} from '../../src/core/context';
 import {Screen} from '../../src/components/Screen';
+import {AppIcon,GroupLabel,List,ListRow} from '../../src/components/ui';
 
-type Route=[label:string,path:string];
+type Route=[label:string,path:string,icon:string];
 const groups:{title:string;routes:Route[];roles?:string[]}[]=[
- {title:'Review',routes:[['Submissions','/submissions'],['Outbox & sync','/outbox'],['Search','/search'],['Leaderboard','/leaderboard']]},
- {title:'Scouting',routes:[['Pit scouting','/pit'],['Pre scouting','/pre-scout'],['Photos & coverage','/photos'],['Global scouting document','/global']]},
- {title:'Strategy',routes:[['Compare teams','/strategy/compare'],['Shared picklist','/strategy/picklist'],['Match strategy','/strategy/strategy'],['Team directory','/teams']]},
- {title:'QR handoff',routes:[['Scan reports from scouts','/scanner']],roles:['master','admin','developer','strategist']},
- {title:'Admin',routes:[['Event setup & members','/admin'],['Email access','/admin/email-access']],roles:['admin','developer']},
- {title:'Device',routes:[['Settings & event download','/settings']]},
+ {title:'Reports',routes:[['Submissions','/submissions','list'],['Outbox','/outbox','outbox'],['Search','/search','search'],['Leaderboard','/leaderboard','trophy']]},
+ {title:'Scouting',routes:[['Pit scouting','/pit','team'],['Pre-scouting','/pre-scout','camera'],['Photos and coverage','/photos','images'],['Global scouting','/global','document']]},
+ {title:'Strategy',routes:[['Compare teams','/strategy/compare','swap'],['Picklist','/strategy/picklist','clipboard'],['Match strategy','/strategy/strategy','flag'],['Teams','/teams','team']]},
+ {title:'QR handoff',routes:[['Scan reports','/scanner','scan']],roles:['master','admin','developer','strategist']},
+ {title:'Admin',routes:[['Event setup','/admin','shield'],['Email access','/admin/email-access','mail']],roles:['admin','developer']},
 ];
 export default function More(){
  const {theme,viewer}=useApp();const router=useRouter();
+ const row=([label,path,icon]:Route)=><ListRow key={path} theme={theme} title={label} lead={<AppIcon name={icon} color={theme.muted} size={20}/>} onPress={()=>router.push(path as never)}/>;
  return <Screen>
-  <Text style={{color:theme.muted,fontSize:14}}>{viewer?.displayName} · {viewer?.role}</Text>
-  {groups.filter(g=>!g.roles||g.roles.includes(viewer?.role??'')).map(group=><View key={group.title} style={{gap:6}}>
-   <Text accessibilityRole="header" style={{color:theme.muted,fontSize:13,fontWeight:'700',letterSpacing:.6,textTransform:'uppercase'}}>{group.title}</Text>
-   <View style={{backgroundColor:theme.surface,borderRadius:14,overflow:'hidden'}}>
-    {group.routes.map(([label,path],index)=><Pressable key={path} accessibilityRole="button" accessibilityLabel={label} onPress={()=>router.push(path as never)} style={{minHeight:52,paddingHorizontal:16,flexDirection:'row',alignItems:'center',justifyContent:'space-between',borderTopWidth:index?1:0,borderTopColor:theme.line}}>
-     <Text style={{color:theme.text,fontSize:17}}>{label}</Text>
-     <Text style={{color:theme.muted,fontSize:22}}>›</Text>
-    </Pressable>)}
-   </View>
+  <List theme={theme}>
+   <ListRow theme={theme} title={viewer?.displayName??'Signed in'} detail={viewer?.role?`${viewer.role[0].toUpperCase()+viewer.role.slice(1)} · Settings`:'Settings'} lead={<View style={{width:40,height:40,borderRadius:20,backgroundColor:theme.graphite,alignItems:'center',justifyContent:'center'}}><Text style={{color:'#fff',fontSize:17,fontWeight:'800'}}>{(viewer?.displayName??'?').trim()[0]?.toUpperCase()}</Text></View>} accessibilityLabel="Settings" onPress={()=>router.push('/settings')}/>
+  </List>
+  {groups.filter(g=>!g.roles||g.roles.includes(viewer?.role??'')).map(group=><View key={group.title} style={{gap:8}}>
+   <GroupLabel theme={theme}>{group.title}</GroupLabel>
+   <List theme={theme}>{group.routes.map(row)}</List>
   </View>)}
  </Screen>;
 }

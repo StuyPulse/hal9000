@@ -26,7 +26,7 @@ export type EventBundle = {
   profiles?: Record<string,string>;
   official?:{rankings:Record<string,unknown>[];sortInfo:Record<string,unknown>[];oprs:Record<string,number>;apiError:string};
 };
-export type Palette = { bg: string; surface: string; panel: string; text: string; muted: string; line: string; tint: string; onTint: string; selection: string; success: string; warning: string; danger: string; red: string; blue: string; dark: boolean };
+export type Palette = { bg: string; surface: string; panel: string; text: string; muted: string; line: string; tint: string; onTint: string; selection: string; success: string; warning: string; danger: string; red: string; blue: string; graphite: string; dark: boolean };
 export type LocalPhoto = PhotoRecord & { localUri: string; status: 'pending' | 'synced' | 'failed'; error: string | null };
 export type FeatureContext = {
  viewer: Viewer | null; bundle: EventBundle | null; records: LocalSubmission[]; photos: LocalPhoto[]; theme: Palette;

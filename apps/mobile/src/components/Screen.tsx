@@ -19,8 +19,8 @@ export function Screen({ children, scroll = true, scrollEnabled = true, scrollRe
   const column = { width: '100%' as const, maxWidth, alignSelf: 'center' as const };
   // On short windows the action scrolls too, rather than consuming the form's height.
   const inlineFooter = inlineActions && scroll;
-  const practiceNotice=viewer?.demo?<Text style={{backgroundColor:theme.panel,color:theme.warning,fontSize:12,textAlign:'center',padding:compactHeight?4:8}}>Local practice · no cloud writes</Text>:null;
-  const action = footer ? <View style={{ paddingHorizontal: gutter, paddingTop: 12, paddingBottom: footerInset ? Math.max(12, insets.bottom) : 12, gap: 8, backgroundColor: theme.bg, borderTopWidth: 1, borderTopColor: theme.line }}><View style={{ ...column, gap: 8 }}>{footer}</View></View> : null;
+  const practiceNotice=viewer?.demo?<Text style={{alignSelf:'center',backgroundColor:theme.panel,color:theme.warning,fontSize:12,fontWeight:'700',overflow:'hidden',borderRadius:10,paddingHorizontal:10,paddingVertical:compactHeight?2:4}}>Practice mode</Text>:null;
+  const action = footer ? <View style={{ paddingHorizontal: gutter, paddingTop: 12, paddingBottom: footerInset ? Math.max(12, insets.bottom) : 12, gap: 8, backgroundColor: theme.bg }}><View style={{ ...column, gap: 8 }}>{footer}</View></View> : null;
   return <KeyboardAvoidingView style={{ flex: 1, backgroundColor: theme.bg }} behavior={Platform.OS === 'ios' ? 'padding' : undefined} keyboardVerticalOffset={headerHeight}>
     <View style={{ flex: 1, minHeight: 0, paddingLeft: insets.left, paddingRight: insets.right, paddingTop: topInset ? insets.top : 0 }}>
       {!scroll?practiceNotice:null}

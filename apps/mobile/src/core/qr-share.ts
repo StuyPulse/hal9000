@@ -12,7 +12,7 @@ export function deliveryState(record:LocalSubmission):Delivery{
  if(record.origin==='relay')return 'received';
  return record.qrShared?.revision===record.revision?'shared':'waiting';
 }
-export const deliveryLabel:Record<Delivery,string>={draft:'Draft, not submitted',waiting:'Saved on this phone, not shared yet',shared:'Shared by QR, not uploaded yet',uploaded:'Uploaded',attention:'Needs attention',received:'Received by QR, not uploaded yet'};
+export const deliveryLabel:Record<Delivery,string>={draft:'Draft',waiting:'Not sent',shared:'Shared by QR',uploaded:'Uploaded',attention:'Needs attention',received:'Received by QR'};
 
 export function qrCandidates(records:LocalSubmission[],viewer:Viewer,eventId:string){
  return records.filter(r=>r.entry.organization_id===viewer.organizationId&&r.entry.event_id===eventId&&r.entry.status==='submitted'&&!r.reviewRequired&&r.status!=='synced');

@@ -26,7 +26,7 @@ React Native, Expo, TypeScript, SQLite and the existing Supabase backend. Native
 
 ## Brand Commitments
 
-HAL9000 and StuyPulse identity; system typography and platform-aware controls. Blue is the action tint; red and blue identify alliances.
+HAL9000 and StuyPulse identity; system typography and platform-aware controls. Team numbers are drawn as padded bumper tags, red or blue only where the team is on that alliance and graphite otherwise. Near-black ink is the action colour, so red and blue only ever mean an alliance.
 
 ## Evidence
 

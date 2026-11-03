@@ -8,7 +8,7 @@ import {DEFAULT_BLOCK_SIZE,EASY_SCAN_BLOCK_SIZE} from '@wildcard/shared/src/foun
 import {Text} from '../src/components/AppText';
 import {Screen} from '../src/components/Screen';
 import {useLayout} from '../src/components/layout';
-import {Button,Label} from '../src/components/ui';
+import {Button,Label,TeamTag} from '../src/components/ui';
 import {useApp} from '../src/core/context';
 import {friendlyError} from '../src/core/friendly-error';
 import {deliveryLabel,deliveryState,prepareQrTransfer,qrCandidates,type QrTransfer} from '../src/core/qr-share';
@@ -44,31 +44,31 @@ export default function ShareQr(){
  const confirm=async()=>{if(!transfer)return;try{await markQrShared(transfer.reports);setConfirmed(true)}catch(e){setError(friendlyError(e))}};
  const size=Math.min(width-40,compactHeight?Math.max(180,height-110):420);
  if(!transfer)return <Screen footer={<Button title={busy?'Preparing…':`Show QR for ${chosen.length} report${chosen.length===1?'':'s'}`} icon="qr" theme={theme} disabled={busy||!chosen.length} onPress={()=>void start()}/>}>
-  <Label theme={theme}>{candidates.length?'Choose what to share. No connection is needed. Nothing is removed from this phone.':'Nothing to share. Submitted reports that have not uploaded appear here.'}</Label>
+  {candidates.length?null:<Label theme={theme} muted>Nothing to share. Reports you submit show up here until they upload.</Label>}
   {candidates.length>1&&<View style={{flexDirection:'row',gap:8}}><Button title="Select all" theme={theme} secondary disabled={!excluded.size} onPress={()=>setExcluded(new Set())} style={{flex:1}}/><Button title="Select none" theme={theme} secondary disabled={excluded.size===candidates.length} onPress={()=>setExcluded(new Set(candidates.map(r=>r.entry.id)))} style={{flex:1}}/></View>}
-  {candidates.map(r=>{const on=!excluded.has(r.entry.id);return <Pressable key={r.entry.id} accessibilityRole="checkbox" accessibilityState={{checked:on}} accessibilityLabel={`${team(r.entry.team_id)}, ${match(r.entry.match_id)??r.entry.entry_type}, ${deliveryLabel[deliveryState(r)]}`} onPress={()=>setExcluded(current=>{const next=new Set(current);if(on)next.add(r.entry.id);else next.delete(r.entry.id);return next})} style={{minHeight:60,flexDirection:'row',alignItems:'center',gap:12,padding:12,borderRadius:12,backgroundColor:on?theme.selection:theme.surface}}>
-   <Text style={{color:theme.text,fontSize:20,width:28,textAlign:'center'}}>{on?'✓':''}</Text>
-   <View style={{flex:1}}><Text style={{color:theme.text,fontSize:17,fontWeight:'600'}}>{team(r.entry.team_id)}{match(r.entry.match_id)?` in ${match(r.entry.match_id)}`:` ${r.entry.entry_type==='pre_scout'?'pre-scout':r.entry.entry_type}`}</Text><Text style={{color:theme.muted,fontSize:14}}>{deliveryLabel[deliveryState(r)]}</Text></View>
+  {candidates.map(r=>{const on=!excluded.has(r.entry.id);return <Pressable key={r.entry.id} accessibilityRole="checkbox" accessibilityState={{checked:on}} accessibilityLabel={`${team(r.entry.team_id)}, ${match(r.entry.match_id)??r.entry.entry_type}, ${deliveryLabel[deliveryState(r)]}`} onPress={()=>setExcluded(current=>{const next=new Set(current);if(on)next.add(r.entry.id);else next.delete(r.entry.id);return next})} style={{minHeight:60,flexDirection:'row',alignItems:'center',gap:12,padding:12,borderRadius:16,backgroundColor:theme.surface,opacity:on?1:.55}}>
+   <TeamTag label={team(r.entry.team_id)} size="md" theme={theme}/>
+   <View style={{flex:1}}><Text style={{color:theme.text,fontSize:16,fontWeight:'600'}}>{match(r.entry.match_id)??(r.entry.entry_type==='pre_scout'?'Pre-scout':r.entry.entry_type==='pit'?'Pit':'Match')}</Text><Text style={{color:theme.muted,fontSize:14}}>{deliveryLabel[deliveryState(r)]}</Text></View>
+   <View style={{width:28,height:28,borderRadius:14,borderWidth:2,borderColor:on?theme.tint:theme.line,backgroundColor:on?theme.tint:'transparent',alignItems:'center',justifyContent:'center'}}>{on?<Text style={{color:theme.onTint,fontSize:15,fontWeight:'900'}}>✓</Text>:null}</View>
   </Pressable>})}
   {error?<Text accessibilityRole="alert" style={{color:theme.danger}}>{error}</Text>:null}
  </Screen>;
  return <Screen footer={confirmed?<Button title="Done" theme={theme} onPress={()=>router.back()}/>:<Button title="The receiver has them" theme={theme} onPress={()=>void confirm()}/>}>
   {confirmed?<>
-   <Text accessibilityRole="header" style={{color:theme.success,fontSize:20,fontWeight:'700'}}>Marked as shared</Text>
-   <Label theme={theme}>{transfer.reports.length===1?'This report stays':`These ${transfer.reports.length} reports stay`} on this phone and still upload{transfer.reports.length===1?'s':''} when you connect. Uploading twice is safe.</Label>
+   <Text accessibilityRole="header" style={{color:theme.success,fontSize:22,fontWeight:'800'}}>Shared</Text>
+   <Label theme={theme} muted>{transfer.reports.length===1?'It still uploads':'They still upload'} from this phone when you're online.</Label>
   </>:<>
-   <Text accessibilityLiveRegion="none" style={{color:theme.text,fontSize:17,fontWeight:'600'}}>{transfer.reports.length} report{transfer.reports.length===1?'':'s'} · code {transfer.encoder.code}</Text>
-   <View accessible accessibilityRole="image" accessibilityLabel={`Animated QR code for ${transfer.reports.length} reports, transfer code ${transfer.encoder.code}`} style={{alignItems:'center',padding:12,backgroundColor:'#fff',borderRadius:12}}>
+   <View style={{flexDirection:'row',justifyContent:'space-between',alignItems:'baseline'}}><Text style={{color:theme.text,fontSize:17,fontWeight:'700'}}>{transfer.reports.length} report{transfer.reports.length===1?'':'s'}</Text><Text accessibilityLabel={`Code ${transfer.encoder.code.split('').join(' ')}`} style={{color:theme.text,fontSize:22,fontWeight:'900',letterSpacing:2,fontVariant:['tabular-nums']}}>{transfer.encoder.code}</Text></View>
+   <View accessible accessibilityRole="image" accessibilityLabel={`Animated QR code for ${transfer.reports.length} reports, transfer code ${transfer.encoder.code}`} style={{alignItems:'center',padding:12,backgroundColor:'#fff',borderRadius:16}}>
     <QRCode value={transfer.encoder.frame(seq)} size={size-24} ecl="M" backgroundColor="#fff" color="#000"/>
    </View>
-   <Label theme={theme}>Open Scan reports on the receiving phone and point it here. The code keeps changing. Missed frames are fine, so keep going until the receiver shows code {transfer.encoder.code} and {transfer.reports.length} saved.</Label>
+   <Label theme={theme} muted>Point the receiver's Scan reports here until it shows code {transfer.encoder.code}.</Label>
    <View style={{flexDirection:'row',gap:8}}>{SPEEDS.map((option,index)=><Button key={option.label} title={option.label} theme={theme} secondary={speed!==index} onPress={()=>setSpeed(index)} style={{flex:1}}/>)}</View>
    <View style={{flexDirection:'row',gap:8}}>
-    <Button title={paused?'Resume':'Pause'} theme={theme} secondary onPress={()=>setPaused(!paused)} style={{flex:1}}/>
-    <Button title={easy?'Use smaller code':'Use easier code'} theme={theme} secondary disabled={busy} onPress={toggleEasy} style={{flex:1}}/>
+    <Button title={paused?'Play':'Pause'} theme={theme} secondary onPress={()=>setPaused(!paused)} style={{flex:1}}/>
+    <Button title={easy?'Denser code':'Easier code'} theme={theme} secondary disabled={busy} onPress={toggleEasy} style={{flex:1}}/>
    </View>
-   {transfer.unsignedCount>0&&<Text accessibilityRole="alert" style={{color:theme.warning,fontSize:15,lineHeight:21}}>{transfer.unsignedCount} report{transfer.unsignedCount===1?' is':'s are'} unsigned because this phone has not been online since signing in. The receiver can use them, but only this phone can upload them.</Text>}
-   <Label theme={theme} muted>Photos are not included. They upload from this phone when connected.</Label>
+   {transfer.unsignedCount>0&&<Text accessibilityRole="alert" style={{color:theme.warning,fontSize:15,lineHeight:21}}>{transfer.unsignedCount} unsigned: only this phone can upload {transfer.unsignedCount===1?'it':'them'}. Go online once to fix this.</Text>}
   </>}
   {error?<Text accessibilityRole="alert" style={{color:theme.danger}}>{error}</Text>:null}
  </Screen>;
