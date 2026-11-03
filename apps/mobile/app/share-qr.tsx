@@ -55,7 +55,7 @@ export default function ShareQr(){
  return <Screen footer={confirmed?<Button title="Done" theme={theme} onPress={()=>router.back()}/>:<Button title="The receiver has them" theme={theme} onPress={()=>void confirm()}/>}>
   {confirmed?<>
    <Text accessibilityRole="header" style={{color:theme.success,fontSize:20,fontWeight:'700'}}>Marked as shared</Text>
-   <Label theme={theme}>These {transfer.reports.length} reports stay on this phone and still upload when you connect. Uploads are safe to repeat.</Label>
+   <Label theme={theme}>{transfer.reports.length===1?'This report stays':`These ${transfer.reports.length} reports stay`} on this phone and still upload{transfer.reports.length===1?'s':''} when you connect. Uploading twice is safe.</Label>
   </>:<>
    <Text accessibilityLiveRegion="none" style={{color:theme.text,fontSize:17,fontWeight:'600'}}>{transfer.reports.length} report{transfer.reports.length===1?'':'s'} · code {transfer.encoder.code}</Text>
    <View accessible accessibilityRole="image" accessibilityLabel={`Animated QR code for ${transfer.reports.length} reports, transfer code ${transfer.encoder.code}`} style={{alignItems:'center',padding:12,backgroundColor:'#fff',borderRadius:12}}>
