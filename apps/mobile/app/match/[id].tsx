@@ -6,7 +6,7 @@ import { Text } from '../../src/components/AppText';
 import {useLocalSearchParams,useRouter} from 'expo-router';
 import {useApp} from '../../src/core/context';
 import {Screen} from '../../src/components/Screen';
-import {ALLIANCE_FILL,Button,Choice,Input,Label,Section,Status,TeamTag} from '../../src/components/ui';
+import {ALLIANCE_FILL,Button,Choice,DISPLAY,DISPLAY_BOLD,Input,Label,Section,Status,TeamTag} from '../../src/components/ui';
 import {BREAKAGE_TAGS,initialBreakageIssues,normalizeMatchTimestamp,normalizeRebuilt} from '../../src/core/rebuilt';
 import {canEditReport} from '../../src/core/report-editing';
 import {matchLabel,manualMatchLabel} from '../../src/features/stats';
@@ -26,15 +26,15 @@ const spots=[
 const tick=()=>void Haptics.selectionAsync().catch(()=>undefined);
 
 /** The whole tile adds one. Taking counts back is a separate, quieter row. */
-function Counter({label,value,onStep,theme,fill}:{label:string;value:number;onStep:(delta:number)=>void;theme:Palette;fill:string}){
+function Counter({label,value,onStep,theme,fill,height}:{label:string;value:number;onStep:(delta:number)=>void;theme:Palette;fill:string;height:number}){
  const {largeText}=useLayout();
  // Taps can outrun a render, so the parent applies each step to its latest payload.
  const step=(delta:number)=>{tick();onStep(delta)};
  const small=(delta:number)=><Pressable key={delta} accessibilityRole="button" accessibilityLabel={(delta>0?'Add ':'Take back ')+Math.abs(delta)+' '+label} disabled={delta<0&&value===0} onPress={()=>step(delta)} style={({pressed})=>({flex:1,minHeight:48,borderRadius:12,alignItems:'center',justifyContent:'center',backgroundColor:pressed?theme.line:theme.panel,opacity:delta<0&&value===0?.4:1})}><Text style={{color:theme.text,fontSize:17,fontWeight:'700',fontVariant:['tabular-nums']}}>{delta>0?'+':'−'}{Math.abs(delta)}</Text></Pressable>;
  return <View style={{gap:8}}>
-  <Pressable accessibilityRole="button" accessibilityLabel={`${label}, ${value}. Add 1`} onPress={()=>step(1)} style={({pressed})=>({minHeight:largeText?120:92,borderRadius:18,backgroundColor:fill,paddingHorizontal:18,flexDirection:largeText?'column':'row',alignItems:largeText?'flex-start':'center',justifyContent:'space-between',borderTopWidth:2,borderBottomWidth:5,borderTopColor:'rgba(255,255,255,.28)',borderBottomColor:'rgba(0,0,0,.25)',transform:[{scale:pressed?.98:1}]})}>
-   <Text style={{color:'#fff',fontSize:19,fontWeight:'800'}}>{label}</Text>
-   <Text style={{color:'#fff',fontSize:52,fontWeight:'900',fontVariant:['tabular-nums'],letterSpacing:-1}}>{value}</Text>
+  <Pressable accessibilityRole="button" accessibilityLabel={`${label}, ${value}. Add 1`} onPress={()=>step(1)} style={({pressed})=>({minHeight:largeText?Math.max(120,height):height,borderRadius:20,backgroundColor:fill,paddingHorizontal:18,flexDirection:largeText?'column':'row',alignItems:largeText?'flex-start':'center',justifyContent:'space-between',borderTopWidth:2,borderBottomWidth:5,borderTopColor:'rgba(255,255,255,.28)',borderBottomColor:'rgba(0,0,0,.25)',transform:[{scale:pressed?.98:1}]})}>
+   <Text style={{color:'#fff',fontSize:28,fontFamily:DISPLAY_BOLD}}>{label}</Text>
+   <Text maxFontSizeMultiplier={1.2} style={{color:'#fff',fontSize:Math.min(110,Math.max(64,height*.7)),lineHeight:Math.min(116,Math.max(68,height*.74)),fontFamily:DISPLAY,fontVariant:['tabular-nums'],includeFontPadding:false}}>{value}</Text>
   </Pressable>
   <View style={{flexDirection:'row',gap:8}}>{small(-10)}{small(-1)}{small(10)}</View>
  </View>;
@@ -44,6 +44,8 @@ export default function MatchCapture(){
  const {id}=useLocalSearchParams<{id:string}>();
  const {records,bundle,viewer,theme,saveDraft}=useApp();const router=useRouter();
  const {contentWidth,height}=useLayout();
+ // Counters share whatever height the header, step tabs and footer leave.
+ const tile=(count:number)=>Math.round(Math.max(92,Math.min(220,(height-440-count*64)/count)));
  const field=fieldSize(contentWidth,height);
  const record=records.find(r=>r.entry.id===id);
  const [payload,setPayload]=useState<Payload|null>(null),[mirror,setMirror]=useState(false),[saving,setSaving]=useState(false),[error,setError]=useState(''),[step,setStep]=useState(0);
@@ -66,13 +68,13 @@ export default function MatchCapture(){
  const issueChange=(i:number,key:'timestamp'|'issue',value:string)=>set('breakage_issues',issues.map((item,j)=>j===i?{...item,[key]:value}:item));
  const submit=async()=>{setSaving(true);try{await saveDraft(id,normalizeRebuilt(latest.current!),true);void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(()=>undefined);router.replace({pathname:'/submission/[id]',params:{id}})}catch(e){setError(friendlyError(e))}finally{setSaving(false)}};
  const fill=ALLIANCE_FILL[alliance];
- const period=(key:'auto'|'teleop')=>{const sc=payload[key] as {shoot:number;ferry:number};return <>{(['shoot','ferry'] as const).map(k=><Counter key={k} label={k==='shoot'?'Scored':'Ferried'} value={sc[k]??0} fill={fill} theme={theme} onStep={d=>score(key,k,d)}/>)}</>};
+ const period=(key:'auto'|'teleop')=>{const sc=payload[key] as {shoot:number;ferry:number};return <>{(['shoot','ferry'] as const).map(k=><Counter key={k} label={k==='shoot'?'Scored':'Ferried'} value={sc[k]??0} fill={fill} height={tile(key==='auto'?2:3)} theme={theme} onStep={d=>score(key,k,d)}/>)}</>};
  const footer=<>{error?<Text accessibilityRole="alert" style={{color:theme.danger}}>{error}</Text>:null}{last?<Button title={saving?'Saving…':editing?'Save changes':'Submit report'} theme={theme} disabled={saving} onPress={()=>void submit()}/>:<Button title={`Next: ${steps[current+1]}`} theme={theme} onPress={()=>go(current+1)}/>}</>;
  return <Screen scrollRef={scroll} footerInset footer={footer}>
   <View style={{flexDirection:'row',alignItems:'center',gap:14}}>
    <TeamTag label={team?.displayNumber??'?'} alliance={alliance} size="lg" theme={theme}/>
    <View style={{flex:1,minWidth:0}}>
-    <Text numberOfLines={1} style={{color:theme.text,fontSize:17,fontWeight:'800'}}>{metadata?manualMatchLabel(metadata):match?matchLabel(match):'Match'}</Text>
+    <Text numberOfLines={1} style={{color:theme.text,fontSize:24,fontFamily:DISPLAY_BOLD}}>{metadata?manualMatchLabel(metadata):match?matchLabel(match):'Match'}</Text>
     <Text numberOfLines={1} style={{color:alliance==='red'?theme.red:theme.blue,fontSize:14,fontWeight:'700'}}>{alliance==='red'?'Red':'Blue'} alliance{editing?' · editing':''}</Text>
    </View>
    <Status label={saving?'Saving':'Saved'} tone={saving?'quiet':'ok'} theme={theme}/>
@@ -80,7 +82,7 @@ export default function MatchCapture(){
 
   <View accessibilityRole="tablist" style={{flexDirection:'row',backgroundColor:theme.panel,borderRadius:14,padding:4,gap:4}}>
    {steps.map((label,index)=><Pressable key={label} accessibilityRole="tab" accessibilityState={{selected:index===current}} accessibilityLabel={label} onPress={()=>go(index)} style={{flex:1,minHeight:44,borderRadius:10,alignItems:'center',justifyContent:'center',backgroundColor:index===current?theme.surface:'transparent'}}>
-    <Text style={{color:index===current?theme.text:theme.muted,fontSize:15,fontWeight:index===current?'800':'600'}}>{label}</Text>
+    <Text style={{color:index===current?theme.text:theme.muted,fontSize:19,fontFamily:index===current?DISPLAY:DISPLAY_BOLD}}>{label}</Text>
    </Pressable>)}
   </View>
 
@@ -91,17 +93,17 @@ export default function MatchCapture(){
    </>}</Section>}
    <View style={{flexDirection:'row',gap:8}}><View style={{flex:1}}><Choice label="No show" selected={noShow} theme={theme} onPress={()=>set('no_show',!noShow)}/></View>{!noShow&&<View style={{flex:1}}><Choice label="Mirror field" selected={mirror} theme={theme} onPress={()=>setMirror(!mirror)}/></View>}</View>
    {!noShow&&<>
-    <Text accessibilityRole="header" style={{color:theme.text,fontSize:18,fontWeight:'800',marginTop:6}}>Starting position</Text>
+    <Text accessibilityRole="header" style={{color:theme.text,fontSize:24,fontFamily:DISPLAY_BOLD,marginTop:6}}>Starting position</Text>
     <View style={{...field,maxWidth:'100%',alignSelf:'center',backgroundColor:'#fff',borderRadius:14,overflow:'hidden'}}>
      <Image source={require('../../assets/2026-field-map.png')} accessibilityLabel={alliance+' alliance field'} style={{position:'absolute',width:'100%',height:'100%',resizeMode:'stretch',transform:[{rotate:alliance==='blue'?'180deg':'0deg'},{scaleX:mirror?-1:1}]}}/>
      {spots.map((spot,index)=>{const on=payload.starting_spot===spot.id;return <View key={spot.id} pointerEvents="none" style={{position:'absolute',left:((mirror?spot.mx:spot.x)+'%') as `${number}%`,top:((mirror?spot.my:spot.y)+'%') as `${number}%`,width:24,height:24,transform:[{translateX:-12},{translateY:-12}],borderRadius:12,backgroundColor:on?fill:'#fff',borderWidth:2,borderColor:on?'#fff':fill,justifyContent:'center'}}><Text style={{color:on?'#fff':'#14171c',fontSize:12,textAlign:'center',fontWeight:'800'}}>{index+1}</Text></View>})}
     </View>
-    <View style={{flexDirection:'row',flexWrap:'wrap',gap:8}}>{spots.map((spot,index)=><Choice key={spot.id} label={`${index+1}  ${spot.label}`} selected={payload.starting_spot===spot.id} theme={theme} onPress={()=>set('starting_spot',payload.starting_spot===spot.id?null:spot.id)}/>)}</View>
+    <View style={{flexDirection:'row',flexWrap:'wrap',gap:8}}>{spots.map((spot,index)=><View key={spot.id} style={{width:'48%',flexGrow:1}}><Choice label={`${index+1}  ${spot.label}`} selected={payload.starting_spot===spot.id} theme={theme} onPress={()=>set('starting_spot',payload.starting_spot===spot.id?null:spot.id)}/></View>)}</View>
    </>}
   </>}
 
   {name==='Auto'&&period('auto')}
-  {name==='Teleop'&&<>{period('teleop')}<Counter label="Fouls" value={Number(payload.fouls??0)} fill={theme.graphite} theme={theme} onStep={d=>set('fouls',clamp(Number(latest.current!.fouls??0)+d))}/></>}
+  {name==='Teleop'&&<>{period('teleop')}<Counter label="Fouls" value={Number(payload.fouls??0)} fill={theme.graphite} height={tile(3)} theme={theme} onStep={d=>set('fouls',clamp(Number(latest.current!.fouls??0)+d))}/></>}
 
   {name==='End'&&<>
    {!noShow&&<>

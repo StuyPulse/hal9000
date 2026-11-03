@@ -8,7 +8,7 @@ import {DEFAULT_BLOCK_SIZE,EASY_SCAN_BLOCK_SIZE} from '@wildcard/shared/src/foun
 import {Text} from '../src/components/AppText';
 import {Screen} from '../src/components/Screen';
 import {useLayout} from '../src/components/layout';
-import {Button,Label,TeamTag} from '../src/components/ui';
+import {Button,DISPLAY,DISPLAY_BOLD,Label,TeamTag} from '../src/components/ui';
 import {useApp} from '../src/core/context';
 import {friendlyError} from '../src/core/friendly-error';
 import {deliveryLabel,deliveryState,prepareQrTransfer,qrCandidates,type QrTransfer} from '../src/core/qr-share';
@@ -55,10 +55,10 @@ export default function ShareQr(){
  </Screen>;
  return <Screen footer={confirmed?<Button title="Done" theme={theme} onPress={()=>router.back()}/>:<Button title="The receiver has them" theme={theme} onPress={()=>void confirm()}/>}>
   {confirmed?<>
-   <Text accessibilityRole="header" style={{color:theme.success,fontSize:22,fontWeight:'800'}}>Shared</Text>
+   <Text accessibilityRole="header" style={{color:theme.success,fontSize:40,fontFamily:DISPLAY}}>Shared</Text>
    <Label theme={theme} muted>{transfer.reports.length===1?'It still uploads':'They still upload'} from this phone when you're online.</Label>
   </>:<>
-   <View style={{flexDirection:'row',justifyContent:'space-between',alignItems:'baseline'}}><Text style={{color:theme.text,fontSize:17,fontWeight:'700'}}>{transfer.reports.length} report{transfer.reports.length===1?'':'s'}</Text><Text accessibilityLabel={`Code ${transfer.encoder.code.split('').join(' ')}`} style={{color:theme.text,fontSize:22,fontWeight:'900',letterSpacing:2,fontVariant:['tabular-nums']}}>{transfer.encoder.code}</Text></View>
+   <View style={{flexDirection:'row',justifyContent:'space-between',alignItems:'baseline'}}><Text style={{color:theme.text,fontSize:24,fontFamily:DISPLAY_BOLD}}>{transfer.reports.length} report{transfer.reports.length===1?'':'s'}</Text><Text accessibilityLabel={`Code ${transfer.encoder.code.split('').join(' ')}`} style={{color:theme.text,fontSize:36,fontFamily:DISPLAY,letterSpacing:3}}>{transfer.encoder.code}</Text></View>
    <View accessible accessibilityRole="image" accessibilityLabel={`Animated QR code for ${transfer.reports.length} reports, transfer code ${transfer.encoder.code}`} style={{alignItems:'center',padding:12,backgroundColor:'#fff',borderRadius:16}}>
     <QRCode value={transfer.encoder.frame(seq)} size={size-24} ecl="M" backgroundColor="#fff" color="#000"/>
    </View>

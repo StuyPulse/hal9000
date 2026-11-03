@@ -7,7 +7,7 @@ import QRCode from 'react-native-qrcode-svg';
 import * as Crypto from 'expo-crypto';
 import {useApp} from '../../src/core/context';
 import {Screen} from '../../src/components/Screen';
-import {Button,Card,Label,Section,Status,TeamTag} from '../../src/components/ui';
+import {Button,Card,DISPLAY_BOLD,Label,Section,Status,TeamTag} from '../../src/components/ui';
 import {reportGroups,qrSize} from '../../src/features/reportDetail';
 import {makePackets} from '../../src/core/relay-model';
 import {canEditReport} from '../../src/core/report-editing';
@@ -43,7 +43,7 @@ export default function Submission(){
   <View style={{flexDirection:'row',alignItems:'center',gap:14}}>
    <TeamTag label={teamOf(entry.team_id)?.displayNumber??'?'} alliance={entry.entry_type==='match'?alliance:null} size="lg" theme={theme}/>
    <View style={{flex:1,minWidth:0,gap:4}}>
-    <Text numberOfLines={2} style={{color:theme.text,fontSize:18,fontWeight:'800'}}>{title}</Text>
+    <Text numberOfLines={2} style={{color:theme.text,fontSize:28,fontFamily:DISPLAY_BOLD}}>{title}</Text>
     <Status label={state.label} tone={state.tone} theme={theme}/>
    </View>
   </View>

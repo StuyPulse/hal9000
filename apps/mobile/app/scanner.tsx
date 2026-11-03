@@ -8,7 +8,7 @@ import * as Crypto from 'expo-crypto';
 import { useApp } from '../src/core/context';
 import { Screen } from '../src/components/Screen';
 import { useLayout } from '../src/components/layout';
-import { Button, GroupLabel, Label, List, ListRow, Status, TeamTag } from '../src/components/ui';
+import { Button, DISPLAY, GroupLabel, Label, List, ListRow, Status, TeamTag } from '../src/components/ui';
 import { packetSchema, assemble, parseRelaySnapshot, type RelayPacket } from '../src/core/relay-model';
 import { canReceiveQr, canUploadRelay } from '../src/core/relay-receipt';
 import { deliveryLabel, deliveryState } from '../src/core/qr-share';
@@ -98,7 +98,7 @@ export default function Scanner() {
       </View>
       <View style={{ flex: split ? 1 : undefined, minWidth: 0, gap: 12 }}>
         {live ? <View accessibilityLabel={`Transfer ${live.code}: ${live.solved} of ${live.total} pieces`} accessibilityLiveRegion="polite" style={{ gap: 6 }}>
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}><Text style={{ color: theme.text, fontSize: 17, fontWeight: '800', letterSpacing: 2 }}>{live.code}</Text><Text style={{ color: theme.muted, fontSize: 15, fontVariant: ['tabular-nums'] }}>{live.solved} of {live.total}</Text></View>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}><Text style={{ color: theme.text, fontSize: 30, fontFamily: DISPLAY, letterSpacing: 3 }}>{live.code}</Text><Text style={{ color: theme.muted, fontSize: 15, fontVariant: ['tabular-nums'] }}>{live.solved} of {live.total}</Text></View>
           <View style={{ height: 10, borderRadius: 5, backgroundColor: theme.panel, overflow: 'hidden' }}><View style={{ height: 10, width: `${Math.round(live.solved / live.total * 100)}%`, backgroundColor: theme.success }} /></View>
         </View> : <Text accessibilityLiveRegion="polite" style={{ color: theme.text, fontSize: 16 }}>{progress}</Text>}
         {finished.map((f, i) => <View key={`${f.code}:${i}`} style={{ gap: 2 }}>

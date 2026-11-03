@@ -7,7 +7,7 @@ import {useLocalSearchParams,useRouter} from 'expo-router';
 import {useApp} from '../../src/core/context';
 import {emptyRebuilt} from '../../src/core/data';
 import {Screen} from '../../src/components/Screen';
-import {Button,Choice,Input,Label,TeamTag} from '../../src/components/ui';
+import {Button,Choice,DISPLAY,DISPLAY_BOLD,Input,Label,TeamTag} from '../../src/components/ui';
 import {TeamPicker} from '../../src/features/common';
 import {compareMatches,matchLabel} from '../../src/features/stats';
 
@@ -42,7 +42,7 @@ export default function Schedule(){
    <TeamPicker teams={bundle.teams} theme={theme} value={teamId||null} onChange={setTeamId} label="Robot"/>
   </>:match?<>
    <View style={{flexDirection:'row',alignItems:'center',justifyContent:'space-between',gap:8}}>
-    <Text accessibilityRole="header" style={{color:theme.text,fontSize:22,fontWeight:'800',flexShrink:1}}>{matchLabel(match)}</Text>
+    <Text accessibilityRole="header" style={{color:theme.text,fontSize:34,fontFamily:DISPLAY,flexShrink:1}}>{matchLabel(match)}</Text>
     <Button title="Change" secondary theme={theme} onPress={()=>{setMatchId('');setTeamId('')}} style={{minHeight:44,paddingVertical:8}}/>
    </View>
    <View style={{flexDirection:'row',gap:10}}>{(['red','blue'] as const).map(a=><View key={a} style={{flex:1,gap:8}}>
@@ -60,7 +60,7 @@ export default function Schedule(){
     {[['all','Any time'],['upcoming','Upcoming'],['finished','Finished']].map(([id,l])=><Choice key={id} label={l} theme={theme} selected={state===id} onPress={()=>setState(id)}/>)}
    </ScrollView>
    {matches.length===0?<Label theme={theme} muted>No matches found.</Label>:<View style={{flexDirection:'row',flexWrap:'wrap',gap:10}}>{matches.map(m=>{const played=m.status==='played',scored=typeof m.red_score==='number'&&typeof m.blue_score==='number'&&m.red_score>=0&&m.blue_score>=0;const time=m.scheduled_at?new Date(m.scheduled_at).toLocaleTimeString([],{hour:'numeric',minute:'2-digit'}):null;return <Pressable key={m.id} accessibilityRole="button" accessibilityLabel={matchLabel(m)} onPress={()=>{setMatchId(m.id);setTeamId('')}} style={({pressed})=>({flexGrow:1,flexBasis:large?'31%':wide?'47%':'100%',backgroundColor:pressed?theme.panel:theme.surface,borderRadius:16,padding:14,gap:10,opacity:played?.6:1})}>
-    <View style={{flexDirection:'row',justifyContent:'space-between',alignItems:'center'}}><Text style={{color:theme.text,fontSize:17,fontWeight:'800'}}>{matchLabel(m)}</Text><Text style={{color:theme.muted,fontSize:14,fontVariant:['tabular-nums']}}>{scored?`${m.red_score} – ${m.blue_score}`:played?'Played':time??''}</Text></View>
+    <View style={{flexDirection:'row',justifyContent:'space-between',alignItems:'center'}}><Text style={{color:theme.text,fontSize:24,fontFamily:DISPLAY_BOLD}}>{matchLabel(m)}</Text><Text style={{color:theme.muted,fontSize:14,fontVariant:['tabular-nums']}}>{scored?`${m.red_score} – ${m.blue_score}`:played?'Played':time??''}</Text></View>
     {(['red','blue'] as const).map(a=><View key={a} style={{flexDirection:'row',gap:6}}>{numbers(a==='red'?m.red_teams:m.blue_teams).map(t=><TeamTag key={t.id} label={t.displayNumber} alliance={a} size="sm" theme={theme} style={{flex:1}}/>)}</View>)}
    </Pressable>})}</View>}
   </>}

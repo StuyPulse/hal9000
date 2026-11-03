@@ -10,15 +10,17 @@ export function AppIcon({ name, color, size = 22 }: { name: string; color: Color
  return Platform.OS==='android'?<MaterialIcons name={selected[1] as never} size={size} color={color}/>:<Ionicons name={selected[0] as never} size={size} color={color}/>;
 }
 
+/** Scoreboard face for numbers and titles. Set fontFamily only: a fontWeight would make Android fall back to the system font. */
+export const DISPLAY='BigShoulders_900Black',DISPLAY_BOLD='BigShoulders_800ExtraBold';
 /** Alliance colours stay fixed in both themes, like the bumpers they copy. */
 export const ALLIANCE_FILL={red:'#d5001f',blue:'#0a4bdc'} as const;
-const TAG_SIZES={sm:{font:15,height:28,pad:8,width:52},md:{font:20,height:36,pad:10,width:74},lg:{font:30,height:50,pad:14,width:100},xl:{font:44,height:72,pad:16,width:112}} as const;
+const TAG_SIZES={sm:{font:18,height:28,pad:8,width:48},md:{font:24,height:36,pad:10,width:66},lg:{font:38,height:52,pad:12,width:90},xl:{font:60,height:78,pad:16,width:112}} as const;
 
 /** A team number drawn as a padded bumper. Colour only when the team is on that alliance. */
 export function TeamTag({label,alliance=null,size='md',theme,style}:{label:string;alliance?:'red'|'blue'|null;size?:keyof typeof TAG_SIZES;theme:Palette;style?:ViewStyle}) {
  const s=TAG_SIZES[size];
  return <View accessible accessibilityLabel={`Team ${label}${alliance?`, ${alliance} alliance`:''}`} style={[{minHeight:s.height,minWidth:s.width,paddingHorizontal:s.pad,borderRadius:Math.round(s.height*.26),backgroundColor:alliance?ALLIANCE_FILL[alliance]:theme.graphite,alignItems:'center',justifyContent:'center',borderTopWidth:size==='sm'?1.5:2,borderBottomWidth:size==='sm'?2.5:4,borderTopColor:'rgba(255,255,255,.3)',borderBottomColor:'rgba(0,0,0,.28)'},style]}>
-  <Text maxFontSizeMultiplier={1.4} numberOfLines={1} adjustsFontSizeToFit style={{color:'#fff',fontSize:s.font,fontWeight:'900',fontVariant:['tabular-nums'],letterSpacing:size==='xl'?-1:-.2}}>{label}</Text>
+  <Text maxFontSizeMultiplier={1.4} numberOfLines={1} adjustsFontSizeToFit style={{color:'#fff',fontSize:s.font,lineHeight:Math.round(s.font*1.05),fontFamily:DISPLAY,fontVariant:['tabular-nums'],letterSpacing:.3,includeFontPadding:false}}>{label}</Text>
  </View>;
 }
 
@@ -27,7 +29,7 @@ export function Button({ title, onPress, theme, secondary=false, disabled=false,
  return <Pressable accessibilityRole="button" accessibilityLabel={title} accessibilityState={{disabled}} disabled={disabled} onPress={onPress} android_ripple={{color:theme.text+'22'}} style={({pressed})=>[styles.button,{backgroundColor:secondary?theme.panel:theme.tint,opacity:disabled?.4:pressed?.82:1,transform:[{scale:pressed&&!disabled?.985:1}]},style]}>{icon&&<AppIcon name={icon} color={color} size={20}/>}<Text style={[styles.buttonText,{color}]}>{title}</Text></Pressable>;
 }
 export function Section({ title, children, theme }: {title?:string;children:React.ReactNode;theme:Palette}) {return <View style={styles.section}>{title&&<Text accessibilityRole="header" style={[styles.heading,{color:theme.text}]}>{title}</Text>}{children}</View>}
-export function GroupLabel({children,theme}:{children:React.ReactNode;theme:Palette}) {return <Text accessibilityRole="header" style={{color:theme.muted,fontSize:14,fontWeight:'600',marginTop:6}}>{children}</Text>}
+export function GroupLabel({children,theme}:{children:React.ReactNode;theme:Palette}) {return <Text accessibilityRole="header" style={{color:theme.text,fontSize:22,fontFamily:DISPLAY_BOLD,marginTop:10}}>{children}</Text>}
 export function Card({children,theme,style}:{children:React.ReactNode;theme:Palette;style?:ViewStyle}) {return <View style={[styles.card,{backgroundColor:theme.surface},style]}>{children}</View>}
 /** A rounded panel of rows separated by hairlines. */
 export function List({children,theme}:{children:React.ReactNode;theme:Palette}) {return <View style={{backgroundColor:theme.surface,borderRadius:16,overflow:'hidden'}}>{React.Children.toArray(children).filter(Boolean).map((child,index)=><View key={index} style={{borderTopWidth:index?StyleSheet.hairlineWidth:0,borderTopColor:theme.line}}>{child}</View>)}</View>}
@@ -42,4 +44,4 @@ export function Choice({label,selected,onPress,theme}:{label:string;selected:boo
 /** Short status text with a coloured dot, for lists. */
 export function Status({label,tone,theme}:{label:string;tone:'ok'|'warn'|'bad'|'quiet';theme:Palette}) {const color=tone==='ok'?theme.success:tone==='warn'?theme.warning:tone==='bad'?theme.danger:theme.muted;return <View style={{flexDirection:'row',alignItems:'center',gap:6}}><View style={{width:8,height:8,borderRadius:4,backgroundColor:color}}/><Text style={{color:tone==='quiet'?theme.muted:color,fontSize:13,fontWeight:'700'}}>{label}</Text></View>}
 export function Row({title,subtitle,onPress,theme,tail}:{title:string;subtitle?:string;onPress?:()=>void;theme:Palette;tail?:React.ReactNode}) {const content=<><View style={{flex:1,gap:4}}><Text style={{color:theme.text,fontSize:16,fontWeight:'600'}}>{title}</Text>{subtitle&&<Text style={{color:theme.muted,fontSize:14,lineHeight:19}}>{subtitle}</Text>}</View>{tail}</>;return onPress?<Pressable accessibilityRole="button" accessibilityLabel={title} onPress={onPress} style={[styles.row,{borderColor:theme.line}]}>{content}</Pressable>:<View style={[styles.row,{borderColor:theme.line}]}>{content}</View>}
-export const styles=StyleSheet.create({button:{minHeight:54,paddingVertical:14,paddingHorizontal:18,borderRadius:14,flexDirection:'row',alignItems:'center',justifyContent:'center',gap:8},buttonText:{fontSize:16,fontWeight:'700',flexShrink:1,textAlign:'center'},section:{marginTop:18,gap:12},heading:{fontSize:18,fontWeight:'800',letterSpacing:-.3},card:{padding:16,borderRadius:16,gap:12},input:{minHeight:52,borderWidth:1,borderRadius:12,padding:14,fontSize:16,textAlignVertical:'top'},choice:{minHeight:50,flexGrow:1,paddingVertical:12,paddingHorizontal:14,borderRadius:12,borderWidth:1,alignItems:'center',justifyContent:'center'},row:{minHeight:60,paddingVertical:12,flexDirection:'row',alignItems:'center',gap:12,borderBottomWidth:StyleSheet.hairlineWidth}});
+export const styles=StyleSheet.create({button:{minHeight:54,paddingVertical:14,paddingHorizontal:18,borderRadius:14,flexDirection:'row',alignItems:'center',justifyContent:'center',gap:8},buttonText:{fontSize:16,fontWeight:'700',flexShrink:1,textAlign:'center'},section:{marginTop:18,gap:12},heading:{fontSize:24,fontFamily:DISPLAY_BOLD,letterSpacing:.2},card:{padding:16,borderRadius:16,gap:12},input:{minHeight:52,borderWidth:1,borderRadius:12,padding:14,fontSize:16,textAlignVertical:'top'},choice:{minHeight:50,flexGrow:1,paddingVertical:12,paddingHorizontal:14,borderRadius:12,borderWidth:1,alignItems:'center',justifyContent:'center'},row:{minHeight:60,paddingVertical:12,flexDirection:'row',alignItems:'center',gap:12,borderBottomWidth:StyleSheet.hairlineWidth}});

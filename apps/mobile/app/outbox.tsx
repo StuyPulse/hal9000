@@ -6,7 +6,7 @@ import { Text } from '../src/components/AppText';
 import {useRouter} from 'expo-router';
 import {useApp} from '../src/core/context';
 import {Screen} from '../src/components/Screen';
-import {Button,GroupLabel,Label,List,ListRow,Status,TeamTag} from '../src/components/ui';
+import {Button,DISPLAY_BOLD,GroupLabel,Label,List,ListRow,Status,TeamTag} from '../src/components/ui';
 import {deliveryLabel,deliveryState,qrCandidates} from '../src/core/qr-share';
 
 const tones={draft:'warn',waiting:'warn',shared:'quiet',received:'quiet',uploaded:'ok',attention:'bad'} as const;
@@ -30,7 +30,7 @@ export default function Outbox(){
  return <Screen>
   <View style={{backgroundColor:theme.surface,borderRadius:20,padding:16,gap:14}}>
    <View style={{gap:2}}>
-    <Text accessibilityLiveRegion="polite" style={{color:pending?theme.warning:theme.success,fontSize:22,fontWeight:'800'}}>{headline}</Text>
+    <Text accessibilityLiveRegion="polite" style={{color:pending?theme.warning:theme.success,fontSize:32,fontFamily:DISPLAY_BOLD}}>{headline}</Text>
     <Text style={{color:theme.muted,fontSize:14}}>{online?'Online':'Offline'}{lastSync?` · synced ${ago(lastSync)}`:''}</Text>
    </View>
    <View style={{flexDirection:'row',gap:8}}>
