@@ -8,7 +8,7 @@ import {decodeReportBatch,encodeReportBatch} from '@wildcard/shared/src/qr-batch
 
 const uuid=()=>randomUUID();
 const org=uuid(),event=uuid(),teams=Array.from({length:40},uuid),matches=Array.from({length:80},uuid),scout=uuid();
-function report(i:number,signed=true){
+function report(i:number,signed=true):any{
  const entry={id:uuid(),organization_id:org,event_id:event,team_id:teams[i%40],match_id:matches[i%80],assignment_id:null,scout_user_id:scout,entry_type:'match',form_version:4,status:'submitted',submitted_at:'2026-11-02T15:00:00.000Z',payload:{no_show:false,starting_spot:'hub',starting_spot_confirmed:true,auto:{shoot:i%7*10,ferry:i%3*10},teleop:{shoot:i%11*10,ferry:i%5*10},no_show_reason:null,auto_fuel:(i%7+i%3)*10,teleop_fuel:(i%11+i%5)*10,fouls:i%3,defense:i%2===0,defense_level:i%2===0?5:null,defended_teams:[],robot_broke:false,breakage_issues:[],break_timestamp:null,break_tag:null,comments:`Match note ${i}: drove well, fed from the far side.`,report_source:'scheduled',manual_match:null}};
  const proof=signed?{envelope:{version:1,deviceId:scout,entry,createdAt:'2026-11-02T15:00:01.000Z'},signature:`${'A'.repeat(86)}==`}:undefined;
  return {entry,revision:1,...(proof?{proof}:{})};
@@ -90,10 +90,10 @@ test('same selection gives the same transfer, so a restarted phone resumes',()=>
  assert.notEqual(parseFrame(new FountainEncoder(data).frame(0)).key,parseFrame(new FountainEncoder(data,EASY_SCAN_BLOCK_SIZE).frame(0)).key);
 });
 test('one bad report never blocks the rest, and duplicates inside a batch collapse',()=>{
- const good=report(1),bad=report(2) as ReturnType<typeof report>;(bad.entry as {team_id:string}).team_id='not-a-uuid';
- const draft=report(3);(draft.entry as {status:string}).status='draft';
- const tampered=report(4);(tampered.entry.payload as {comments:string}).comments='different';tampered.proof={...tampered.proof!,envelope:{...tampered.proof!.envelope,entry:report(5).entry}};
- const decoded=decodeReportBatch(encodeReportBatch([good,good,bad,draft,tampered] as never));
+ const good=report(1),bad=report(2);bad.entry.team_id='not-a-uuid';
+ const draft=report(3);draft.entry.status='draft';
+ const tampered=report(4);tampered.entry.payload.comments='different';tampered.proof={...tampered.proof,envelope:{...tampered.proof.envelope,entry:report(5).entry}};
+ const decoded=decodeReportBatch(encodeReportBatch([good,good,bad,draft,tampered]));
  assert.deepEqual(decoded.reports.map(r=>r.entry.id),[good.entry.id]);
  assert.equal(decoded.rejected.length,3);
  assert.throws(()=>decodeReportBatch(Uint8Array.from([1,2,3,4])),/could not be read/);

@@ -44,3 +44,9 @@ export function sameReport(a:NativeEntry,b:NativeEntry){
  return a.id===b.id&&a.scout_user_id===b.scout_user_id&&a.organization_id===b.organization_id&&a.team_id===b.team_id&&a.event_id===b.event_id&&(a.match_id===b.match_id||autoLinked)&&a.entry_type===b.entry_type&&a.assignment_id===b.assignment_id&&a.form_version===b.form_version&&a.status===b.status&&payloadEqual(a.payload,b.payload);
 }
 export function scopedIdentity(userId:string,organizationId:string,demo=false){return `${demo?'demo':'live'}:${userId}:${organizationId}`;}
+/** The connection failed, as opposed to the server refusing this report. */
+export function isConnectionFailure(error:unknown){
+ const e=error as {status?:unknown;code?:unknown;message?:unknown};
+ if(e?.code==='network_error'||e?.status===0)return true;
+ return /network request failed|failed to fetch|fetch failed|network error|load failed|abort|timed? ?out|could not connect|offline/i.test(String(e?.message??error));
+}

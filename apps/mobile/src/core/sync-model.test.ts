@@ -49,3 +49,9 @@ test('an older uploaded draft cannot mark a newer autosave synchronized',()=>{
  assert.equal(acknowledge(edited,1,'server-time').status,'draft');
  assert.equal(acknowledge(edited,edited.revision,'server-time').status,'synced');
 });
+
+test('connection failures are told apart from server refusals',async()=>{
+ const {isConnectionFailure}=await import('./sync-model');
+ for(const failure of [{code:'network_error',status:0,message:'Cannot reach the mobile server.'},new TypeError('Network request failed'),{message:'The operation was aborted'},{message:'Failed to fetch'}])assert.equal(isConnectionFailure(failure),true);
+ for(const failure of [{status:403,code:'forbidden',message:'Master relay access is required.'},{message:'duplicate key value violates unique constraint'},{status:409,code:'conflict',message:'Conflict: this report was changed on another device.'}])assert.equal(isConnectionFailure(failure),false);
+});

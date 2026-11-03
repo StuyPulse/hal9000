@@ -6,7 +6,9 @@ import {client,requireClient} from './client';
 import {putValue,getValue,listRecords,listPhotos,acknowledgeStored,failStored,removeValue,removeCachedViewer} from './storage';
 import {loadViewer,loadEvents,loadBundle,uploadSnapshot,emptyRebuilt,writePicklist,writePicklistBulk,MembershipPendingError,type PicklistRow} from './data';
 import {DEMO_VIEWER,demoBundle} from './demo';
-import {scopedIdentity,updateLocal,reusableDraft,shouldUpload} from './sync-model';
+import {scopedIdentity,updateLocal,reusableDraft,shouldUpload,isConnectionFailure} from './sync-model';
+import {canReceiveQr,canUploadRelay,relayReceiptAction,scheduleWarning} from './relay-receipt';
+import {ensureRelayDevice} from './relay-device';
 import {canEditReport,seedServerEdit} from './report-editing';
 import {stagePhoto,uploadPhoto} from './photos';
 import {queuePhotoSelection} from './photo-selection-model';
@@ -26,7 +28,8 @@ import {friendlyError} from './friendly-error';
 import {chooseWorkspaceEvent,openDownloadedEvent,type WorkspaceMode} from './workspace-cache-model';
 import type {FeatureContext,Viewer,EventBundle,Event,LocalSubmission,LocalPhoto,Payload,EntryKind,Palette,PicklistRanking,NativeEntry} from './types';
 
-export type AppContextValue=FeatureContext&{ready:boolean;membershipPending:boolean;events:Event[];appearance:'light'|'dark'|'system';setAppearance:(v:'light'|'dark'|'system')=>void;signIn:(email:string,password:string)=>Promise<void>;signUp:(email:string,password:string,profile?:{firstName:string;lastName:string})=>Promise<void>;completeExternalSignIn:()=>Promise<void>;startDemo:()=>Promise<void>;signOut:()=>Promise<void>;selectEvent:(id:string)=>Promise<void>;dismissError:()=>void;receiveEntry:(entry:NativeEntry,revision:number,proof?:SignedRelayProof)=>Promise<void>;deleteLocalDraft:(id:string)=>Promise<void>;saveGlobalDocument:(url:string)=>Promise<void>;claimReport:(id:string)=>Promise<LocalSubmission>;updatePractice:(next:EventBundle)=>Promise<void>;deleteReport:(id:string)=>Promise<void>;saveManualIdentity:(id:string,teamId:string,metadata:{stage:string;label:string|null;alliance:'red'|'blue'})=>Promise<void>};
+export type QrReceiptSummary={saved:number;alreadyHere:number;rejected:{id:string;reason:string}[]};
+export type AppContextValue=FeatureContext&{ready:boolean;membershipPending:boolean;events:Event[];appearance:'light'|'dark'|'system';setAppearance:(v:'light'|'dark'|'system')=>void;signIn:(email:string,password:string)=>Promise<void>;signUp:(email:string,password:string,profile?:{firstName:string;lastName:string})=>Promise<void>;completeExternalSignIn:()=>Promise<void>;startDemo:()=>Promise<void>;signOut:()=>Promise<void>;selectEvent:(id:string)=>Promise<void>;dismissError:()=>void;receiveEntry:(entry:NativeEntry,revision:number,proof?:SignedRelayProof)=>Promise<void>;receiveEntries:(reports:{entry:NativeEntry;revision:number;proof?:SignedRelayProof}[])=>Promise<QrReceiptSummary>;markQrShared:(reports:{id:string;revision:number}[])=>Promise<void>;deleteLocalDraft:(id:string)=>Promise<void>;saveGlobalDocument:(url:string)=>Promise<void>;claimReport:(id:string)=>Promise<LocalSubmission>;updatePractice:(next:EventBundle)=>Promise<void>;deleteReport:(id:string)=>Promise<void>;saveManualIdentity:(id:string,teamId:string,metadata:{stage:string;label:string|null;alliance:'red'|'blue'})=>Promise<void>};
 const Context=createContext<AppContextValue|null>(null);
 export const useApp=()=>{const c=useContext(Context);if(!c)throw Error('AppProvider missing');return c};
 const dark:Palette={bg:'#10151d',surface:'#1b222d',panel:'#202b3a',text:'#f2f5fa',muted:'#a2adbd',line:'#303947',tint:'#b9cbff',onTint:'#15284d',selection:'#253653',success:'#84d8a8',warning:'#f0c377',danger:'#ff9caa',red:'#ff9daa',blue:'#9fbfff',dark:true};
@@ -113,7 +116,7 @@ export function AppProvider({children}:{children:React.ReactNode}){
   if(!scope||!viewer||!online||viewer.demo||syncLock.current)return;
   syncLock.current=true;setSyncing(true);let failures=0;
   try{
-   const queued=(await listRecords(scope)).filter(shouldUpload);
+   const queued=(await listRecords(scope)).filter(shouldUpload).filter(r=>r.origin!=='relay'||canUploadRelay(viewer.role));
    for(const snapshot of queued){
     if(scopeRef.current!==scope||!connectionRef.current)break;
     try{const serverTime=await uploadSnapshot(snapshot,viewer.userId);await serializeLocalWrite(async()=>{
@@ -121,12 +124,15 @@ export function AppProvider({children}:{children:React.ReactNode}){
      if(cached){const next=rememberConfirmedReport(cached,snapshot.entry,serverTime);if(scopeRef.current===scope&&eventRef.current===next.event.id)await saveBundle(next);else await workspaceCache.saveBundle(next,false);}
      await acknowledgeStored(scope,snapshot.entry.id,snapshot.revision,serverTime);
     })}
-    catch(e){failures++;const message=snapshot.origin==='relay'?'Received copy is safe locally. The server may not authorize this account to upload another scout’s report. '+(e as Error).message:(e as Error).message;await serializeLocalWrite(()=>failStored(scope,snapshot.entry.id,snapshot.revision,message))}
+    catch(e){failures++;
+     // A dead connection is not the report's fault: leave it pending and stop, rather than wait out a timeout per report.
+     if(isConnectionFailure(e))break;
+     const message=snapshot.origin==='relay'?'Received copy is safe locally. The server may not authorize this account to upload another scout’s report. '+(e as Error).message:(e as Error).message;await serializeLocalWrite(()=>failStored(scope,snapshot.entry.id,snapshot.revision,message))}
    }
    for(const photo of (await listPhotos(scope)).filter(p=>p.status!=='synced')){
     if(scopeRef.current!==scope||!connectionRef.current)break;
     try{await uploadPhoto(photo,viewer.userId);await putValue(scope,'photo',photo.id,{...photo,status:'synced',error:null})}
-    catch(e){failures++;await putValue(scope,'photo',photo.id,{...photo,status:'failed',error:(e as Error).message})}
+    catch(e){failures++;if(isConnectionFailure(e))break;await putValue(scope,'photo',photo.id,{...photo,status:'failed',error:(e as Error).message})}
    }
    await safetyQueue(scope).flush(()=>scopeRef.current===scope&&connectionRef.current);
    const safetyPending=(await safetyQueue(scope).list()).some(row=>row.status==='pending');
@@ -143,6 +149,7 @@ export function AppProvider({children}:{children:React.ReactNode}){
  useEffect(()=>()=>{if(autosaveTimer.current)clearTimeout(autosaveTimer.current);autosaveTimer.current=null},[scope]);
  const scheduleDraftSync=()=>{if(autosaveTimer.current)clearTimeout(autosaveTimer.current);const capturedScope=scope;autosaveTimer.current=setTimeout(()=>{autosaveTimer.current=null;if(scopeRef.current===capturedScope)void syncRef.current()},1500)};
  useEffect(()=>{if(ready&&online)void sync();const timer=setInterval(()=>void sync(),30000);const subscription=AppState.addEventListener('change',state=>{if(state==='active')void sync()});return()=>{clearInterval(timer);subscription.remove()}},[ready,online,sync]);
+ useEffect(()=>{if(ready&&online&&viewer&&!viewer.demo)void ensureRelayDevice(viewer).catch(()=>undefined)},[ready,online,viewer?.userId,viewer?.organizationId,viewer?.demo]);
  const enterWorkspace=async()=>{try{const v=await loadViewer();await activate(v);void backgroundRefresh.current(v).catch(e=>setError(e.message));}catch(e){if(e instanceof MembershipPendingError){setMembershipPending(true);return}throw e}};
  const signIn=async(email:string,password:string)=>{const {error:signError}=await requireClient().auth.signInWithPassword({email:email.trim(),password});if(signError)throw signError;await enterWorkspace()};
  const signUp=async(email:string,password:string,profile?:{firstName:string;lastName:string})=>{const first=profile?.firstName.trim()??'',last=profile?.lastName.trim()??'';const {error:signError}=await requireClient().auth.signUp({email:email.trim(),password,options:{emailRedirectTo:authRedirect('signin'),data:{first_name:first,last_name:last,display_name:[first,last].filter(Boolean).join(' ')}}});if(signError)throw signError;};
@@ -213,7 +220,34 @@ export function AppProvider({children}:{children:React.ReactNode}){
  });await reloadLocal();if(scopeRef.current===scope)void sync()};
  const signOut=async()=>{setMembershipPending(false);scopeRef.current=null;setViewer(null);setBundle(null);setRecords([]);setPhotos([]);setEvents([]);setSyncing(false);await removeValue('device','meta','viewer');await client?.auth.signOut({scope:'local'});};
  const updatePractice=async(next:EventBundle)=>{if(!viewer?.demo||!scope||next.scope!==scope)throw Error('This operation is only available in local practice.');await saveBundle(next);setEvents([next.event]);};
- const receiveEntry=async(entry:NativeEntry,revision:number,proof?:SignedRelayProof)=>{if(!viewer||!bundle||!scope)throw Error('Select an event');if(!['master','admin','developer'].includes(viewer.role))throw Error('Master access is required');if(entry.organization_id!==viewer.organizationId||entry.event_id!==bundle.event.id)throw Error('QR belongs to a different organization/event.');if(!bundle.teams.some(t=>t.id===entry.team_id))throw Error('QR team is not in the downloaded event.');if(entry.match_id&&!bundle.matches.some(m=>m.id===entry.match_id&&[...m.red_teams,...m.blue_teams].includes(entry.team_id)))throw Error('QR match/team does not belong to this event.');if(proof&&canonicalJson(validateSignedProof(proof).envelope.entry)!==canonicalJson(entry))throw Error('The signed proof does not match this report.');const old=await getValue<LocalSubmission>(scope,'entry',entry.id);if(old?.origin==='own')throw Error('This device already has its own copy. A QR receipt cannot overwrite it.');if(old&&old.revision>revision)return;if(old&&old.revision===revision&&!proof)return;await putValue(scope,'entry',entry.id,{entry,revision,proof,acknowledgedRevision:null,status:'received',origin:'relay',error:proof?null:'Unsigned backup: enable signed relay on the original scout device and re-export before cloud delivery.',baseUpdatedAt:null,changedAt:new Date().toISOString()} satisfies LocalSubmission);await reloadLocal();};
+ const receiveEntries=async(reports:{entry:NativeEntry;revision:number;proof?:SignedRelayProof}[]):Promise<QrReceiptSummary>=>serializeLocalWrite(async()=>{
+  if(!viewer||!bundle||!scope)throw Error('Select an event');
+  if(!canReceiveQr(viewer.role))throw Error('Master or strategist access is required to receive reports.');
+  const assertScope=()=>{if(scopeRef.current!==scope||eventRef.current!==bundle.event.id)throw Error('The account or event changed. Reopen the scanner.')};
+  assertScope();
+  const summary:QrReceiptSummary={saved:0,alreadyHere:0,rejected:[]},teamIds=new Set(bundle.teams.map(t=>t.id));
+  for(const {entry,revision,proof} of reports){
+   if(entry.organization_id!==viewer.organizationId||entry.event_id!==bundle.event.id){summary.rejected.push({id:entry.id,reason:'From a different team or event than the one selected here.'});continue}
+   if(proof&&canonicalJson(validateSignedProof(proof).envelope.entry)!==canonicalJson(entry)){summary.rejected.push({id:entry.id,reason:'Its signature does not match the report.'});continue}
+   const action=relayReceiptAction(await getValue<LocalSubmission>(scope,'entry',entry.id),entry,revision,proof);
+   if(action==='already-here'||action==='own-copy'){summary.alreadyHere++;continue}
+   if(action==='conflict'){summary.rejected.push({id:entry.id,reason:'A different version of this report is already here. The saved copy was kept.'});continue}
+   assertScope();
+   const warning=scheduleWarning(entry,teamIds,bundle.matches);
+   const note=!canUploadRelay(viewer.role)?'Saved for viewing here. A master or the scout uploads this report.':proof?warning:'Unsigned copy: it counts on this phone, but the scout\'s own device has to upload it.';
+   await putValue(scope,'entry',entry.id,{entry,revision,proof,acknowledgedRevision:null,status:'received',origin:'relay',error:note,baseUpdatedAt:null,changedAt:new Date().toISOString()} satisfies LocalSubmission);
+   summary.saved++;
+  }
+  await reloadLocal();
+  return summary;
+ });
+ const receiveEntry=async(entry:NativeEntry,revision:number,proof?:SignedRelayProof)=>{const {rejected}=await receiveEntries([{entry,revision,proof}]);if(rejected[0])throw Error(rejected[0].reason)};
+ const markQrShared=async(reports:{id:string;revision:number}[])=>serializeLocalWrite(async()=>{
+  if(!scope)return;
+  const at=new Date().toISOString();
+  for(const {id,revision} of reports){const current=await getValue<LocalSubmission>(scope,'entry',id);if(current?.revision===revision&&current.status!=='synced')await putValue(scope,'entry',id,{...current,qrShared:{revision,at}} satisfies LocalSubmission)}
+  await reloadLocal();
+ });
  const deleteLocalDraft=async(id:string)=>serializeLocalWrite(()=>exclusiveReportMutation(async()=>{if(!scope||!viewer)return;const r=await getValue<LocalSubmission>(scope,'entry',id);if(r?.entry.status!=='draft')throw Error('Only unsubmitted drafts can be removed.');if(!viewer.demo&&r.baseUpdatedAt){if(!online)throw Error('This draft is backed up to the server. Connect before deleting it.');await apiRequest('/api/mobile/reports','DELETE',{entryId:id,eventId:r.entry.event_id,expectedUpdatedAt:r.baseUpdatedAt},{expectedUserId:viewer.userId,expectedOrganizationId:viewer.organizationId});}if(scopeRef.current!==scope)return;await removeValue(scope,'entry',id);await reloadLocal()}));
  const saveManualIdentity=async(id:string,teamId:string,metadata:{stage:string;label:string|null;alliance:'red'|'blue'})=>{
   if(!viewer||!bundle||!scope)throw Error('Select an event.');
@@ -335,5 +369,5 @@ export function AppProvider({children}:{children:React.ReactNode}){
   await saveBundle({...bundle,robotProfiles:{...bundle.robotProfiles,[teamId]:next}});
  };
 
- return <Context.Provider value={{ready,membershipPending,viewer,bundle,events,records,photos,theme,online,syncing,error,appearance,setAppearance:v=>{setAppearanceState(v);void putValue('device','meta','appearance',v)},signIn,signUp,completeExternalSignIn,startDemo:()=>activate(DEMO_VIEWER),signOut,selectEvent,dismissError:()=>setError(null),createDraft,saveDraft,claimReport,deleteReport,saveManualIdentity,updatePractice,sync,refresh,addPhoto,receiveEntry,deleteLocalDraft,savePicklistRanking,savePicklistRankings,saveGlobalDocument,saveStrategyDrawing,savePicklistMeta,deletePicklistMeta,saveRobotProfile,saveReportSource}}>{children}</Context.Provider>
+ return <Context.Provider value={{ready,membershipPending,viewer,bundle,events,records,photos,theme,online,syncing,error,appearance,setAppearance:v=>{setAppearanceState(v);void putValue('device','meta','appearance',v)},signIn,signUp,completeExternalSignIn,startDemo:()=>activate(DEMO_VIEWER),signOut,selectEvent,dismissError:()=>setError(null),createDraft,saveDraft,claimReport,deleteReport,saveManualIdentity,updatePractice,sync,refresh,addPhoto,receiveEntry,receiveEntries,markQrShared,deleteLocalDraft,savePicklistRanking,savePicklistRankings,saveGlobalDocument,saveStrategyDrawing,savePicklistMeta,deletePicklistMeta,saveRobotProfile,saveReportSource}}>{children}</Context.Provider>
 }

@@ -8,6 +8,7 @@ import type {SignedRelayProof} from '@wildcard/shared/src/relay-contract';
 import type {NativeEntry,Viewer} from './types';
 type DeviceKey={id:string;secret:string;publicKey:string;registered:boolean};
 const storageKey=(viewer:Viewer)=>`hal9000-relay-${viewer.userId}-${viewer.organizationId}`;
+const optOutKey=(viewer:Viewer)=>`${storageKey(viewer)}-optout`;
 async function readDevice(viewer:Viewer):Promise<DeviceKey|null>{if(Platform.OS==='web')return null;const stored=await SecureStore.getItemAsync(storageKey(viewer));return stored?JSON.parse(stored):null;}
 export async function relayDeviceStatus(viewer:Viewer){const key=await readDevice(viewer);return {registered:Boolean(key?.registered),deviceId:key?.id??null};}
 export async function registerRelayDevice(viewer:Viewer,name='Scouting phone'){
@@ -17,9 +18,17 @@ export async function registerRelayDevice(viewer:Viewer,name='Scouting phone'){
  if(!device){const secret=await Crypto.getRandomBytesAsync(32);device={id:Crypto.randomUUID(),secret:bytesToBase64(secret),publicKey:relayPublicKey(secret),registered:false};await SecureStore.setItemAsync(storageKey(viewer),JSON.stringify(device));}
  await apiRequest('/api/mobile/devices','POST',{deviceId:device.id,publicKey:device.publicKey,name},{expectedUserId:viewer.userId,expectedOrganizationId:viewer.organizationId});
  await SecureStore.setItemAsync(storageKey(viewer),JSON.stringify({...device,registered:true}));
+ await SecureStore.deleteItemAsync(optOutKey(viewer));
  return device.id;
 }
-export async function revokeRelayDevice(viewer:Viewer){const device=await readDevice(viewer);if(!device)return;await apiRequest('/api/mobile/devices','DELETE',{deviceId:device.id},{expectedUserId:viewer.userId,expectedOrganizationId:viewer.organizationId});await SecureStore.deleteItemAsync(storageKey(viewer));}
+export async function revokeRelayDevice(viewer:Viewer){const device=await readDevice(viewer);if(!device)return;await apiRequest('/api/mobile/devices','DELETE',{deviceId:device.id},{expectedUserId:viewer.userId,expectedOrganizationId:viewer.organizationId});await SecureStore.deleteItemAsync(storageKey(viewer));await SecureStore.setItemAsync(optOutKey(viewer),'1');}
+/** A scout who never opened Settings still needs signed reports once the Wi-Fi is gone. */
+export async function ensureRelayDevice(viewer:Viewer){
+ if(viewer.demo||Platform.OS==='web')return;
+ if(await SecureStore.getItemAsync(optOutKey(viewer)))return;
+ if((await readDevice(viewer))?.registered)return;
+ await registerRelayDevice(viewer,Platform.OS==='ios'?'iPhone':'Android phone');
+}
 export async function proofForReport(viewer:Viewer,entry:NativeEntry):Promise<SignedRelayProof|null>{
  if(viewer.demo)return null;
  if(viewer.userId!==entry.scout_user_id)throw Error('Only the original scout may sign this report.');

@@ -7,6 +7,7 @@ import {useRouter} from 'expo-router';
 import {useApp} from '../src/core/context';
 import {Screen} from '../src/components/Screen';
 import {Button,Label} from '../src/components/ui';
+import {deliveryLabel,deliveryState,qrCandidates} from '../src/core/qr-share';
 
 export default function Outbox(){
  const {records,photos,bundle,theme,sync,syncing,online,viewer}=useApp();const router=useRouter();
@@ -27,13 +28,17 @@ export default function Outbox(){
   {error?<Text selectable style={{color:theme.danger,fontSize:13}}>{error}</Text>:null}
  </Pressable>;
  const group=(title:string,children:React.ReactNode)=><View style={{gap:6}}><Text accessibilityRole="header" style={{color:theme.muted,fontSize:13,fontWeight:'700',letterSpacing:.6,textTransform:'uppercase'}}>{title}</Text><View style={{backgroundColor:theme.surface,borderRadius:14,overflow:'hidden',marginTop:-1}}>{children}</View></View>;
+ const shareable=viewer&&bundle?qrCandidates(records,viewer,bundle.event.id).length:0;
+ const counts=local.reduce((all,r)=>{const state=deliveryState(r);all[state]=(all[state]??0)+1;return all},{} as Partial<Record<ReturnType<typeof deliveryState>,number>>);
  return <Screen>
   <View style={{flexDirection:'row',alignItems:'center',justifyContent:'space-between',gap:12}}>
    <Text style={{color:waiting||pendingPhotos?theme.warning:theme.muted,fontSize:16,fontWeight:'600',flex:1}}>{waiting||pendingPhotos?`${waiting} report${waiting===1?'':'s'} · ${pendingPhotos} photo${pendingPhotos===1?'':'s'} to send`:'Everything is sent'}{lastSync?`\nLast synced ${ago(lastSync)}`:''}</Text>
    <Button title={syncing?'Syncing…':'Sync'} theme={theme} secondary={!(waiting||pendingPhotos)} disabled={syncing||!online||viewer?.demo} onPress={()=>void sync()} style={{minHeight:46,paddingVertical:8,paddingHorizontal:20}}/>
   </View>
+  {local.length?<Text accessibilityLiveRegion="polite" style={{color:theme.muted,fontSize:14,lineHeight:20}}>{[['waiting','not shared'],['shared','shared by QR'],['received','received by QR'],['attention','need attention'],['uploaded','uploaded']].filter(([key])=>counts[key as keyof typeof counts]).map(([key,label])=>`${counts[key as keyof typeof counts]} ${label}`).join(', ')}</Text>:null}
+  <Button title={shareable?`Share ${shareable} report${shareable===1?'':'s'} by QR`:'Share by QR'} icon="qr" theme={theme} secondary={!shareable||online} disabled={!shareable} onPress={()=>router.push('/share-qr')}/>
   {local.length?<Pressable accessibilityRole="button" accessibilityLabel="Export backup of reports on this phone" onPress={()=>void Share.share({message:JSON.stringify({exportedAt:new Date().toISOString(),event:bundle?.event.name,reports:local.map(r=>({entry:r.entry,revision:r.revision,status:r.status}))},null,2),title:'HAL9000 reports backup'}).catch(()=>undefined)} style={{alignSelf:'flex-start',minHeight:44,justifyContent:'center'}}><Text style={{color:theme.tint,fontWeight:'700',fontSize:15}}>Export backup of {local.length} report{local.length===1?'':'s'}</Text></Pressable>:null}
-  {local.length?group('On this phone',local.map(r=>row(r.entry.id,`${teamNumber(r.entry.team_id)} · ${kind(r.entry.entry_type)}`,`${r.entry.status==='draft'?(r.status==='synced'?'Draft · backed up':'Draft · on this phone'):r.status}${r.origin==='relay'?' · QR receipt':''}`,r.entry.id,r.error))):<Label theme={theme} muted>Nothing on this phone yet.</Label>}
+  {local.length?group('On this phone',local.map(r=>row(r.entry.id,`${teamNumber(r.entry.team_id)} · ${kind(r.entry.entry_type)}`,r.entry.status==='draft'?(r.status==='synced'?'Draft, backed up':'Draft, on this phone'):deliveryLabel[deliveryState(r)],r.entry.id,r.error))):<Label theme={theme} muted>Nothing on this phone yet.</Label>}
   {cloud.length?group('From the cloud',cloud.map(e=>row(e.id,`${teamNumber(e.team_id)} · ${kind(e.entry_type)}`,e.status,e.id))):null}
  </Screen>;
 }
