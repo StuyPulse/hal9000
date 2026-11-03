@@ -1,6 +1,9 @@
 "use client";
 
 import { createClient } from "@/lib/supabase/client";
+import type { QrReport } from "@wildcard/shared/src/qr-batch";
+import { canonicalJson } from "@wildcard/shared/src/relay-contract";
+import { flushQueue } from "./offline-queue-flush";
 
 export type QueuedScoutingEntry = {
   id: string;
@@ -20,6 +23,7 @@ export type QueuedScoutingEntry = {
 
 const databaseName = "hal9000-offline";
 const storeName = "scouting-entry-queue";
+const receiptStoreName = "qr-receipts";
 const queueChangedEvent = "hal9000:offline-queue-changed";
 const lastSyncKey = "hal9000:last-successful-sync";
 const uploadTimeoutMs = 8_000;
@@ -39,10 +43,11 @@ export type QueuedSyncResult = {
 
 function openDatabase() {
   return new Promise<IDBDatabase>((resolve, reject) => {
-    const request = window.indexedDB.open(databaseName, 1);
+    const request = window.indexedDB.open(databaseName, 2);
     request.onupgradeneeded = () => {
       const database = request.result;
       if (!database.objectStoreNames.contains(storeName)) database.createObjectStore(storeName, { keyPath: "id" });
+      if (!database.objectStoreNames.contains(receiptStoreName)) database.createObjectStore(receiptStoreName);
     };
     request.onsuccess = () => resolve(request.result);
     request.onerror = () => reject(request.error ?? new Error("Could not open local storage."));
@@ -162,28 +167,28 @@ function syncFailureMessage(attempt: UploadAttempt) {
   return "The server could not accept this report yet. It remains saved on this device.";
 }
 
-export async function syncQueuedScoutingEntries(): Promise<QueuedSyncResult> {
+let activeSync: Promise<QueuedSyncResult> | null = null;
+export function syncQueuedScoutingEntries(): Promise<QueuedSyncResult> {
+  // The banner and the panel can both ask at once; one run is enough.
+  activeSync ??= runQueuedSync().finally(() => { activeSync = null; });
+  return activeSync;
+}
+
+async function runQueuedSync(): Promise<QueuedSyncResult> {
   const entries = await listQueuedScoutingEntries();
   if (!navigator.onLine) {
     return { synced: 0, failed: 0, pending: entries.length, failureMessage: "You are offline. Reports remain saved on this device." };
   }
 
   const supabase: any = createClient();
-  let synced = 0;
-  let failed = 0;
   let failureMessage: string | null = null;
-  for (const { queued_at: _queuedAt, ...entry } of entries) {
+  const result = await flushQueue(entries, async ({ queued_at: _queuedAt, ...entry }) => {
     const attempt = await upsertScoutingEntry(supabase, entry);
-    if (attempt.error) {
-      failed += 1;
-      failureMessage ??= syncFailureMessage(attempt);
-      continue;
-    }
-    await removeQueuedScoutingEntry(entry.id);
-    synced += 1;
-  }
-  if (synced > 0) window.localStorage.setItem(lastSyncKey, new Date().toISOString());
-  return { synced, failed, pending: failed, failureMessage };
+    if (attempt.error) failureMessage ??= syncFailureMessage(attempt);
+    return { error: attempt.error, transient: attempt.transient };
+  }, (entry) => removeQueuedScoutingEntry(entry.id));
+  if (result.synced > 0) window.localStorage.setItem(lastSyncKey, new Date().toISOString());
+  return { synced: result.synced, failed: result.failed, pending: result.pending, failureMessage };
 }
 
 /** A captive portal can leave fetch pending even though navigator.onLine says
@@ -199,4 +204,46 @@ export async function tryUpsertScoutingEntry(entry: Omit<QueuedScoutingEntry, "q
 export function onOfflineQueueChanged(listener: () => void) {
   window.addEventListener(queueChangedEvent, listener);
   return () => window.removeEventListener(queueChangedEvent, listener);
+}
+
+export type QrReceipt = QrReport & { received_at: string; uploaded_at: string | null };
+
+export async function listQrReceipts() {
+  const database = await openDatabase();
+  const transaction = database.transaction(receiptStoreName, "readonly");
+  const receipts = await requestValue(transaction.objectStore(receiptStoreName).getAll() as IDBRequest<QrReceipt[]>);
+  await transactionDone(transaction);
+  database.close();
+  return receipts.sort((left, right) => right.received_at.localeCompare(left.received_at));
+}
+
+/** Repeat-safe by report ID and revision: a replay changes nothing and a conflict keeps the saved copy. */
+export async function saveQrReceipts(reports: QrReport[]) {
+  const database = await openDatabase();
+  const transaction = database.transaction(receiptStoreName, "readwrite");
+  const store = transaction.objectStore(receiptStoreName);
+  const summary = { saved: 0, alreadyHere: 0, conflicts: [] as string[] };
+  await Promise.all(reports.map(async (report) => {
+    const existing = await requestValue(store.get(report.entry.id) as IDBRequest<QrReceipt | undefined>);
+    if (existing && existing.revision > report.revision) { summary.alreadyHere += 1; return; }
+    if (existing && existing.revision === report.revision) {
+      if (canonicalJson(existing.entry) !== canonicalJson(report.entry)) { summary.conflicts.push("A different version of a report is already here. The saved copy was kept."); return; }
+      if (existing.uploaded_at || !report.proof || existing.proof) { summary.alreadyHere += 1; return; }
+    }
+    store.put({ ...report, received_at: new Date().toISOString(), uploaded_at: null } satisfies QrReceipt, report.entry.id);
+    summary.saved += 1;
+  }));
+  await transactionDone(transaction);
+  database.close();
+  return summary;
+}
+
+export async function markQrReceiptUploaded(id: string) {
+  const database = await openDatabase();
+  const transaction = database.transaction(receiptStoreName, "readwrite");
+  const store = transaction.objectStore(receiptStoreName);
+  const existing = await requestValue(store.get(id) as IDBRequest<QrReceipt | undefined>);
+  if (existing) store.put({ ...existing, uploaded_at: new Date().toISOString() }, id);
+  await transactionDone(transaction);
+  database.close();
 }

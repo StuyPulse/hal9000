@@ -5,6 +5,7 @@ import { AppShell, PageHeader } from "@/components/app-shell";
 import { createClient } from "@/lib/supabase/server";
 import { getViewerContext } from "@/lib/viewer-context";
 import { matchLabel } from "@/lib/match-label";
+import { ScheduleOfflineCache } from "@/components/schedule-offline-cache";
 
 export default async function Dashboard() {
   const viewer = await getViewerContext();
@@ -20,7 +21,7 @@ export default async function Dashboard() {
     : [{ data: null }, { count: 0 }, { data: [] }];
 
   const remaps = await getEventTeamRemaps(viewer?.activeEvent?.id);
-  return <AppShell active="Assignments"><PageHeader eyebrow={organization?.name ?? "HAL9000"} title={organization ? "Assignments." : "You’re almost ready."}/>
+  return <AppShell active="Assignments"><ScheduleOfflineCache paths={["/scout/match", "/scout/offline", "/scout/qr", ...(assignments ?? []).slice(0, 24).map((assignment: any) => `/scout/match/${assignment.matches?.id}?assignment=${assignment.id}`)]}/><PageHeader eyebrow={organization?.name ?? "HAL9000"} title={organization ? "Assignments." : "You’re almost ready."}/>
     {!viewer?.organizationId ? <div className="card"><h2>Your account has been created.</h2><p className="muted" style={{marginTop:8,lineHeight:1.6}}>An admin needs to add you to an organization and assign your role before event data becomes visible. This is intentional: access is secured in Supabase RLS, not trusted from the browser.</p><Link className="button" href="/demo" style={{display:"inline-block",marginTop:16}}>View workspace preview</Link></div> : <><div className="grid stats dashboard-stats"><div className="card"><div className="stat-label">Submissions received</div><div className="stat-value">{submissionCount ?? 0}</div><div className="trend">Active event total</div></div>{viewer?.role === "admin" && <div className="card"><div className="stat-label">Sync status</div><div className="stat-value" style={{fontSize:22}}>Online</div><div className="trend">Supabase Realtime connected</div></div>}</div><section className="card section"><div className="card-head"><h2>Your assignments</h2><Link className="button secondary" href="/scout/match">Scout a match</Link></div>{assignments?.length ? assignments.map((assignment: any) => <div className="list-row" key={assignment.id}><div><strong>{matchLabel(assignment.matches ?? {})} · {eventTeamNumber(assignment.teams?.team_number, remaps)}</strong><div className="muted">{assignment.assignment_type} scouting · {assignment.teams?.name}</div></div><div className="row-actions"><span className="tag pending">{assignment.status.replace("_", " ")}</span><Link className="button secondary" href={`/scout/match/${assignment.matches?.id}?assignment=${assignment.id}`}>Scout</Link></div></div>) : <p className="muted">No assignments are currently waiting for you.</p>}</section></>}
   </AppShell>;
 }

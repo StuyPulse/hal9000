@@ -16,6 +16,7 @@ function pageName(pathname: string) {
   if (pathname === "/scout/assignments") return "My assignments";
   if (pathname.includes("/scout/match/manual")) return "Manual match scouting";
   if (pathname.includes("/scout/match")) return "Match scouting";
+  if (pathname === "/scout/qr") return "QR handoff";
   if (pathname.includes("/scout/pre-scout")) return "Pre scouting";
   if (pathname.includes("/scout/pit")) return "Pit scouting";
   if (pathname.includes("/scout/global")) return "Global scouting";

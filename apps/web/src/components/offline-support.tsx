@@ -2,12 +2,13 @@
 
 import { CloudOff, RefreshCw, X } from "lucide-react";
 import { useOffline } from "next/offline";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { listQueuedScoutingEntries, onOfflineQueueChanged, syncQueuedScoutingEntries } from "@/lib/offline-scouting-queue";
 
 export function OfflineSupport() {
   const offline = useOffline();
   const [pending, setPending] = useState(0);
+  const pendingRef = useRef(0);
   const [syncing, setSyncing] = useState(false);
   const [syncMessage, setSyncMessage] = useState<string | null>(null);
   const [queueKey, setQueueKey] = useState("");
@@ -15,6 +16,7 @@ export function OfflineSupport() {
   const refreshPending = useCallback(async () => {
     const entries = await listQueuedScoutingEntries();
     setPending(entries.length);
+    pendingRef.current = entries.length;
     setQueueKey(entries.map((entry) => entry.id).sort().join(","));
   }, []);
 
@@ -33,7 +35,11 @@ export function OfflineSupport() {
     const unregister = onOfflineQueueChanged(() => void refreshPending());
     const handleOnline = () => void sync();
     window.addEventListener("online", handleOnline);
-    return () => { window.clearTimeout(initialRefresh); unregister(); window.removeEventListener("online", handleOnline); };
+    // Venue Wi-Fi can return without an online event, so keep trying while anything waits.
+    const retry = window.setInterval(() => { if (pendingRef.current > 0 && document.visibilityState === "visible") void sync(); }, 30_000);
+    const handleVisible = () => { if (pendingRef.current > 0 && document.visibilityState === "visible") void sync(); };
+    document.addEventListener("visibilitychange", handleVisible);
+    return () => { window.clearTimeout(initialRefresh); unregister(); window.clearInterval(retry); document.removeEventListener("visibilitychange", handleVisible); window.removeEventListener("online", handleOnline); };
   }, [refreshPending, sync]);
 
   useEffect(() => {
@@ -44,8 +50,8 @@ export function OfflineSupport() {
   if ((!offline && pending === 0) || dismissedKey === noticeKey) return null;
   return <aside className={`offline-banner${offline ? " is-offline" : ""}`} role="status">
     <CloudOff size={16} aria-hidden="true"/>
-    <span>{offline ? "Offline — saved reports will stay on this device and upload when connection returns." : syncMessage ?? `${pending} report${pending === 1 ? "" : "s"} saved locally and waiting to upload.`}</span>
-    {!offline && <button type="button" onClick={() => void sync()} disabled={syncing}>{syncing ? "Syncing…" : <><RefreshCw size={14} aria-hidden="true"/>Retry</>}</button>}
+    <span>{offline ? "Offline. Saved reports stay on this device and upload when the connection returns. You can also share them by QR." : syncMessage ?? `${pending} report${pending === 1 ? "" : "s"} saved locally and waiting to upload.`}</span>
+    {pending > 0 && <a href="/scout/qr">Share by QR</a>}{!offline && <button type="button" onClick={() => void sync()} disabled={syncing}>{syncing ? "Syncing…" : <><RefreshCw size={14} aria-hidden="true"/>Retry</>}</button>}
     <button type="button" aria-label="Dismiss saved-report notice" title="Hide this notice; the report stays saved on this device" onClick={() => setDismissedKey(noticeKey)}><X size={16} aria-hidden="true"/></button>
   </aside>;
 }
