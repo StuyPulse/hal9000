@@ -4,5 +4,9 @@
   "version": "0.1.0",
   "main": "./src/index.ts",
   "types": "./src/index.ts",
-  "dependencies": { "zod": "4.4.3" }
+  "dependencies": {
+    "zod": "4.4.3",
+    "fflate": "0.8.2",
+    "@noble/hashes": "2.4.0"
+  }
 }
