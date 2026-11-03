@@ -1,6 +1,6 @@
 import {friendlyError} from '../../src/core/friendly-error';
-import React,{useEffect,useRef,useState} from 'react';
-import { Image, Pressable, View } from 'react-native';
+import React,{useEffect,useMemo,useRef,useState} from 'react';
+import { Image, PanResponder, Pressable, View } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { Text } from '../../src/components/AppText';
 import {useLocalSearchParams,useRouter} from 'expo-router';
@@ -13,6 +13,7 @@ import {matchLabel,manualMatchLabel} from '../../src/features/stats';
 import type {Palette,Payload} from '../../src/core/types';
 import {useLayout} from '../../src/components/layout';
 import {fieldSize} from '../../src/core/layout-model';
+import {SLIDE_START,slideDelta} from '../../src/core/slide-count';
 
 const spots=[
  {id:'depot',label:'Depot',x:14.6,y:8.5,mx:85.3,my:8.5},
@@ -25,18 +26,35 @@ const spots=[
 ];
 const tick=()=>void Haptics.selectionAsync().catch(()=>undefined);
 
-/** The whole tile adds one. Taking counts back is a separate, quieter row. */
+/** Tap the tile to add one, or slide across it to add or take back many at once. */
 function Counter({label,value,onStep,theme,fill,height}:{label:string;value:number;onStep:(delta:number)=>void;theme:Palette;fill:string;height:number}){
  const {largeText}=useLayout();
+ const [preview,setPreview]=useState<number|null>(null),[held,setHeld]=useState(false);
  // Taps can outrun a render, so the parent applies each step to its latest payload.
+ const latest=useRef({value,onStep});latest.current={value,onStep};
+ const pending=useRef(0);
  const step=(delta:number)=>{tick();onStep(delta)};
- const small=(delta:number)=><Pressable key={delta} accessibilityRole="button" accessibilityLabel={(delta>0?'Add ':'Take back ')+Math.abs(delta)+' '+label} disabled={delta<0&&value===0} onPress={()=>step(delta)} style={({pressed})=>({flex:1,minHeight:48,borderRadius:12,alignItems:'center',justifyContent:'center',backgroundColor:pressed?theme.line:theme.panel,opacity:delta<0&&value===0?.4:1})}><Text style={{color:theme.text,fontSize:17,fontWeight:'700',fontVariant:['tabular-nums']}}>{delta>0?'+':'−'}{Math.abs(delta)}</Text></Pressable>;
+ const responder=useMemo(()=>PanResponder.create({
+  onStartShouldSetPanResponder:()=>true,
+  onMoveShouldSetPanResponder:(_,g)=>Math.abs(g.dx)>Math.abs(g.dy),
+  // Let the page scroll unless the finger is already sliding sideways.
+  onPanResponderTerminationRequest:(_,g)=>Math.abs(g.dx)<SLIDE_START,
+  onPanResponderGrant:()=>{pending.current=0;setHeld(true)},
+  onPanResponderMove:(_,g)=>{const d=slideDelta(g.dx,latest.current.value);if(d!==pending.current){pending.current=d;tick()}setPreview(Math.abs(g.dx)>=SLIDE_START?d:null)},
+  onPanResponderRelease:(_,g)=>{const d=pending.current;pending.current=0;setHeld(false);setPreview(null);if(Math.abs(g.dx)<SLIDE_START&&Math.abs(g.dy)<SLIDE_START){tick();latest.current.onStep(1)}else if(d)latest.current.onStep(d)},
+  onPanResponderTerminate:()=>{pending.current=0;setHeld(false);setPreview(null)},
+ }),[]);
+ const shown=value+(preview??0);
+ const small=(delta:number)=><Pressable key={delta} accessibilityRole="button" accessibilityLabel={(delta>0?'Add ':'Take back ')+Math.abs(delta)+' '+label} disabled={delta<0&&value===0} onPress={()=>step(delta)} style={({pressed})=>({flex:1,minHeight:52,borderRadius:12,alignItems:'center',justifyContent:'center',backgroundColor:pressed?theme.line:theme.panel,opacity:delta<0&&value===0?.4:1})}><Text style={{color:theme.text,fontSize:22,fontFamily:DISPLAY_BOLD}}>{delta>0?'+':'−'}{Math.abs(delta)}</Text></Pressable>;
  return <View style={{gap:8}}>
-  <Pressable accessibilityRole="button" accessibilityLabel={`${label}, ${value}. Add 1`} onPress={()=>step(1)} style={({pressed})=>({minHeight:largeText?Math.max(120,height):height,borderRadius:20,backgroundColor:fill,paddingHorizontal:18,flexDirection:largeText?'column':'row',alignItems:largeText?'flex-start':'center',justifyContent:'space-between',borderTopWidth:2,borderBottomWidth:5,borderTopColor:'rgba(255,255,255,.28)',borderBottomColor:'rgba(0,0,0,.25)',transform:[{scale:pressed?.98:1}]})}>
-   <Text style={{color:'#fff',fontSize:28,fontFamily:DISPLAY_BOLD}}>{label}</Text>
-   <Text maxFontSizeMultiplier={1.2} style={{color:'#fff',fontSize:Math.min(110,Math.max(64,height*.7)),lineHeight:Math.min(116,Math.max(68,height*.74)),fontFamily:DISPLAY,fontVariant:['tabular-nums'],includeFontPadding:false}}>{value}</Text>
-  </Pressable>
-  <View style={{flexDirection:'row',gap:8}}>{small(-10)}{small(-1)}{small(10)}</View>
+  <View {...responder.panHandlers} accessible accessibilityRole="adjustable" accessibilityLabel={label} accessibilityValue={{text:String(value)}} accessibilityHint="Tap to add one, or slide right to add more" accessibilityActions={[{name:'increment'},{name:'decrement'},{name:'activate'}]} onAccessibilityAction={e=>{const n=e.nativeEvent.actionName;if(n==='decrement'){if(value>0)step(-1)}else step(1)}} style={{minHeight:largeText?Math.max(120,height):height,borderRadius:20,backgroundColor:fill,paddingHorizontal:18,flexDirection:largeText?'column':'row',alignItems:largeText?'flex-start':'center',justifyContent:'space-between',borderTopWidth:2,borderBottomWidth:5,borderTopColor:'rgba(255,255,255,.28)',borderBottomColor:'rgba(0,0,0,.25)',transform:[{scale:held&&preview===null?.98:1}]}}>
+   <View style={{gap:2}}>
+    <Text style={{color:'#fff',fontSize:28,fontFamily:DISPLAY_BOLD}}>{label}</Text>
+    {preview!==null?<Text style={{color:'#fff',fontSize:24,fontFamily:DISPLAY_BOLD,opacity:.9}}>{preview>=0?'+':'−'}{Math.abs(preview)}</Text>:value===0?<Text style={{color:'rgba(255,255,255,.75)',fontSize:14,fontWeight:'600'}}>Tap, or slide → for more</Text>:null}
+   </View>
+   <Text maxFontSizeMultiplier={1.2} style={{color:'#fff',fontSize:Math.min(110,Math.max(64,height*.7)),lineHeight:Math.min(116,Math.max(68,height*.74)),fontFamily:DISPLAY,fontVariant:['tabular-nums'],includeFontPadding:false}}>{shown}</Text>
+  </View>
+  <View style={{flexDirection:'row',gap:8}}>{small(-1)}{small(3)}{small(5)}{small(10)}</View>
  </View>;
 }
 
