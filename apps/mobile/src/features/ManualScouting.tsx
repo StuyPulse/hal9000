@@ -143,7 +143,7 @@ export function ManualScoutingScreen({ kind, entryId, fieldArt }: { kind: Manual
 
   const missingEntry = Boolean(entryId) && !loadedEntry.current && !records.some((item) => item.entry.id === entryId);
   if (bundle && viewer && missingEntry) {
-    return <Screen theme={theme}><Notice theme={theme} tone="warning">This report is not stored on this device, so it cannot be edited here yet. Open it from Submissions on a device that wrote it, or use the website.</Notice></Screen>;
+    return <Screen theme={theme}><Notice theme={theme} tone="warning">Edit this report on the phone that made it, or on the website.</Notice></Screen>;
   }
   if (!bundle || !viewer) {
     return <Screen theme={theme}><Notice theme={theme} tone="warning">Download the active event before filling out {title.toLowerCase()} reports.</Notice></Screen>;
@@ -247,7 +247,7 @@ export function ManualScoutingScreen({ kind, entryId, fieldArt }: { kind: Manual
 
   return (
     <Screen theme={theme} scrollEnabled={!drawing} footer={teamId ? <Button theme={theme} title="Review report" icon="check" disabled={blocked} onPress={() => { if (timer.current) clearTimeout(timer.current); void persist(false); setStep('review'); }} /> : undefined}>
-      {editing ? <Notice theme={theme}>The report stays attached to its original team and event.</Notice> : null}
+      {editing ? <Notice theme={theme}>Team and event can't change.</Notice> : null}
       {preScoutNote ? <Notice theme={theme} tone="warning">{preScoutNote}</Notice> : null}
       {!app.online ? <Notice theme={theme}>Offline · saved on this device</Notice> : null}
 
@@ -271,7 +271,7 @@ export function ManualScoutingScreen({ kind, entryId, fieldArt }: { kind: Manual
         </View>
       ) : null}
       <TeamPicker theme={theme} teams={bundle.teams} value={teamId} disabled={editing || Boolean(recordId)} markedIds={markedTeamIds} markedLabel={kind === 'pit' ? 'Pit report submitted' : 'Pre-scout report submitted'} onChange={chooseTeam} />
-      {recordId && !editing ? <Button theme={theme} secondary title="Change team (start a new report)" onPress={startAnother} /> : null}
+      {recordId && !editing ? <Button theme={theme} secondary title="Scout another team" onPress={startAnother} /> : null}
       {kind === 'pre_scout' && teamId ? (() => {
         const scouts = coordination.byTeam.get(teamId) ?? [];
         const names = scouts.filter((id) => id !== viewer.userId).map((id) => bundle.profiles?.[id] ?? 'A scout');
@@ -321,7 +321,7 @@ export function ManualScoutingScreen({ kind, entryId, fieldArt }: { kind: Manual
                 {textField(PIT_TEXT_FIELDS.comments)}
               </Section>
 
-              <Section theme={theme} title="Autonomous routines / paths">
+              <Section theme={theme} title="Auto paths">
                 <AutoPathCanvas key={`${recordId ?? 'new'}`} theme={theme} value={fields.auto_routines_drawing ?? ''} fieldArt={fieldArt} onDrawingChange={setDrawing} onChange={(svg) => setField('auto_routines_drawing', svg)} />
                 <Input theme={theme} label="Auton notes" value={fields.auto_routines_notes ?? ''} onChangeText={(value) => setField('auto_routines_notes', value)} multiline placeholder={'Red — scores preload, then returns through the trench\nBlue — collects from DEPOT before shooting\nGreen — alternate routine'} />
               </Section>
